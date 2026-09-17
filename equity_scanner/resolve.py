@@ -74,6 +74,13 @@ def candidats(saisie: str) -> list[str]:
     s = saisie.strip().upper()
     if not s:
         return []
+    # La table ALIAS existait depuis le debut et n'etait JAMAIS consultee
+    # ici : « SANOFI » partait en onze telechargements (SANOFI, SANOFI.PA,
+    # SANOFI.DE...) qui echouaient tous, alors que la reponse — SAN.PA —
+    # etait ecrite en bas de ce fichier. Elle passe maintenant en tete.
+    direct = par_alias(s)
+    if direct:
+        return [direct]
     if "." in s or "-" in s or "^" in s:
         return [s]                                  # deja qualifie
     if est_isin(s):
@@ -94,6 +101,8 @@ def resoudre(saisie: str, load_fn, av_key: str | None = None,
         return cache[s], []
 
     liste = candidats(s)
+    if liste and liste[0] != s and par_alias(s):
+        journal(f"  {s} -> {liste[0]}")
     if est_isin(s) and not liste:
         journal(f"  ISIN {s} : annuaire Yahoo muet.")
     elif est_isin(s):

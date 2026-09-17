@@ -77,6 +77,17 @@ def dates_annonces(ticker: str, journal=print) -> list[pd.Timestamp]:
 
 
 # ------------------------------------------------------------ evenements
+def aligne(bo: pd.DataFrame, index: pd.Index) -> pd.DataFrame:
+    """Indice de reference remis sur le calendrier du titre.
+
+    Sans cela, toute lecture par position (`iloc[j]`) dans `bo` designe
+    une date differente de celle du titre.
+    """
+    if len(bo.index) == len(index) and bool((bo.index == index).all()):
+        return bo
+    return bo.reindex(index).ffill()
+
+
 def evenements(d: pd.DataFrame, bench: pd.DataFrame,
                dates: list[pd.Timestamp]) -> list[dict]:
     """Pour chaque annonce : la reaction du marche et les conditions.
@@ -171,7 +182,17 @@ def simule_pead(d, i_ann, ticker, bo, prochaine=None) -> bt.Trade | None:
 
 def trades_ticker(d, ticker, bench, bo, dates, debut, fin) -> tuple[list, list]:
     """Rend les trades pris et les evenements SANS surprise, qui serviront
-    de population temoin au test du hasard."""
+    de population temoin au test du hasard.
+
+    `bo` est realigne sur le calendrier du titre. C'etait le defaut le plus
+    couteux du module : l'indice arrivait avec SON propre calendrier et on
+    lisait dedans par position (`bo["close"].iloc[j]`, j venant du titre).
+    Des qu'un titre n'avait pas exactement le meme nombre de barres que
+    SPY — introduction plus tardive, jour ferie local, suspension de
+    cotation — le filtre de regime lisait une AUTRE DATE. Sur un titre
+    europeen, le decalage atteignait plusieurs semaines.
+    """
+    bo = aligne(bo, d.index)
     evs = evenements(d, bench, dates)
     pris, temoins = [], []
     d0, d1 = pd.Timestamp(debut), pd.Timestamp(fin)
@@ -210,18 +231,23 @@ def z_contre_annonces_neutres(trades, temoins_par_tk, series, bo,
     reel = float(np.mean([t.rendement for t in trades]))
     n = len(trades)
     tirs = []
+    # Chaque temoin est rejoue avec l'indice aligne sur le calendrier de
+    # SON titre, exactement comme le trade reel auquel on le compare.
+    aligne_par_tk = {tk: aligne(bo, series[tk].index) for tk in series}
     for _ in range(tirages):
         ech = []
         for k in rng.integers(0, len(plat), n):
             tk, ev, pr = plat[int(k)]
-            t = simule_pead(series[tk], ev["i"], tk, bo, pr)
+            t = simule_pead(series[tk], ev["i"], tk, aligne_par_tk[tk], pr)
             if t:
                 ech.append(t.rendement)
         if ech:
             tirs.append(float(np.mean(ech)))
     if not tirs:
         return 0.0, 0.0, 0.0
-    mu, sd = float(np.mean(tirs)), float(np.std(tirs))
+    # ddof=1 : meme convention que la Phase 0, sinon les deux z ne sont
+    # pas comparables entre eux.
+    mu, sd = float(np.mean(tirs)), float(np.std(tirs, ddof=1))
     z = (reel - mu) / sd if sd > 0 else 0.0
     return z, reel, mu
 
@@ -233,14 +259,15 @@ def _pf(rs):
     return (g / p) if p > 0 else (float("inf") if g > 0 else 0.0)
 
 
-def mesures(trades) -> dict:
+def mesures(trades, series: dict | None = None) -> dict:
     rs = [t.R for t in trades]
-    pt = bt.portefeuille(trades, risque=RISQUE, max_pos=MAX_POS)
+    pt = bt.portefeuille(trades, risque=RISQUE, max_pos=MAX_POS, series=series)
     return {"n": len(trades), "pf": _pf(rs),
             "ev": (sum(rs) / len(rs)) if rs else 0.0,
             "reussite": (sum(1 for x in rs if x > 0) / len(rs)) if rs else 0.0,
             "duree": float(np.mean([t.barres for t in trades])) if trades else 0.0,
-            "dd": pt["dd"], "pris": pt["pris"], "courbe": pt["courbe"]}
+            "dd": pt["dd"], "dd_source": pt["dd_source"],
+            "pris": pt["pris"], "courbe": pt["courbe"]}
 
 
 def lance(tickers, csv=None, journal=print) -> dict:
@@ -280,7 +307,7 @@ def lance(tickers, csv=None, journal=print) -> dict:
         trades += pr
         if tm:
             temoins[tk] = tm
-    m = mesures(trades)
+    m = mesures(trades, series)
     journal(f"  {m['n']} trades, {sum(len(v) for v in temoins.values())} "
             f"annonces temoins (sans surprise)\n")
 
@@ -293,7 +320,8 @@ def lance(tickers, csv=None, journal=print) -> dict:
     journal(f"    {'esperance par trade':<26}{m['ev']:+.3f} R")
     journal(f"    {'taux de reussite':<26}{m['reussite']:.0%}")
     journal(f"    {'duree moyenne':<26}{m['duree']:.0f} seances")
-    journal(f"    {'drawdown':<26}{m['dd']:.1%}")
+    journal(f"    {'drawdown':<26}{m['dd']:.1%}  "
+            f"(valorisation {m.get('dd_source', '?')})")
     journal(f"    {'rendement reel':<26}{reel:+.3%}")
     journal(f"    {'annonces neutres':<26}{mu:+.3%}")
     journal(f"    {'score z':<26}{z:+.2f}")

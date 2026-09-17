@@ -66,15 +66,38 @@ def evaluate(
     days_to_earnings=None signifie INCONNU, pas SANS RISQUE : le veto est
     alors levé en warning, jamais ignoré silencieusement.
     """
-    row = d.iloc[i]
-    win = d.iloc[i - PULLBACK_WINDOW + 1 : i + 1] if i != -1 else d.iloc[-PULLBACK_WINDOW:]
-    sig = Signal(ticker=ticker, date=d.index[i], fired=False)
+    n = len(d)
+    if n == 0:
+        raise ValueError("serie vide : aucune barre a evaluer")
+    # Position ABSOLUE de la barre. Sans cette normalisation, un indice
+    # positif plus petit que la fenetre produisait une borne de depart
+    # negative : la tranche repartait de la FIN de la serie et rendait une
+    # fenetre vide, donc un stop a NaN. Et i=0 faisait de `prev` la
+    # derniere barre — le declencheur se comparait au futur.
+    pos = i if i >= 0 else n + i
+    if not 0 <= pos < n:
+        raise IndexError(f"barre {i} hors de la serie ({n} barres)")
+    if pos < 1:
+        raise ValueError("la barre 0 n'a pas de veille : declencheur "
+                         "non evaluable")
+    row = d.iloc[pos]
+    win = d.iloc[max(0, pos - PULLBACK_WINDOW + 1) : pos + 1]
+    sig = Signal(ticker=ticker, date=d.index[pos], fired=False)
 
     # --- Bloc 1 : régime ---------------------------------------------
     sig.blocks["1a_marche_sma200"] = bench_ok
     sig.blocks["1b_titre_sma200"] = bool(row["close"] > row["sma200"])
     sig.blocks["1c_sma50_pente"] = bool(row["sma50_slope20"] > 0)
-    sig.blocks["1d_force_relative"] = bool(row.get("rs", np.nan) > row.get("rs_ma50", np.nan))
+    # Sans benchmark, `rs` est absent : la force relative n'est pas
+    # EVALUABLE. On la marque comme telle au lieu de la compter comme un
+    # echec, et `fired` ne peut pas se declencher tant qu'elle manque.
+    if "rs" in d.columns and "rs_ma50" in d.columns:
+        sig.blocks["1d_force_relative"] = bool(
+            row["rs"] > row["rs_ma50"])
+    else:
+        sig.blocks["1d_force_relative"] = False
+        sig.vetos.append("FORCE RELATIVE NON CALCULEE — indice de reference "
+                         "absent")
     # La LIGNE MACD reste au-dessus de zéro pendant un repli sain : c'est une
     # condition de régime. L'HISTOGRAMME, lui, passe négatif par construction
     # dès qu'il y a repli — exiger hist > 0 à l'entrée arrive 4 à 6 séances
@@ -94,7 +117,7 @@ def evaluate(
     sig.blocks["2d_repli_recent"] = bool(row["bars_since_high60"] <= PULLBACK_WINDOW)
 
     # --- Bloc 3 : déclencheur ----------------------------------------
-    prev = d.iloc[i - 1]
+    prev = d.iloc[pos - 1]
     sig.blocks["3a_macd_hist_retourne"] = bool(row["macd_hist"] > prev["macd_hist"])
     sig.blocks["3b_close_sup_ema20"] = bool(row["close"] > row["ema20"])
     sig.blocks["3c_close_sup_haut_veille"] = bool(row["close"] > prev["high"])
@@ -123,6 +146,10 @@ def evaluate(
     # --- Niveaux ------------------------------------------------------
     sig.entry = float(row["close"])
     sig.atr = float(row["atr14"])
+    if not np.isfinite(sig.atr) or sig.atr <= 0:
+        sig.fired = False
+        sig.vetos.append("ATR indisponible — niveaux non calculables")
+        return sig
     swing_low = float(win["low"].min()) - STOP_SWING_BUFFER * sig.atr
     atr_stop = sig.entry - STOP_ATR_MULT * sig.atr
     sig.stop = float(min(swing_low, atr_stop))

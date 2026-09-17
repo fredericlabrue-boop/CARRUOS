@@ -67,11 +67,24 @@ def rs_ratio(close: pd.Series, bench_close: pd.Series, n: int = 50):
 
 def bars_since_high(high: pd.Series, lookback: int = 60) -> pd.Series:
     """Nombre de séances écoulées depuis le plus haut des `lookback` dernières.
-    0 = le plus haut est aujourd'hui."""
-    idx = high.rolling(lookback, min_periods=lookback).apply(
-        lambda w: float(len(w) - 1 - int(np.argmax(w))), raw=True
-    )
-    return idx
+    0 = le plus haut est aujourd'hui.
+
+    Version par fenêtres glissantes numpy. Le `rolling().apply()` d'origine
+    rappelait une fonction Python une fois par barre : sur un univers de
+    500 titres × 5 000 barres, il représentait à lui seul 40 % du temps
+    de calcul des indicateurs. Le résultat est identique, vérifié par test.
+    """
+    v = high.to_numpy(dtype=float)
+    n = len(v)
+    out = np.full(n, np.nan)
+    if n >= lookback and lookback > 0:
+        fen = np.lib.stride_tricks.sliding_window_view(v, lookback)
+        # argmax renvoie la PREMIERE occurrence du maximum, comme np.argmax
+        # dans la version d'origine : même convention en cas d'égalité.
+        out[lookback - 1:] = (lookback - 1 - np.argmax(fen, axis=1)).astype(float)
+        # Une fenêtre contenant un NaN n'a pas de plus haut défini.
+        out[lookback - 1:][np.isnan(fen).any(axis=1)] = np.nan
+    return pd.Series(out, index=high.index, name=high.name)
 
 
 # Periodes de la strategie, en barres JOURNALIERES. Elles sont gelees :
@@ -107,7 +120,12 @@ def enrich(df: pd.DataFrame, bench_close: pd.Series | None = None,
     d["bb_mid"], d["bb_up"], d["bb_low"], d["bb_width"] = bollinger(
         c, P["bb"][0], P["bb"][1])
     d["vol_ma20"] = v.rolling(P["vol_ma"], min_periods=P["vol_ma"]).mean()
-    d["rvol"] = rvol(v)
+    # rvol et rs_ma50 suivent EUX AUSSI la conversion de calendrier. Les
+    # laisser sur leurs valeurs par défaut (20 et 50 barres) donnait, en
+    # hebdomadaire, un volume relatif calculé sur 20 SEMAINES face à des
+    # moyennes converties sur 4 : deux horizons différents dans la même
+    # ligne de règle.
+    d["rvol"] = rvol(v, P["vol_ma"])
     d["sma50_slope20"] = d["sma50"] - d["sma50"].shift(P["pente"])
     d["bars_since_high60"] = bars_since_high(h, P["haut"])
     d["gap_pct"] = (d["open"] / c.shift(1) - 1.0).abs()
@@ -116,6 +134,26 @@ def enrich(df: pd.DataFrame, bench_close: pd.Series | None = None,
 
     if bench_close is not None:
         bench = bench_close.reindex(d.index).ffill()
-        d["rs"], d["rs_ma50"] = rs_ratio(c, bench)
-        d["rs_6m"] = (c / c.shift(126)) / (bench / bench.shift(126))
+        d["rs"], d["rs_ma50"] = rs_ratio(c, bench, P["sma_moyenne"])
+        # 126 séances = six mois. Sur une autre taille de bougie, le
+        # nombre de barres suit le même facteur de conversion que les
+        # moyennes : 126 × (200 converti / 200 journalier).
+        facteur = P["sma_longue"] / PERIODES["sma_longue"]
+        n6m = max(2, round(126 * facteur))
+        d["rs_6m"] = (c / c.shift(n6m)) / (bench / bench.shift(n6m))
     return d
+
+
+def colonnes_manquantes(d: pd.DataFrame, avec_benchmark: bool = True) -> list[str]:
+    """Colonnes qu'`enrich` aurait dû produire et qui manquent.
+
+    Sert de garde-fou : une règle qui interroge une colonne absente doit
+    refuser de conclure, jamais renvoyer « faux » en silence.
+    """
+    attendues = ["sma200", "sma50", "ema20", "atr14", "rsi14", "macd",
+                 "macd_sig", "macd_hist", "bb_mid", "bb_up", "bb_low",
+                 "bb_width", "vol_ma20", "rvol", "sma50_slope20",
+                 "bars_since_high60", "gap_pct", "dollar_vol20"]
+    if avec_benchmark:
+        attendues += ["rs", "rs_ma50", "rs_6m"]
+    return [c for c in attendues if c not in d.columns]

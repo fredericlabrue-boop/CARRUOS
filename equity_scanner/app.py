@@ -31,6 +31,7 @@ from . import chart as gr
 from . import data as dl
 from . import find as fd
 from . import hud as hd
+from . import news as nw
 from . import positions as ps
 from . import reglages as rg
 from .indicators import enrich
@@ -1088,6 +1089,12 @@ _VAL = {"actif": False, "quoi": "", "lignes": [], "debut": None,
         "fini": False, "verdict": ""}
 
 
+def tables_univers() -> dict:
+    """{cle: fonction qui rend la liste de tickers}. Un seul endroit ou
+    cette table se construit : elle etait recopiee a quatre endroits."""
+    return {k: f for k, (_, f) in dl.UNIVERS.items()}
+
+
 def _val_journal(txt=""):
     _VAL["lignes"].append(str(txt))
     if len(_VAL["lignes"]) > 400:
@@ -1107,17 +1114,21 @@ def _val_lance(quoi: str) -> dict:
         try:
             if quoi == "pead":
                 from . import pead
-                tables = {k: f for k, (_, f) in dl.UNIVERS.items()}
                 _val_journal("Univers US large. Collecte des dates "
                              "d'annonces, puis rejeu.")
-                pead.lance(tables["us"](), csv="pead-us.csv",
+                pead.lance(tables_univers()["us"](), csv="pead-us.csv",
                            journal=_val_journal)
             else:
                 from . import phase0
                 _val_journal("Phase 0 sur le S&P 500. Hors echantillon "
                              "2022-2026, un seul passage.")
-                phase0.lance("sp500", csv="phase0-sp500.csv",
-                             journal=_val_journal)
+                # phase0.lance attend une LISTE de tickers. On lui passait
+                # la chaine "sp500" : len() valait 5 et le moteur rejouait
+                # les regles sur cinq « titres » nommes s, p, 5, 0 et 0.
+                # Le bouton VALIDATION rendait donc toujours NO-GO, sans
+                # avoir teste quoi que ce soit.
+                phase0.lance(tables_univers()["sp500"](),
+                             csv="phase0-sp500.csv", journal=_val_journal)
         except Exception as exc:
             import traceback
             _val_journal(f"ECHEC : {type(exc).__name__}: {exc}")
@@ -1155,9 +1166,8 @@ def _p0_lance(univers: str) -> None:
             print(txt)
         try:
             from . import phase0
-            tables = {k: f for k, (_, f) in dl.UNIVERS.items()}
             note(f"  Univers : {dl.UNIVERS[univers][0]}")
-            phase0.lance(tables[univers](), journal=note)
+            phase0.lance(tables_univers()[univers](), journal=note)
         except Exception as exc:
             note(f"  ECHEC : {type(exc).__name__}: {exc}")
             import traceback

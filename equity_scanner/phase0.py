@@ -44,47 +44,82 @@ def profit_factor(rs: list[float]) -> float:
     return float("inf") if p == 0 else g / p
 
 
-def z_contre_hasard(trades, series: dict, graine=7) -> tuple:
+def z_contre_hasard(trades, series: dict, graine=7,
+                    debut=None, fin=None) -> tuple:
     """Pour chaque trade reel (titre T, duree D), tire une entree au hasard
     sur T et detient exactement D barres. On refait l'ensemble 1000 fois pour
     obtenir la distribution nulle, puis on compare.
 
     Ce test neutralise le beta : si le systeme ne fait que capter la hausse
     du marche, le hasard capte la meme chose et z tombe a zero.
+
+    DEUX CORRECTIONS.
+
+    1. La FENETRE. Les tirages se faisaient sur tout l'historique
+       disponible — soit 2006-2026 — alors que les trades compares sont
+       ceux du hors echantillon 2022-2026. On comparait donc le systeme
+       sur quatre ans a un hasard tire sur vingt ans, dont 2008 et 2020.
+       Le z mesurait en partie la difference entre deux PERIODES, pas
+       entre le signal et le hasard. Les tirages sont desormais bornes a
+       la meme fenetre que les trades.
+
+    2. LES COUTS. Le hasard payait `COUT_AR` (10 pb) quand les trades
+       reels payaient l'ouverture J+1 plus le spread et le slippage des
+       deux cotes (30 pb). Le systeme partait battu de 20 pb par trade.
+       Les deux camps paient maintenant exactement la meme chose.
     """
     if not trades:
         return 0.0, 0.0, 0.0
     rng = np.random.default_rng(graine)
     reel = float(np.mean([t.rendement for t in trades]))
+    cout = 2 * (bt.COUT_PAR_COTE + bt.SLIPPAGE) if bt.EXECUTION_J1 else bt.COUT_AR
+
+    # Fenetre de tirage : celle des trades compares, a defaut celle
+    # demandee. Sans borne, on tirerait sur des regimes de marche que le
+    # systeme n'a jamais eu l'occasion de traverser.
+    d0 = pd.Timestamp(debut) if debut else min(t.entree_d for t in trades)
+    d1 = pd.Timestamp(fin) if fin else max(t.sortie_d for t in trades)
 
     plan = []
     for t in trades:
         d = series.get(t.ticker)
         if d is None or len(d) < t.barres + 240:
             continue
-        plan.append((d["close"].to_numpy(), t.barres))
+        pos = np.flatnonzero((d.index >= d0) & (d.index <= d1))
+        lo = max(220, int(pos[0])) if len(pos) else 220
+        hi = (int(pos[-1]) if len(pos) else len(d) - 1) - t.barres
+        if hi <= lo:
+            continue
+        plan.append((d["close"].to_numpy(), t.barres, lo, hi))
     if len(plan) < 20:
         return reel, 0.0, 0.0
 
+    # Vectorise : un seul tirage numpy pour les 1000 repetitions au lieu
+    # de 1000 boucles Python imbriquees.
     moyennes = np.empty(TIRAGES)
+    debuts = np.empty((TIRAGES, len(plan)), dtype=np.int64)
+    for m, (_px, _dur, lo, hi) in enumerate(plan):
+        debuts[:, m] = rng.integers(lo, hi, TIRAGES)
     for k in range(TIRAGES):
         acc = np.empty(len(plan))
-        for m, (px, dur) in enumerate(plan):
-            i = rng.integers(220, len(px) - dur - 1)
-            acc[m] = px[i + dur] / px[i] - 1.0 - bt.COUT_AR
+        for m, (px, dur, _lo, _hi) in enumerate(plan):
+            i = int(debuts[k, m])
+            acc[m] = px[i + dur] / px[i] - 1.0 - cout
         moyennes[k] = acc.mean()
     mu, sd = float(moyennes.mean()), float(moyennes.std(ddof=1))
     z = 0.0 if sd == 0 else (reel - mu) / sd
     return reel, mu, z
 
 
-def mesures(trades, series) -> dict:
+def mesures(trades, series, debut=None, fin=None) -> dict:
     rs = [t.R for t in trades]
     rends = [t.rendement for t in trades]
     pf = profit_factor(rs)
     gagnants = [r for r in rs if r > 0]
-    pt = bt.portefeuille(trades)
-    reel, nul, z = z_contre_hasard(trades, series)
+    # `series` donne au portefeuille de quoi valoriser les lignes ouvertes
+    # chaque seance : le drawdown cesse d'ignorer les pertes latentes.
+    pt = bt.portefeuille(trades, series=series)
+    reel, nul, z = z_contre_hasard(trades, series, debut=debut, fin=fin)
     motifs = pd.Series([t.motif for t in trades]).value_counts().to_dict() if trades else {}
     return {
         "n": len(trades), "pf": pf,
@@ -92,7 +127,8 @@ def mesures(trades, series) -> dict:
         "ev_pct": float(np.mean(rends)) * 100 if rends else 0.0,
         "taux": len(gagnants) / len(rs) * 100 if rs else 0.0,
         "duree": float(np.mean([t.barres for t in trades])) if trades else 0.0,
-        "dd": pt["dd"] * 100, "final": pt["final"],
+        "dd": pt["dd"] * 100, "dd_source": pt["dd_source"],
+        "dd_realise": pt["dd_realise"] * 100, "final": pt["final"],
         "pris": pt["pris"], "ecartes": pt["ecartes"],
         "z": z, "reel": reel * 100, "hasard": nul * 100, "motifs": motifs,
     }
@@ -108,9 +144,19 @@ def verdict(m: dict) -> tuple:
 
 
 # --- Robustesse -------------------------------------------------------
-def robustesse(charge, tickers, bench, series) -> list:
+def robustesse(tickers, bench, series) -> list:
     """Chaque parametre decale de +-20 %. Un systeme qui ne survit qu'aux
-    valeurs exactes est du surapprentissage, pas un edge."""
+    valeurs exactes est du surapprentissage, pas un edge.
+
+    Ce n'est PAS un grid search : on ne garde aucune de ces valeurs. On
+    verifie seulement que l'avantage ne tient pas a une virgule.
+
+    Le moteur lit desormais ces seuils sur le module `rules` a chaque
+    appel. Avant, `simule()` gardait sa fenetre de repli et son multiple
+    d'ATR figes : decaler PULLBACK_WINDOW ne changeait rien au placement
+    du stop, et la ligne « fenetre de repli +-20 % » du rapport ne testait
+    donc pas ce qu'elle annoncait.
+    """
     from . import rules as R
     tests = [("RSI plancher", "RSI_FLOOR", R.RSI_FLOOR),
              ("RVOL minimum", "RVOL_MIN", R.RVOL_MIN),
@@ -123,18 +169,16 @@ def robustesse(charge, tickers, bench, series) -> list:
             if attr == "PULLBACK_WINDOW":
                 val = max(3, int(round(val)))
             setattr(R, attr, val)
-            if attr == "STOP_ATR_MULT":
-                bt.STOP_ATR_MULT = val
-            tr = []
-            for tk in tickers:
-                d = series.get(tk)
-                if d is not None:
-                    tr += bt.trades_ticker(d, tk, bench, OOS_DEBUT, OOS_FIN)
-            pf = profit_factor([t.R for t in tr]) if tr else 0.0
-            out.append((f"{nom} {signe:+.0%}", val, len(tr), pf, pf > 1.0))
-            setattr(R, attr, base)
-            if attr == "STOP_ATR_MULT":
-                bt.STOP_ATR_MULT = base
+            try:
+                tr = []
+                for tk in tickers:
+                    d = series.get(tk)
+                    if d is not None:
+                        tr += bt.trades_ticker(d, tk, bench, OOS_DEBUT, OOS_FIN)
+                pf = profit_factor([t.R for t in tr]) if tr else 0.0
+                out.append((f"{nom} {signe:+.0%}", val, len(tr), pf, pf > 1.0))
+            finally:
+                setattr(R, attr, base)
     return out
 
 
@@ -167,7 +211,9 @@ def tableau(titre, m, journal=print):
     journal(f"    rendement moyen     {m['reel']:+.2f} %  "
             f"contre {m['hasard']:+.2f} % au hasard")
     journal(f"    z                   {m['z']:+.2f}")
-    journal(f"    drawdown max        {m['dd']:.1f} %")
+    journal(f"    drawdown max        {m['dd']:.1f} %  "
+            f"(valorisation {m.get('dd_source', '?')}, "
+            f"realise seul {m.get('dd_realise', 0):.1f} %)")
     journal(f"    portefeuille        {m['pris']} pris, {m['ecartes']} ecartes "
             f"(5 positions max)")
     if m["motifs"]:
@@ -191,7 +237,8 @@ def lance(tickers, csv=None, journal=print):
         tr_in += bt.trades_ticker(d, tk, bench, IN_DEBUT, IN_FIN)
         tr_oos += bt.trades_ticker(d, tk, bench, OOS_DEBUT, OOS_FIN)
 
-    m_in, m_oos = mesures(tr_in, series), mesures(tr_oos, series)
+    m_in = mesures(tr_in, series, IN_DEBUT, IN_FIN)
+    m_oos = mesures(tr_oos, series, OOS_DEBUT, OOS_FIN)
     tableau("IN-SAMPLE (calibration, ne decide de rien)", m_in, journal)
     tableau("HORS ECHANTILLON (c'est lui qui decide)", m_oos, journal)
 
@@ -202,7 +249,7 @@ def lance(tickers, csv=None, journal=print):
 
     if ok:
         journal("\n  Robustesse (+-20 % sur chaque parametre)...")
-        for nom, val, n, pf, bon in robustesse(None, list(series), bench, series):
+        for nom, val, n, pf, bon in robustesse(list(series), bench, series):
             journal(f"    {'OK  ' if bon else 'NON '}  {nom:<26} "
                     f"valeur {val:<6} {n:4d} trades  PF {pf:.2f}")
 
@@ -233,7 +280,7 @@ def lance(tickers, csv=None, journal=print):
         try:
             from . import comparatif as cp
             from . import data as dl
-            courbe = bt.portefeuille(tr_oos)["courbe"]
+            courbe = bt.portefeuille(tr_oos, series=series)["courbe"]
             ref = dl.load_yf("SMH", years=20)["close"]
             ref = ref[(ref.index >= courbe.index[0])
                       & (ref.index <= courbe.index[-1])]

@@ -138,19 +138,21 @@ def mesures_titre(d: pd.DataFrame, marche_ok: bool) -> list[dict]:
 
 
 def confirmerait(mes: list[dict], sorties: dict) -> list[str]:
-    """Ce qui manque, nomme precisement. Aucune promesse de resultat."""
-    out = [f"{m['nom']} repasse {'au-dessus' if m['statut'] == 'en-dessous' else 'en-dessous'} "
-           f"de {m['seuil']}{m['unite']}"
-           for m in mes
-           if m["statut"] in ("au-dessus", "en-dessous")
-           and m["seuil"] is not None
-           and ((m["source"].startswith("regle")) and
-                ((m["statut"] == "en-dessous" and "en-dessous" not in m["nom"])
-                 if False else False))]
+    """Ce qui manque, nomme precisement. Aucune promesse de resultat.
+
+    (La premiere version construisait une liste avec une condition
+    `if False else False` — toujours vide — avant de l'ecraser par la
+    ligne suivante. Le resultat etait juste par accident ; il est
+    maintenant juste par construction.)
+    """
     manque = [m for m in mes
               if m["source"].startswith("regle") and m["statut"] == "en-dessous"]
     out = [f"{m['nom']} : {m['valeur']}{m['unite']} -> il faut "
            f"{m['seuil']}{m['unite']}" for m in manque]
+    indispo = [m["nom"] for m in mes
+               if m["source"].startswith("regle") and m["statut"] == "indisponible"]
+    if indispo:
+        out.append("NON MESURE, donc non concluant : " + ", ".join(indispo))
     return out or ["Toutes les conditions mesurees sont deja remplies."]
 
 

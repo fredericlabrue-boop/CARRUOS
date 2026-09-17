@@ -24,6 +24,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from . import rules as R
 from .rules import (STOP_ATR_MULT, STOP_SWING_BUFFER, evaluate, market_regime_ok)
 
 COUT_AR = 0.0010          # 10 bp par aller-retour
@@ -113,9 +114,13 @@ def simule(d: pd.DataFrame, i: int, ticker: str, bo: pd.DataFrame) -> Trade | No
         return None
     entree, i0 = ex
 
-    fenetre = d.iloc[max(0, i - 9):i + 1]
-    stop = min(float(fenetre["low"].min()) - STOP_SWING_BUFFER * atr,
-               entree - STOP_ATR_MULT * atr)
+    # La fenetre du plus bas de repli EST celle de la regle. Elle etait
+    # ecrite « i - 9 » en dur : quand la Phase 0 decalait PULLBACK_WINDOW
+    # de +-20 % pour tester la robustesse, le moteur continuait de placer
+    # le stop sur 10 barres et le test de robustesse ne testait rien.
+    fenetre = d.iloc[max(0, i - R.PULLBACK_WINDOW + 1):i + 1]
+    stop = min(float(fenetre["low"].min()) - R.STOP_SWING_BUFFER * atr,
+               entree - R.STOP_ATR_MULT * atr)
     if stop >= entree:
         return None
     stop0 = stop
@@ -164,26 +169,47 @@ def signaux_vectorises(d: pd.DataFrame, bo: pd.DataFrame) -> np.ndarray:
     verifiee par test — mais ~100x plus rapide. Indispensable : sans ca, un
     passage sur le S&P 500 prend des heures et la Phase 0 n'est jamais lancee.
     """
-    from .rules import (EMA_BAND_ATR, GAP_LOOKBACK, GAP_VETO, MIN_DOLLAR_VOL,
-                        MIN_PRICE, PULLBACK_WINDOW, RSI_FLOOR, RSI_ZONE, RVOL_MIN)
-    W = PULLBACK_WINDOW
+    # Les seuils sont lus sur le module `rules` a chaque appel : c'est ce
+    # qui permet au test de robustesse de les decaler et d'etre reellement
+    # pris en compte ici.
+    W = R.PULLBACK_WINDOW
     c, h, l = d["close"], d["high"], d["low"]
     rsi, atr = d["rsi14"], d["atr14"]
 
     # Bloc 1 : regime
+    # Une colonne absente n'est pas une condition fausse : c'est une
+    # condition NON MESURABLE. Avant, « b &= ... if "rs" in d else False »
+    # eteignait tous les signaux de la serie en silence — un titre enrichi
+    # sans indice de reference rendait zero trade et la Phase 0 concluait
+    # « NO-GO, 0 trade » sans jamais dire pourquoi.
+    manquantes = [x for x in ("sma200", "sma50_slope20", "rs", "rs_ma50",
+                              "macd", "ema20", "atr14", "rsi14", "bb_mid",
+                              "macd_hist", "rvol", "bars_since_high60",
+                              "gap_pct", "dollar_vol20") if x not in d.columns]
+    if manquantes:
+        raise ValueError(
+            "colonnes d'indicateurs absentes : " + ", ".join(manquantes)
+            + ". Enrichis la serie avec bench_close=... avant de rejouer "
+              "les regles.")
+    for col in ("close", "sma200"):
+        if col not in bo.columns:
+            raise ValueError(f"indice de reference sans colonne '{col}'")
+
     b = (bo["close"].to_numpy() > bo["sma200"].to_numpy())
     b &= (c > d["sma200"]).to_numpy()
     b &= (d["sma50_slope20"] > 0).to_numpy()
-    b &= (d["rs"] > d["rs_ma50"]).to_numpy() if "rs" in d else False
+    b &= (d["rs"] > d["rs_ma50"]).to_numpy()
     b &= (d["macd"] > 0).to_numpy()
 
     # Bloc 2 : le repli
-    bande = (c - d["ema20"]).abs() <= EMA_BAND_ATR * atr
+    bande = (c - d["ema20"]).abs() <= R.EMA_BAND_ATR * atr
     touche = (l <= d["bb_mid"]).rolling(W, min_periods=1).max().astype(bool)
     b &= (bande | touche).to_numpy()
-    b &= rsi.between(*RSI_ZONE).rolling(W, min_periods=1).max().astype(bool).to_numpy()
-    b &= (rsi.rolling(W, min_periods=1).min() >= RSI_FLOOR).to_numpy()
+    b &= rsi.between(*R.RSI_ZONE).rolling(W, min_periods=1).max().astype(bool).to_numpy()
+    b &= (rsi.rolling(W, min_periods=1).min() >= R.RSI_FLOOR).to_numpy()
     b &= (d["bars_since_high60"] <= W).to_numpy()
+    # bars_since_high vaut NaN tant que la fenetre de 60 barres n'est pas
+    # pleine : NaN <= W rend False, ce qui est le comportement voulu.
 
     # Bloc 3 : le declencheur
     b &= (d["macd_hist"] > d["macd_hist"].shift(1)).to_numpy()
@@ -191,12 +217,12 @@ def signaux_vectorises(d: pd.DataFrame, bo: pd.DataFrame) -> np.ndarray:
     b &= (c > h.shift(1)).to_numpy()
 
     # Bloc 4 : confirmation independante
-    b &= (d["rvol"] >= RVOL_MIN).to_numpy()
+    b &= (d["rvol"] >= R.RVOL_MIN).to_numpy()
 
     # Vetos evaluables sur historique (le veto resultats ne l'est pas)
-    b &= (c >= MIN_PRICE).to_numpy()
-    b &= (d["dollar_vol20"] >= MIN_DOLLAR_VOL).to_numpy()
-    gap = (d["gap_pct"] > GAP_VETO).rolling(GAP_LOOKBACK, min_periods=1).max()
+    b &= (c >= R.MIN_PRICE).to_numpy()
+    b &= (d["dollar_vol20"] >= R.MIN_DOLLAR_VOL).to_numpy()
+    gap = (d["gap_pct"] > R.GAP_VETO).rolling(R.GAP_LOOKBACK, min_periods=1).max()
     b &= ~gap.fillna(0).astype(bool).to_numpy()
     return np.nan_to_num(b, nan=False).astype(bool)
 
@@ -231,34 +257,133 @@ def trades_ticker(d: pd.DataFrame, ticker: str, bench: pd.DataFrame,
 
 
 def portefeuille(trades: list[Trade], risque=0.01, max_pos=5,
-                 capital=10_000.0) -> dict:
+                 capital=10_000.0, series: dict | None = None) -> dict:
     """Reconstitue la courbe de capital en respectant les contraintes reelles :
     1 % de risque par trade, 5 positions simultanees au maximum.
 
     Un trade ecarte faute de place n'est pas compte comme perdu : il n'a
-    simplement jamais existe. C'est ce que ferait le systeme en vrai."""
-    if not trades:
-        return {"courbe": pd.Series(dtype=float), "dd": 0.0, "pris": 0,
-                "ecartes": 0, "final": capital}
+    simplement jamais existe. C'est ce que ferait le systeme en vrai.
 
-    tri = sorted(trades, key=lambda t: t.entree_d)
-    evts, ouverts, pris, ecartes = [], [], 0, 0
+    DEUX CORRECTIONS par rapport a la version d'origine.
+
+    1. La taille de la ligne se calcule sur le capital du jour d'ENTREE,
+       pas sur celui du jour de sortie. C'est la definition du risque
+       fractionnaire fixe : on ne peut pas dimensionner une position avec
+       un capital qu'on n'aura que plus tard.
+
+    2. Le drawdown. L'ancienne courbe n'avait un point qu'aux dates de
+       SORTIE, et deux sorties tombant le meme jour s'ecrasaient l'une
+       l'autre dans un dictionnaire. Cinq lignes ouvertes pouvaient perdre
+       30 % ensemble sans qu'un seul point de la courbe le montre : le
+       critere « drawdown < 20 % » de la Phase 0 se prononcait sur une
+       courbe aveugle aux pertes latentes.
+
+       Si `series` est fourni ({ticker: DataFrame enrichi}), la courbe est
+       valorisee CHAQUE SEANCE, positions ouvertes comprises : c'est le
+       drawdown reellement vecu. Sans `series`, on retombe sur le
+       drawdown realise et `dd_source` le dit franchement.
+    """
+    vide = {"courbe": pd.Series(dtype=float), "dd": 0.0, "dd_source": "aucune",
+            "dd_realise": 0.0, "pris": 0, "ecartes": 0, "final": capital}
+    if not trades:
+        return vide
+
+    # --- Selection : au plus `max_pos` lignes en meme temps -----------
+    # Une ligne qui sort a la cloture de X est encore detenue a l'ouverture
+    # de X : sa place n'est pas libre pour une entree datee de X.
+    tri = sorted(trades, key=lambda t: (t.entree_d, t.ticker))
+    fins: list[pd.Timestamp] = []
+    retenus, ecartes = [], 0
     for t in tri:
-        ouverts = [x for x in ouverts if x > t.entree_d]
-        if len(ouverts) >= max_pos:
+        fins = [x for x in fins if x >= t.entree_d]
+        if len(fins) >= max_pos:
             ecartes += 1
             continue
-        ouverts.append(t.sortie_d)
-        pris += 1
-        evts.append((t.sortie_d, t.R * risque))
+        fins.append(t.sortie_d)
+        retenus.append(t)
+    if not retenus:
+        return dict(vide, ecartes=ecartes)
 
+    # --- Capital realise, dans l'ordre chronologique ------------------
+    evts = []
+    for k, t in enumerate(retenus):
+        evts.append((t.entree_d, 0, k))         # 0 = entree traitee avant sortie
+        evts.append((t.sortie_d, 1, k))
     evts.sort()
-    eq, cap = [], capital
-    for ts, gain in evts:
-        cap *= (1 + gain)
-        eq.append((ts, cap))
-    courbe = pd.Series(dict(eq)).sort_index()
-    pic = courbe.cummax()
-    dd = float(((courbe - pic) / pic).min()) if len(courbe) else 0.0
-    return {"courbe": courbe, "dd": abs(dd), "pris": pris,
+
+    cap, engage, points = capital, {}, []
+    for date, genre, k in evts:
+        if genre == 0:
+            engage[k] = cap * risque
+        else:
+            cap += engage.get(k, cap * risque) * retenus[k].R
+            points.append((date, cap))
+
+    debut = min(t.entree_d for t in retenus)
+    realisee = pd.Series([v for _, v in points],
+                         index=pd.DatetimeIndex([d for d, _ in points]))
+    realisee = realisee.groupby(level=0).last().sort_index()
+    if debut not in realisee.index:
+        realisee = pd.concat(
+            [pd.Series([capital], index=pd.DatetimeIndex([debut])), realisee]
+        ).sort_index()
+    dd_realise = _drawdown(realisee)
+
+    courbe, dd, source = realisee, dd_realise, "sorties seulement"
+    if series:
+        q = _courbe_quotidienne(retenus, engage, realisee, series, capital)
+        if q is not None and len(q) > 1:
+            courbe, dd, source = q, _drawdown(q), "quotidienne"
+
+    return {"courbe": courbe, "dd": dd, "dd_source": source,
+            "dd_realise": dd_realise, "pris": len(retenus),
             "ecartes": ecartes, "final": float(cap)}
+
+
+def _drawdown(courbe: pd.Series) -> float:
+    """Pire recul depuis un sommet, en part du sommet. Toujours positif."""
+    if len(courbe) < 2:
+        return 0.0
+    pic = courbe.cummax()
+    return abs(float(((courbe - pic) / pic).min()))
+
+
+def _courbe_quotidienne(retenus, engage: dict, realisee: pd.Series,
+                        series: dict, capital: float) -> pd.Series | None:
+    """Capital valorise a chaque seance, pertes latentes comprises.
+
+    A une date donnee : capital DEJA REALISE, plus la valeur courante de
+    chaque ligne encore ouverte. Une ligne vaut son gain du moment en
+    multiples de risque (R) multiplie par la somme engagee a son entree.
+    C'est ce qu'afficherait le releve du courtier ce jour-la.
+
+    Le jour de la sortie, le gain est deja compte dans le capital realise :
+    la part latente s'arrete donc la veille, sans double comptage.
+    """
+    utiles = [t for t in retenus if t.ticker in series and t.risque > 0]
+    if not utiles:
+        return None
+    calendrier = None
+    for t in utiles:
+        idx = series[t.ticker].index
+        calendrier = idx if calendrier is None else calendrier.union(idx)
+    debut = min(t.entree_d for t in retenus)
+    fin = max(t.sortie_d for t in retenus)
+    calendrier = calendrier[(calendrier >= debut) & (calendrier <= fin)]
+    if len(calendrier) < 2:
+        return None
+
+    base = realisee.reindex(calendrier).ffill()
+    base = base.fillna(capital)
+    latent = pd.Series(0.0, index=calendrier)
+    for k, t in enumerate(retenus):
+        if t.ticker not in series or t.risque <= 0:
+            continue
+        c = series[t.ticker]["close"]
+        seg = c[(c.index >= t.entree_d) & (c.index < t.sortie_d)]
+        if seg.empty:
+            continue
+        r = ((seg - t.entree) / t.risque).reindex(calendrier)
+        latent = latent.add(r.fillna(0.0) * engage.get(k, capital * 0.01),
+                            fill_value=0.0)
+    return (base + latent).dropna()

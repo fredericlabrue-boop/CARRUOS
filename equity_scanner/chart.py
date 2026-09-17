@@ -206,6 +206,9 @@ def _perf_signal(d, ticker, bench):
     perte = -sum(r for r in rs if r < 0)
     return {
         "n": len(tr),
+        # Le compte exact de gagnants, pas le taux arrondi reconverti en
+        # compte : l'intervalle de Wilson se calcule sur des entiers.
+        "gagnants": len(g),
         "taux": round(len(g) / len(rs) * 100),
         "evR": round(float(np.mean(rs)), 2),
         "pf": round(sum(g) / perte, 2) if perte > 0 else 99.0,
@@ -962,7 +965,7 @@ def _arc_chance(perf):
                 '<div class="ex">Aucun trade de ce signal sur ce titre. '
                 'Impossible d\'estimer quoi que ce soit.</div></div>')
     n = perf["n"]
-    w = _wilson(round(perf["taux"] * n / 100), n)
+    w = _wilson(perf.get("gagnants", round(perf["taux"] * n / 100)), n)
     lo, mid, hi = w
     R, cx, cy = 92, 110, 104
     def pt(pct):

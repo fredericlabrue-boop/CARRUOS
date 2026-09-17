@@ -77,6 +77,18 @@ def systeme_net(courbe: pd.Series, capital: float = 10_000.0) -> dict:
     if len(c) < 2:
         return {}
     annees = (c.index[-1] - c.index[0]).days / 365.25
+
+    # La courbe du backtest commence au premier point APRES le depart : son
+    # premier element porte deja le resultat du premier trade. Prendre
+    # bloc.iloc[0] comme base de l'annee 1 effaçait donc ce trade du calcul
+    # d'impot, alors que `tri_brut` ci-dessous, lui, le comptait. Deux
+    # chiffres du meme tableau se contredisaient. On prefixe le capital de
+    # depart pour que les deux lisent la meme histoire.
+    if float(c.iloc[0]) != float(capital):
+        veille = c.index[0] - pd.Timedelta(days=1)
+        c = pd.concat([pd.Series([float(capital)],
+                                 index=pd.DatetimeIndex([veille])), c])
+
     cap = capital
     detail = []
     for an, bloc in c.groupby(c.index.year):
@@ -107,10 +119,13 @@ def barre_a_franchir(tri_ref_brut: float, annees: float) -> float:
     cible = (1 + tri_ref_brut) ** annees
     cible_net = 1 + (cible - 1) * (1 - PFU)
     lo, hi = tri_ref_brut, tri_ref_brut + 0.60
+    # Au moins une annee de rotation, sinon la boucle ne tourne pas et la
+    # bisection converge vers sa borne haute sans rien avoir calcule.
+    n_annees = max(1, int(round(annees)))
     for _ in range(80):
         mid = (lo + hi) / 2
         cap = 1.0
-        for _a in range(int(round(annees))):
+        for _a in range(n_annees):
             brut = cap * (1 + mid)
             frais = cap * FRAIS_ROTATION
             gain = brut - cap - frais
