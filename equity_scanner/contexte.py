@@ -42,8 +42,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from . import data as dl
-from .indicators import PERIODES, enrich
+from .indicators import enrich
 from .rules import evaluate_exit, market_regime_ok
 
 INDICES = {"us": ("SPY", "S&P 500"), "europe": ("^STOXX", "STOXX 600"),
@@ -169,8 +168,9 @@ def contexte_titre(ticker: str, marche: str = "us",
                    av_key: str | None = None) -> dict:
     bench_tk, bench_nom = INDICES.get(marche, INDICES["us"])
     try:
-        brut = dl.load_yf(ticker)
-        bench_brut = dl.load_yf(bench_tk)
+        from . import cache as ch
+        brut = ch.charge(ticker, annees=3)
+        bench_brut = ch.charge(bench_tk, annees=3)
         d = enrich(brut, bench_close=bench_brut["close"])
         bo = enrich(bench_brut)
     except Exception as exc:

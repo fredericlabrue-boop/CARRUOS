@@ -117,8 +117,8 @@ def controle(charge_fn, bench_tk="SPY") -> list[dict]:
 
 def rapport(charge_fn=None) -> None:
     """    py -m equity_scanner.positions"""
-    from . import data as dl
-    charge_fn = charge_fn or (lambda tk: dl.load_yf(tk, years=3))
+    from . import cache as ch
+    charge_fn = charge_fn or (lambda tk: ch.charge(tk, annees=3))
     lignes = controle(charge_fn)
     if not lignes:
         print("\n  Aucune position enregistree.")

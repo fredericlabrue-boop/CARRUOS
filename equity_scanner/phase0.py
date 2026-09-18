@@ -183,21 +183,42 @@ def robustesse(tickers, bench, series) -> list:
 
 
 # --- Execution --------------------------------------------------------
-def charge_univers(tickers, bench_tk="SPY", ans=20, journal=print):
-    bench_brut = dl.load_yf(bench_tk, years=ans)
+def charge_univers(tickers, bench_tk="SPY", ans=20, journal=print,
+                   qualite_min: float | None = None):
+    """Telecharge et enrichit tout l'univers.
+
+    Les telechargements partent en parallele et passent par le cache
+    disque : une deuxieme passe dans la journee ne touche plus le reseau.
+    C'etait la totalite des « 25 a 40 minutes » annoncees, le calcul ne
+    pesant que quelques secondes.
+
+    Chaque serie passe ensuite le controle qualite. Une serie trouee ou
+    perimee est ECARTEE, avec son motif : completer en silence reviendrait
+    a fabriquer des barres qui n'ont jamais existe.
+    """
+    from . import cache as ch
+    from . import qualite as ql
+
+    bench_brut = ch.charge(bench_tk, annees=ans)
     bench = enrich(bench_brut)
-    series, rates = {}, []
-    for n, tk in enumerate(tickers, 1):
-        try:
-            d = enrich(dl.load_yf(tk, years=ans), bench_close=bench_brut["close"])
-            if len(d) >= 400:
-                series[tk] = d
-            else:
-                rates.append(tk)
-        except Exception:
-            rates.append(tk)
-        if n % 25 == 0:
-            journal(f"    {n}/{len(tickers)} charges")
+    journal(f"    indice de reference {bench_tk} : {len(bench_brut)} barres")
+
+    brutes, echecs = ch.charge_lot(tickers, annees=ans, journal=journal)
+    series, rates = {}, [f"{tk} ({m})" for tk, m in echecs]
+    refuses = 0
+    for tk, brut in brutes.items():
+        rap = ql.controle(brut, bench_brut, ticker=tk, exige_recent=False)
+        if not rap.utilisable:
+            rates.append(f"{tk} ({rap.resume()})")
+            refuses += 1
+            continue
+        d = enrich(brut, bench_close=bench_brut["close"])
+        if len(d) >= 400:
+            series[tk] = d
+        else:
+            rates.append(f"{tk} (historique {len(d)} barres)")
+    if refuses:
+        journal(f"    {refuses} titre(s) ecarte(s) par le controle qualite")
     return bench, series, rates
 
 
@@ -230,6 +251,14 @@ def lance(tickers, csv=None, journal=print):
     bench, series, rates = charge_univers(tickers, journal=journal)
     journal(f"  {len(series)} titres exploitables"
             + (f", {len(rates)} ecartes" if rates else ""))
+    for motif in rates[:8]:
+        journal(f"    ecarte : {motif}")
+    if len(rates) > 8:
+        journal(f"    ... et {len(rates) - 8} autres")
+    if not series:
+        journal("  Aucune serie exploitable : rien a tester. "
+                "Verifie la connexion et la liste de tickers.")
+        return False, {}
 
     journal("\n  Rejeu des regles...")
     tr_in, tr_oos = [], []

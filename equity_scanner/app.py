@@ -1045,8 +1045,9 @@ class Bruce(http.server.BaseHTTPRequestHandler):
             if u.path == "/api/reglages":
                 return self._json(rg.charge())
             if u.path == "/api/positions":
+                from . import cache as ch
                 return self._json({"lignes": ps.controle(
-                    lambda tk: dl.load_yf(tk, years=3))})
+                    lambda tk: ch.charge(tk, annees=3))})
             if u.path == "/api/validation":
                 return self._json({"ok": True, "actif": _VAL["actif"],
                                    "quoi": _VAL["quoi"], "fini": _VAL["fini"],
@@ -1258,7 +1259,8 @@ def _etat():
 
     def ecart(tk):
         try:
-            d = enrich(dl.load_yf(tk, years=2))
+            from . import cache as ch
+            d = enrich(ch.charge(tk, annees=2))
             c = float(d["close"].iloc[-1])
             s = float(d["sma200"].iloc[-1])
             return round((c / s - 1) * 100, 1) if s == s and s else None
@@ -1272,7 +1274,8 @@ def _etat():
     surv = 0
     if n:
         try:
-            ctrl = ps.controle(lambda tk: dl.load_yf(tk, years=3))
+            from . import cache as ch
+            ctrl = ps.controle(lambda tk: ch.charge(tk, annees=3))
             surv = sum(1 for x in ctrl
                        if x["verdict"] in ("SORTIE", "STOP TOUCHE", "SURVEILLER"))
         except Exception:
@@ -1324,7 +1327,8 @@ def _verifie(saisie):
     from . import resolve as rs
     if not saisie.strip():
         return {"ok": False, "erreur": "Saisis un ticker."}
-    tk, _ = rs.resoudre(saisie, lambda t: dl.load_yf(t, years=3),
+    from . import cache as ch
+    tk, _ = rs.resoudre(saisie, lambda t: ch.charge(t, annees=3),
                         journal=lambda m: None)
     if tk is None:
         return {"ok": False,
@@ -1357,39 +1361,88 @@ def _page_graphique(tk):
         j = dl.days_to_earnings_yf(tk) if marche == "us" else None
         earn = {"date": "date inconnue", "jours": j}
 
-    return gr.build_html(dl.load_yf(tk, years=20), tk,
-                         dl.load_yf(bench_tk, years=20),
+    from . import cache as ch
+    return gr.build_html(ch.charge(tk, annees=20), tk,
+                         ch.charge(bench_tk, annees=20),
                          REGLAGES["sleeve"] * fx, ccy, barre=BARRE,
                          marche=marche, earn=earn, actus=actus)
 
 
 def _scan(univers, marche):
+    """Scan d'un univers depuis l'interface.
+
+    TROIS CORRECTIONS.
+
+    1. `days_to_earnings=None` etait passe en dur pour TOUS les titres.
+       La regle traite « inconnu » comme un veto — a juste titre — donc
+       chaque signal en portait un, `fired` etait toujours faux, et
+       `rank()` rendait invariablement une liste vide. Le bouton SCANNER
+       ne pouvait structurellement afficher aucun candidat. Le calendrier
+       Alpha Vantage est desormais consulte quand une cle existe, et le
+       veto ne subsiste que pour les titres reellement inconnus.
+
+    2. Telechargements en parallele et mis en cache : un univers de 500
+       titres ne bloque plus l'interface pendant une demi-heure.
+
+    3. Controle qualite avant evaluation, et journal d'audit apres.
+    """
+    from . import audit as ad
+    from . import cache as ch
+    from . import qualite as ql
     from .dashboard import LABELS
-    tables = {k: f for k, (_, f) in dl.UNIVERS.items()}
+
+    tables = tables_univers()
     if univers not in tables:
         return {"ok": False, "erreur": "univers inconnu"}
+    if marche not in INDICES:
+        return {"ok": False, "erreur": "marche inconnu"}
     bench_tk, nom, ccy = INDICES[marche]
     fx = 1.0 if ccy == "EUR" else REGLAGES["fx"]
     sleeve = REGLAGES["sleeve"] * fx
 
     detenus = ps.tickers()      # veto "deja en portefeuille", automatique
-    bench_raw = dl.load_yf(bench_tk)
+    bench_raw = ch.charge(bench_tk, annees=3)
+    rap_bench = ql.controle(bench_raw, ticker=bench_tk)
+    if not rap_bench.utilisable:
+        return {"ok": False,
+                "erreur": f"donnees de l'indice refusees : {rap_bench.resume()}"}
     bench = enrich(bench_raw)
-    ok = market_regime_ok(bench)
+    regime_ok = market_regime_ok(bench)
     b = bench.iloc[-1]
     regime = (f"{nom} {b['close']:.2f} / MM200 {b['sma200']:.2f} - "
-              f"{'RISK-ON' if ok else 'RISK-OFF'}")
-    if not ok:
+              f"{'RISK-ON' if regime_ok else 'RISK-OFF'}")
+    if not regime_ok:
         return {"ok": True, "regime": regime + " - aucune entree autorisee",
-                "n": 0, "fired": [], "proches": []}
+                "n": 0, "fired": [], "proches": [], "ecartes": []}
 
-    sigs = []
-    for tk in tables[univers]():
+    # Calendrier des resultats : un seul appel pour tout le marche US.
+    cal = {}
+    cle = cle_av()
+    if cle:
         try:
-            d = enrich(dl.load_yf(tk), bench_close=bench_raw["close"])
-            if len(d) >= 220:
-                sigs.append(evaluate(d, tk, ok, open_tickers=detenus,
-                                     n_open=len(detenus), days_to_earnings=None))
+            cal = nw.earnings_map(cle)
+        except Exception:
+            cal = {}
+
+    liste = tables[univers]()
+    brutes, echecs = ch.charge_lot(liste, annees=3)
+    sigs, ecartes = [], [f"{tk} : {m}" for tk, m in echecs[:10]]
+    for tk, brut in sorted(brutes.items()):
+        try:
+            rap = ql.controle(brut, bench_raw, ticker=tk)
+            if not rap.utilisable:
+                if len(ecartes) < 10:
+                    ecartes.append(f"{tk} : {rap.resume()}")
+                continue
+            d = enrich(brut, bench_close=bench_raw["close"])
+            if len(d) < 220:
+                continue
+            jours = nw.seances_avant(cal.get(tk)) if cal else None
+            sig = evaluate(d, tk, regime_ok, open_tickers=detenus,
+                           n_open=len(detenus), days_to_earnings=jours)
+            sigs.append(sig)
+            ad.enregistre(sig, d, source="interface", univers=univers,
+                          qualite={"alertes": rap.alertes})
         except Exception:
             continue
 
@@ -1402,9 +1455,12 @@ def _scan(univers, marche):
     proches = sorted((x for x in sigs if not x.fired),
                      key=lambda x: len(x.failed_blocks))[:12]
     res = {"ok": True, "regime": regime, "n": len(sigs), "fired": out,
+           "ecartes": ecartes,
+           "calendrier": len(cal),
            "proches": [{"ticker": x.ticker,
                         "manque": ", ".join(LABELS.get(k.split("_")[0], k)
-                                            for k in x.failed_blocks[:3])}
+                                            for k in x.failed_blocks[:3])
+                                  or "; ".join(x.vetos[:2])}
                        for x in proches]}
     # Trace pour le radar : ce qui manque a chaque titre, en nombre de
     # blocs. C'est cette distance qui donne le rayon de l'echo.

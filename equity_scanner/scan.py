@@ -12,8 +12,6 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
-import sys
-import time
 
 import pandas as pd
 
@@ -34,17 +32,53 @@ INDICES = {
 
 
 def run(tickers, sleeve, source="yf", open_tickers=(), verbose=False, pause=0.0,
-        html_path=None, marche="us", fx=1.0, av_key=None, graph=0):
-    load = dl.LOADERS[source]
+        html_path=None, marche="us", fx=1.0, av_key=None, graph=0,
+        fils=None, journal_audit=True):
+    """Scan d'un univers.
+
+    TROIS CHANGEMENTS par rapport a la version d'origine.
+
+    1. UN SEUL telechargement par titre. `resolve.resoudre()` chargeait
+       trois ans d'historique juste pour verifier qu'un ticker existe,
+       puis `load(tk)` les rechargeait aussitot. Chaque titre etait donc
+       telecharge DEUX FOIS, et un mnemonique europeen non qualifie
+       jusqu'a vingt-deux fois. Tout passe maintenant par le cache.
+
+    2. EN PARALLELE. Les telechargements attendent le reseau : les faire
+       l'un apres l'autre, c'est attendre 500 fois de suite.
+
+    3. CONTROLE QUALITE avant evaluation. Une serie trouee, perimee ou
+       portant une division non ajustee ne produit plus de signal : elle
+       ressort dans les erreurs, avec son motif.
+    """
+    from . import audit as ad
+    from . import cache as ch
+    from . import qualite as ql
+
+    # --pause servait a espacer les appels quand ils partaient l'un apres
+    # l'autre. Avec des telechargements simultanes, l'equivalent est de
+    # n'en lancer qu'un a la fois.
+    if pause:
+        fils = 1
     bench_tk, bench_nom, ccy = INDICES[marche]
     sleeve_local = sleeve * fx
 
-    bench_raw = load(bench_tk)
+    bench_raw = ch.charge(bench_tk, annees=3, source=source)
     bench = enrich(bench_raw)
     bench_ok = market_regime_ok(bench)
     b = bench.iloc[-1]
     print(f"\n{bench_nom} ({bench_tk}) {b['close']:.2f} | MM200 {b['sma200']:.2f} "
           f"| régime {'RISK-ON' if bench_ok else 'RISK-OFF'}   ({bench.index[-1].date()})")
+
+    # L'indice de reference subit le meme controle que les titres : un
+    # regime calcule sur une serie perimee vaudrait moins que rien.
+    rap_bench = ql.controle(bench_raw, ticker=bench_tk)
+    if not rap_bench.utilisable:
+        print(f"  DONNEES DE L'INDICE REFUSEES : {rap_bench.resume()}")
+        print("  Aucun signal ne sera produit : le filtre de regime n'est "
+              "pas calculable.")
+        return [], [], [(bench_tk, rap_bench.resume())]
+
     # Cloture US a 20h ou 21h UTC selon l'heure d'ete ; Europe a 15h30 ou 16h30.
     # On prend la borne haute pour etre certain que la bougie est definitive.
     now = dt.datetime.now(dt.timezone.utc)
@@ -76,60 +110,77 @@ def run(tickers, sleeve, source="yf", open_tickers=(), verbose=False, pause=0.0,
             print(f"  Calendrier Alpha Vantage indisponible ({exc}). "
                   f"Repli sur yfinance.")
 
-    signals, errors = [], []
-    for n, brut_tk in enumerate(tickers, 1):
-        tk = brut_tk
+    # --- Resolution des tickers --------------------------------------
+    resolus, errors = {}, []
+    for brut_tk in tickers:
         try:
-            # Traduit ISIN / mnemonique vers le ticker Yahoo. Un ticker deja
-            # qualifie ("MC.PA", "AAPL") passe sans cout supplementaire.
-            resolu, _ = rs.resoudre(brut_tk, load, av_key, journal=print)
-            if resolu is None:
-                errors.append((brut_tk, "ticker introuvable"))
+            tk, _ = rs.resoudre(brut_tk, lambda t: ch.charge(t, annees=3,
+                                                             source=source),
+                                av_key, journal=print)
+        except Exception as exc:
+            errors.append((brut_tk, f"{type(exc).__name__}: {str(exc)[:60]}"))
+            continue
+        if tk is None:
+            errors.append((brut_tk, "ticker introuvable"))
+            continue
+        if tk.endswith(".L"):
+            print(f"  ATTENTION {tk} : Londres cote en PENCE, pas en livres. "
+                  f"Le calcul de position sera faux d'un facteur 100 "
+                  f"sans --fx adapte.")
+        resolus[tk] = brut_tk
+
+    # --- Chargement en parallele -------------------------------------
+    if verbose:
+        print(f"  Chargement de {len(resolus)} titre(s)...")
+    brutes, echecs = ch.charge_lot(list(resolus), annees=3, source=source,
+                                   fils=fils or ch.FILS,
+                                   journal=(print if verbose else None))
+    errors += echecs
+
+    # --- Evaluation ---------------------------------------------------
+    signals = []
+    for tk, brut in sorted(brutes.items()):
+        try:
+            rap = ql.controle(brut, bench_raw, ticker=tk)
+            if not rap.utilisable:
+                errors.append((tk, rap.resume()))
                 continue
-            tk = resolu
-            if tk.endswith(".L"):
-                print(f"  ATTENTION {tk} : Londres cote en PENCE, pas en livres. "
-                      f"Le calcul de position sera faux d'un facteur 100 "
-                      f"sans --fx adapte.")
-            brut = load(tk)
             d = enrich(brut, bench_close=bench_raw["close"])
-            jeune = len(d) < 220
-            if jeune:
-                # Introduction recente (SPCX cote depuis juin 2026, par ex.).
-                # La SMA200 n'existe pas encore : aucun verdict fiable.
-                # On refuse le signal, mais on affiche quand meme le graphique :
-                # bougies, EMA20, SMA50, RSI, MACD et Bollinger sont calculables.
+            if len(d) < 220:
+                # Introduction recente : la SMA200 n'existe pas encore,
+                # aucun verdict fiable. Le graphique reste calculable.
                 errors.append((tk, f"cotee depuis {len(d)} seances seulement — "
                                    f"SMA200 indisponible avant 200"))
-            else:
-                signals.append(evaluate(
-                    d, tk, bench_ok,
-                    open_tickers=tuple(open_tickers),
-                    n_open=len(open_tickers),
-                    days_to_earnings=(nw.seances_avant(cal.get(tk)) if cal
-                                      else dl.days_to_earnings_yf(tk) if source == "yf"
-                                      else None),
-                ))
-            if graph and n <= graph:
-                # Le graphique a besoin de BEAUCOUP plus d'historique que le
-                # scan : une MM200 hebdomadaire reclame 200 semaines (~4 ans),
-                # une MM200 mensuelle 200 mois (~17 ans).
-                try:
-                    long_tk, long_bn = load(tk, years=20), load(bench_tk, years=20)
-                except Exception:
-                    long_tk, long_bn = brut, bench_raw
-                out = gr.render(long_tk, tk, long_bn, sleeve_local, ccy)
-                print(f"  Graphique : {out}")
+                continue
+            jours = (nw.seances_avant(cal.get(tk)) if cal
+                     else dl.days_to_earnings_yf(tk) if source == "yf"
+                     else None)
+            sig = evaluate(d, tk, bench_ok, open_tickers=tuple(open_tickers),
+                           n_open=len(open_tickers), days_to_earnings=jours)
+            signals.append(sig)
+            if journal_audit:
+                ad.enregistre(sig, d, source="scan",
+                              qualite={"alertes": rap.alertes})
         except Exception as e:
-            msg = str(e)[:70]
-            if av_key and ("donn" in msg or "index" in msg.lower()):
-                for m in nw.chercher_symbole(av_key, tk)[:4]:
-                    msg += f" | essaie {m['symbole']} ({m['nom'][:28]}, {m['region']})"
-            errors.append((tk, msg))
-        if verbose and n % 25 == 0:
-            print(f"  … {n}/{len(tickers)}", file=sys.stderr)
-        if pause:
-            time.sleep(pause)
+            errors.append((tk, str(e)[:70]))
+
+    # --- Graphiques ---------------------------------------------------
+    for n, tk in enumerate(sorted(brutes), 1):
+        if not graph or n > graph:
+            break
+        try:
+            # Le graphique a besoin de BEAUCOUP plus d'historique que le
+            # scan : une MM200 hebdomadaire reclame 200 semaines (~4 ans),
+            # une MM200 mensuelle 200 mois (~17 ans).
+            long_tk = ch.charge(tk, annees=20, source=source)
+            long_bn = ch.charge(bench_tk, annees=20, source=source)
+        except Exception:
+            long_tk, long_bn = brutes[tk], bench_raw
+        try:
+            out = gr.render(long_tk, tk, long_bn, sleeve_local, ccy)
+            print(f"  Graphique : {out}")
+        except Exception as exc:
+            print(f"  Graphique {tk} impossible ({type(exc).__name__}).")
 
     fired = rank(signals)
 
@@ -197,7 +248,11 @@ def main():
     p.add_argument("--csv", default=None)
     p.add_argument("--html", nargs="?", const="dashboard.html", default=None,
                    help="genere et ouvre un tableau de bord HTML")
-    p.add_argument("--pause", type=float, default=0.0, help="secondes entre 2 titres")
+    p.add_argument("--pause", type=float, default=0.0,
+                   help="ancien reglage d'espacement : force un seul "
+                        "telechargement a la fois")
+    p.add_argument("--fils", type=int, default=None,
+                   help="telechargements simultanes (8 par defaut, 16 max)")
     p.add_argument("--verbose", action="store_true")
     p.add_argument("--chart", type=int, nargs="?", const=3, default=0,
                    help="ouvre un graphique interactif pour les N premiers titres")
@@ -213,7 +268,8 @@ def main():
 
     open_tk = tuple(t.strip().upper() for t in a.open.split(",") if t.strip())
     fired, allsig, errs = run(tickers, a.sleeve, a.source, open_tk, a.verbose,
-                              a.pause, a.html, a.marche, a.fx, a.av_key, a.chart)
+                              a.pause, a.html, a.marche, a.fx, a.av_key,
+                              a.chart, fils=a.fils)
     df = report(fired, allsig, a.sleeve * a.fx, errs)
     if a.csv and not df.empty:
         df.to_csv(a.csv, index=False)

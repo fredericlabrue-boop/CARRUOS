@@ -24,8 +24,9 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+# Les seuils sont lus sur le module, jamais recopies : c'est ce qui permet
+# au test de robustesse de les decaler et d'etre reellement pris en compte.
 from . import rules as R
-from .rules import (STOP_ATR_MULT, STOP_SWING_BUFFER, evaluate, market_regime_ok)
 
 COUT_AR = 0.0010          # 10 bp par aller-retour
 BE_ATR = 2.0              # gain latent avant remontee du stop au point mort

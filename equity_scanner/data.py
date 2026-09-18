@@ -80,6 +80,23 @@ def load_ibkr(ticker: str, years: int = 3, host="127.0.0.1", port=7497, cid=17):
 
 LOADERS = {"yf": load_yf, "ibkr": load_ibkr}
 
+_NOMS = {"yf": "load_yf", "ibkr": "load_ibkr"}
+
+
+def loader(source: str = "yf"):
+    """Fonction de chargement, resolue AU MOMENT DE L'APPEL.
+
+    `LOADERS` fige la reference a l'import : une fois le module charge,
+    remplacer `data.load_yf` — ce que font les tests pour travailler sur
+    des series synthetiques, sans reseau — n'a plus aucun effet sur les
+    appelants qui passent par la table. On resout donc par son nom.
+    """
+    import sys as _sys
+    nom = _NOMS.get(source)
+    if nom is None:
+        raise ValueError(f"source inconnue : {source}")
+    return getattr(_sys.modules[__name__], nom)
+
 
 # --- Univers europeen ~180 grandes capitalisations -------------------
 # Liste figee : Wikipedia change de structure et casse le parsing.

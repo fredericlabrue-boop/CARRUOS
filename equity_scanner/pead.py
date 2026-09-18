@@ -277,20 +277,39 @@ def lance(tickers, csv=None, journal=print) -> dict:
             f"{MAX_BARRES} seances, stop {STOP_ATR} ATR\n")
 
     journal("  Chargement des cours et des dates d'annonces...")
-    bench_brut = dl.load_yf("SPY", years=6)
+    from . import cache as ch
+    from . import qualite as ql
+    from concurrent.futures import ThreadPoolExecutor
+
+    bench_brut = ch.charge("SPY", annees=6)
     bo = enrich(bench_brut)
-    series, dates, sans = {}, {}, 0
-    for tk in tickers:
-        try:
-            d = enrich(dl.load_yf(tk, years=6), bench_close=bench_brut["close"])
-            da = dates_annonces(tk, journal=lambda *_: None)
-            if len(d) < 260 or not da:
-                sans += 1
-                continue
-            series[tk], dates[tk] = d, da
-        except Exception:
+
+    # Cours en parallele, puis dates d'annonces en parallele. C'etait la
+    # totalite du temps d'attente : deux appels reseau par titre, l'un
+    # apres l'autre, sur plusieurs centaines de titres.
+    brutes, echecs = ch.charge_lot(tickers, annees=6, journal=journal)
+    sans = len(echecs)
+    with ThreadPoolExecutor(max_workers=ch.FILS) as pool:
+        annonces = dict(zip(brutes, pool.map(
+            lambda tk: dates_annonces(tk, journal=lambda *_: None),
+            list(brutes))))
+
+    series, dates = {}, {}
+    refuses = 0
+    for tk, brut in brutes.items():
+        rap = ql.controle(brut, bench_brut, ticker=tk, exige_recent=False)
+        if not rap.utilisable:
+            refuses += 1
             sans += 1
-    journal(f"  {len(series)} titres exploitables, {sans} ecartes")
+            continue
+        d = enrich(brut, bench_close=bench_brut["close"])
+        da = annonces.get(tk) or []
+        if len(d) < 260 or not da:
+            sans += 1
+            continue
+        series[tk], dates[tk] = d, da
+    journal(f"  {len(series)} titres exploitables, {sans} ecartes"
+            + (f" dont {refuses} par le controle qualite" if refuses else ""))
     if not series:
         journal("  Aucune donnee. Verifie ta connexion et yfinance.")
         return {}
