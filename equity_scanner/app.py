@@ -169,8 +169,18 @@ body{overflow:hidden}
  clip-path:polygon(13px 0,100% 0,100% calc(100% - 13px),
  calc(100% - 13px) 100%,0 100%,0 13px)}
 .majp.ouvert{display:block}
+/* Entete : titre a gauche, croix de fermeture a droite. Sans elle, le
+   panneau une fois ouvert ne se refermait plus et masquait l'ecran. */
+.majh{display:flex;align-items:center;gap:8px;margin-bottom:8px}
 .majt{font:500 8px ui-monospace,monospace;letter-spacing:.26em;color:#3f6b78;
- margin-bottom:8px}
+ flex:1}
+.majx{flex:none;width:22px;height:22px;line-height:19px;text-align:center;
+ cursor:pointer;font-size:15px;color:#5d8a97;background:rgba(8,34,42,.9);
+ border:1px solid #123c47;user-select:none;
+ clip-path:polygon(5px 0,100% 0,100% calc(100% - 5px),
+ calc(100% - 5px) 100%,0 100%,0 5px)}
+.majx:hover{color:#f87171;border-color:#7d2530;background:#2a1114}
+.majmic.ko{color:#6b4a4f;border-color:#3a1c20}
 .majr{font-size:12px;line-height:1.55;color:#cbe9f2;min-height:42px;
  margin-bottom:9px}
 .maje{font-size:9.5px;line-height:1.6;color:#2f5462;margin-top:8px}
@@ -667,7 +677,7 @@ async function poseCle(){
 // la Phase 0 a rendu NO-GO, et un majordome qui pousse a l'ordre serait
 // exactement le defaut qu'on evite depuis le debut.
 // =====================================================================
-const MAJ = {ecoute:false, reco:null};
+const MAJ = {ecoute:false, reco:null, micKo:false, recu:false};
 if(window.speechSynthesis){
  speechSynthesis.getVoices();
  speechSynthesis.onvoiceschanged=function(){ speechSynthesis.getVoices(); };
@@ -767,47 +777,153 @@ async function majExec(txt){
   +'scan Cac 40, etat du marche, mes positions, ou actualise.');
 }
 
-function ouvrirWeb(){
+async function ouvrirWeb(){
+ // window.open() est bloque ou detourne dans la fenetre Windows : on
+ // demande au serveur d'ouvrir le navigateur par defaut. C'est le seul
+ // chemin qui fonctionne a tous les coups.
+ try{
+  const j=await (await fetch('/api/navigateur')).json();
+  if(j.ok){
+   majDit('Page ouverte dans le navigateur. Le micro y fonctionne.', false);
+   $('majr').innerHTML='Carruos est ouvert dans votre navigateur. '
+    +'Le micro y fonctionne.<br><span style="color:#3f6b78">'+j.url+'</span>';
+   return;
+  }
+ }catch(e){}
  try{ window.open(location.href, '_blank'); }catch(e){}
- majDit('Page ouverte dans le navigateur. Le micro y fonctionne.', false);
+ $('majr').innerHTML='Ouvrez cette adresse dans Edge ou Chrome :<br>'
+  +'<span style="color:#f59e0b">'+location.href+'</span>';
+}
+
+// --- Ouverture et fermeture du panneau -------------------------------
+//
+// Ces deux gestes etaient confondus : cliquer le disque AJOUTAIT la
+// classe "ouvert" sans jamais la retirer, et relancait l'ecoute dans la
+// foulee. Une fois ouvert, le panneau ne se refermait plus, et chaque
+// clic pour s'en debarrasser redemandait le micro. D'ou la fenetre
+// bloquante apres un echec d'ecoute.
+//
+// Desormais : le disque OUVRE ou FERME, la croix ferme, Echap ferme.
+// L'ecoute ne part QUE si on clique le bouton MICRO.
+
+function majFerme(){
+ const p=$('majp');
+ if(p) p.classList.remove('ouvert');
+ majStop();
+ try{ if(window.speechSynthesis) speechSynthesis.cancel(); }catch(e){}
+ const d=$('maj');
+ if(d) d.classList.remove('parle');
+}
+
+function majOuvre(){
+ const p=$('majp');
+ if(!p) return;
+ p.classList.add('ouvert');
+ const c=$('majc');
+ if(c) c.focus();
+}
+
+function majStop(){
+ if(MAJ.reco){ try{ MAJ.reco.abort(); }catch(e){
+   try{ MAJ.reco.stop(); }catch(e2){} } }
+ MAJ.ecoute=false;
+ const d=$('maj');
+ if(d) d.classList.remove('ecoute');
+}
+
+// --- Micro ------------------------------------------------------------
+//
+// La reconnaissance vocale du navigateur n'existe pas dans la fenetre
+// Windows : le moteur WebView2 qui l'affiche n'embarque pas le service
+// de transcription de Chrome. Ce n'est pas un reglage a trouver, c'est
+// une brique absente. Dans Edge ou Chrome, la meme page l'a.
+//
+// On le dit une fois, clairement, et on n'y revient plus : le champ
+// texte fait exactement le meme travail et repond a voix haute.
+
+const MICRO_DIT = {
+ 'no-speech': 'Je n\'ai rien entendu. Le micro fonctionne, mais aucune '
+  +'parole n\'est arrivee. Reessayez en parlant plus pres.',
+ 'audio-capture': 'Aucun micro detecte. Verifiez qu\'il est branche et '
+  +'choisi dans les reglages de son de Windows.',
+ 'not-allowed': 'Le micro est refuse dans cette fenetre. C\'est une '
+  +'limite du cadre Windows, pas un reglage a corriger.',
+ 'service-not-allowed': 'Le service de transcription n\'est pas '
+  +'disponible dans cette fenetre.',
+ 'network': 'Le service de transcription n\'est pas joignable depuis '
+  +'cette fenetre. C\'est le cas normal du cadre Windows.',
+ 'aborted': 'Ecoute interrompue.'
+};
+
+function majMicroIndispo(txt){
+ // Le bouton se marque comme inutilisable : inutile de laisser esperer.
+ const b=$('majmic');
+ if(b){ b.classList.add('ko'); b.textContent='MICRO INDISPO'; }
+ MAJ.micKo=true;
+ $('majr').innerHTML = txt
+  +'<br><span style="color:#f59e0b">Ecrivez ci-dessous</span> : je '
+  +'reponds a voix haute, exactement comme a l\'oral. '
+  +'Le bouton EDGE ouvre la meme page dans le navigateur, '
+  +'ou le micro fonctionne.';
+ const c=$('majc');
+ if(c) c.focus();
 }
 
 function majEcoute(){
+ majOuvre();
+ if(MAJ.ecoute){ majStop(); $('majr').textContent='Ecoute arretee.'; return; }
  const R=window.SpeechRecognition||window.webkitSpeechRecognition;
  if(!R){
-  // Le moteur d'affichage de la fenetre Windows n'expose pas la
-  // reconnaissance vocale. Elle existe dans Edge et Chrome : on propose
-  // d'y ouvrir la meme page, le micro y fonctionne.
-  $('majp').classList.add('ouvert');
-  $('majr').innerHTML =
-   'Le micro n\'est pas disponible dans cette fenetre.<br>'
-   +'<span style="color:#f59e0b">Ouvre Carruos dans Edge</span> et le '
-   +'micro marchera. En attendant, ecris ci-dessous : je reponds a voix '
-   +'haute dans les deux cas.'
-   +'<div style="margin-top:8px"><button class="sec" onclick="ouvrirWeb()">'
-   +'OUVRIR DANS EDGE</button></div>';
-  majDit('Le micro n\'est pas disponible ici. Ouvrez Carruos dans Edge, '
-   +'ou ecrivez votre instruction.', false);
-  $('majc').focus();
+  majMicroIndispo('Le micro n\'existe pas dans cette fenetre.');
+  majDit('Le micro n\'est pas disponible ici. Ecrivez votre '
+   +'instruction.', false);
   return;
  }
- if(MAJ.ecoute){ try{MAJ.reco.stop();}catch(e){} return; }
- const r=new R();
+ let r;
+ try{ r=new R(); }catch(e){
+  majMicroIndispo('Le micro n\'a pas pu demarrer.');
+  return;
+ }
  r.lang='fr-FR'; r.interimResults=false; r.maxAlternatives=1;
- MAJ.reco=r; MAJ.ecoute=true;
+ MAJ.reco=r; MAJ.ecoute=true; MAJ.recu=false;
  $('maj').classList.add('ecoute');
- $('majr').textContent='Je vous ecoute...';
+ const b=$('majmic');
+ if(b) b.textContent='J\'ECOUTE...';
+ $('majr').textContent='Je vous ecoute. Cliquez MICRO pour arreter.';
  r.onresult=function(e){
+  MAJ.recu=true;
   const txt=e.results[0][0].transcript;
-  $('majr').textContent='\u00ab '+txt+' \u00bb';
+  $('majr').textContent='« '+txt+' »';
   majExec(txt);
  };
  r.onerror=function(e){
-  majDit('Je n\'ai rien entendu ('+e.error+'). Ecrivez plutot.');
+  const code=(e&&e.error)||'inconnu';
+  const dit=MICRO_DIT[code]||('Le micro a rendu une erreur ('+code+').');
+  // Une panne de service ne se repare pas en reessayant : on ferme la
+  // porte proprement au lieu de reproposer un bouton qui echouera.
+  if(code==='not-allowed'||code==='service-not-allowed'
+     ||code==='network'||code==='audio-capture'){
+   majMicroIndispo(dit);
+  }else{
+   $('majr').textContent=dit;
+   const c=$('majc');
+   if(c) c.focus();
+  }
+  majDit(dit, false);
  };
- r.onend=function(){ MAJ.ecoute=false; $('maj').classList.remove('ecoute'); };
- try{ r.start(); }catch(e){ MAJ.ecoute=false;
-  $('maj').classList.remove('ecoute'); }
+ r.onend=function(){
+  MAJ.ecoute=false;
+  $('maj').classList.remove('ecoute');
+  const bb=$('majmic');
+  if(bb && !MAJ.micKo) bb.textContent='MICRO';
+  if(!MAJ.recu && $('majr').textContent.indexOf('ecoute')>=0){
+   $('majr').textContent='Rien n\'est arrive. Ecrivez ci-dessous.';
+   const c=$('majc');
+   if(c) c.focus();
+  }
+ };
+ try{ r.start(); }catch(e){ majStop();
+  majMicroIndispo('Le micro n\'a pas pu demarrer.'); }
 }
 
 (function(){
@@ -815,15 +931,18 @@ function majEcoute(){
  if(!d) return;
  d.onclick=function(){
   const p=$('majp');
-  if(!p.classList.contains('ouvert')){
-   p.classList.add('ouvert');
-   majDit('A votre service.');
-  }
-  majEcoute();
+  if(p.classList.contains('ouvert')){ majFerme(); return; }
+  majOuvre();
+  majDit('A votre service.');
  };
  const c=$('majc');
  if(c) c.addEventListener('keydown',function(e){
-  if(e.key==='Enter') majExec(c.value); });
+  if(e.key==='Enter') majExec(c.value);
+  if(e.key==='Escape') majFerme(); });
+ // Echap ferme le panneau depuis n'importe ou : c'est le reflexe, et
+ // c'est le filet quand la souris ne trouve plus de bouton.
+ document.addEventListener('keydown',function(e){
+  if(e.key==='Escape') majFerme(); });
 })();
 
 async function toutRafraichir(){
@@ -886,11 +1005,19 @@ def _accueil(splash: bool = True) -> str:
               'stroke="currentColor" stroke-width="1.6" '
               'stroke-linecap="round"/></svg></div>'
               '<div class="majp" id="majp">'
-              '<div class="majt">MAJORDOME</div>'
-              '<div class="majr" id="majr">Clique le disque, puis parle.</div>'
+              '<div class="majh"><div class="majt">MAJORDOME</div>'
+              '<div class="majx" id="majx" onclick="majFerme()" '
+              'title="Fermer (Echap)">&times;</div></div>'
+              '<div class="majr" id="majr">Ecris ton instruction. '
+              'Je reponds a voix haute.</div>'
               '<div class="row"><input id="majc" '
-              'placeholder="ou ecris ton instruction ici">'
+              'placeholder="ton instruction ici">'
               '<button onclick="majExec($(\'majc\').value)">ENVOYER</button>'
+              '</div>'
+              '<div class="row" style="margin-top:7px">'
+              '<button class="sec" id="majmic" onclick="majEcoute()">'
+              'MICRO</button>'
+              '<button class="sec" onclick="ouvrirWeb()">EDGE</button>'
               '</div>'
               '<div class="maje">analyse sanofi &middot; scan cac 40 &middot; '
               'etat du marche &middot; mes positions &middot; actualise</div>'
@@ -1065,6 +1192,18 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                 return self._json(_p0_etat())
             if u.path == "/api/radar":
                 return self._json(_radar())
+            if u.path == "/api/navigateur":
+                # window.open() est bloque ou detourne dans le cadre
+                # Windows : c'est le serveur qui ouvre le navigateur par
+                # defaut, ce qui marche a tous les coups.
+                port = self.server.server_address[1]
+                adresse = f"http://127.0.0.1:{port}/"
+                try:
+                    webbrowser.open(adresse)
+                    return self._json({"ok": True, "url": adresse})
+                except Exception as exc:
+                    return self._json({"ok": False, "url": adresse,
+                                       "erreur": f"{type(exc).__name__}"})
             if u.path == "/api/cle":
                 return self._json({"ok": True, "pose": bool(cle_av())})
             if u.path == "/api/actus":

@@ -100,6 +100,7 @@ py -m equity_scanner.qualite AAPL MC.PA
 | « Python introuvable » | case *Add python.exe to PATH* oubliée ; réinstaller |
 | l'appli s'ouvre dans le navigateur | `pywebview` absent ; menu **2** |
 | un scan ne rend aucun candidat | marché sous sa MM200 : c'est la règle, pas une panne |
+| le micro du majordome ne marche pas | normal dans la fenêtre Windows — voir ci-dessous |
 | tous les titres sont refusés | menu **Q** sur l'un d'eux : le motif est écrit |
 | un scan semble lent la première fois | premier passage = téléchargement ; les suivants relisent le cache |
 | `test_moteur` échoue sur l'empreinte | un paramètre gelé a bougé. Ce n'est pas le test qu'il faut corriger |
@@ -107,6 +108,27 @@ py -m equity_scanner.qualite AAPL MC.PA
 Le cache des cours, la clé Alpha Vantage, les positions et le journal
 d'audit vivent dans `.bruce_cache`, à côté du programme. Supprimer ce
 dossier remet tout à zéro sans rien casser.
+
+---
+
+## Le majordome et le micro
+
+**Le micro ne peut pas fonctionner dans la fenêtre Windows.** Ce n'est pas
+un réglage à trouver : cette fenêtre s'appuie sur le moteur WebView2, qui
+n'embarque pas le service de transcription de Chrome. La brique est
+absente, pas mal configurée.
+
+Deux chemins, tous deux pleinement fonctionnels :
+
+- **Écrire.** Le champ de saisie du panneau fait exactement le même
+  travail, et le majordome répond à voix haute comme à l'oral.
+  `analyse sanofi` · `scan cac 40` · `état du marché` · `mes positions`
+  · `actualise`
+- **Le bouton EDGE.** Il ouvre la même page dans votre navigateur par
+  défaut, où le micro fonctionne réellement.
+
+Le panneau se ferme par **la croix**, par **Échap**, ou en recliquant sur
+le disque du majordome.
 
 ---
 

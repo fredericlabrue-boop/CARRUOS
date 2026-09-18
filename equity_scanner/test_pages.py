@@ -225,6 +225,35 @@ def main() -> int:
     _v("var(--acc)" in css, "la couleur d'accent des reglages est suivie")
     _v('id="roue"' in h, "roue de reglages presente")
 
+    # --- Le majordome -------------------------------------------------
+    # Regression vecue : le panneau une fois ouvert ne se refermait plus.
+    # d.onclick AJOUTAIT la classe "ouvert" sans jamais la retirer, et
+    # relancait l'ecoute dans la foulee : apres un echec de micro, la
+    # fenetre restait a l'ecran et chaque clic pour s'en debarrasser
+    # redemandait le micro.
+    print("\n  MAJORDOME")
+    jsa = _scripts(h)
+    _v('id="majx"' in h and 'onclick="majFerme()"' in h,
+       "une croix de fermeture existe dans le panneau")
+    _v("function majFerme" in jsa and "remove('ouvert')" in jsa,
+       "majFerme() retire bien la classe qui affiche le panneau")
+    bloc_clic = jsa.split("d.onclick=function")[1][:260] \
+        if "d.onclick=function" in jsa else ""
+    _v("majFerme()" in bloc_clic,
+       "le disque referme le panneau au lieu de seulement l'ouvrir")
+    _v("majEcoute()" not in bloc_clic,
+       "cliquer le disque ne redemande plus le micro")
+    _v("document.addEventListener('keydown'" in jsa and "'Escape'" in jsa,
+       "Echap ferme le panneau depuis n'importe ou")
+    _v('id="majc"' in h and 'id="majmic"' in h,
+       "le champ texte et le bouton micro sont tous deux presents")
+    _v("MICRO_DIT" in jsa and "no-speech" in jsa and "audio-capture" in jsa,
+       "chaque panne de micro a son message en francais")
+    _v("function majMicroIndispo" in jsa and "majc" in jsa,
+       "un micro indisponible renvoie vers le champ texte")
+    _v("/api/navigateur" in jsa,
+       "le bouton EDGE passe par le serveur, pas par window.open")
+
     print("\n  BLOC POSITIONS")
     _v('id="ptk"' in h and 'id="pq"' in h and 'id="pe"' in h and 'id="pst"' in h,
        "les quatre champs de saisie sont presents")
