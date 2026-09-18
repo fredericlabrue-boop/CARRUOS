@@ -121,6 +121,7 @@ s'appliquent immédiatement et sont reprises au lancement suivant :
 | **CARRUOS** | cyan et or, sobre — l'original |
 | **JARVIS** | hologramme bleu clair et or, lumineux |
 | **ULTRON** | très sombre, néons violet et rouge |
+| **RÉACTEUR** | bleu électrique dense, tableau de bord instrumenté |
 
 Le thème repeint tout : fond, panneaux, jauges, radar, hologramme. La
 palette d'accent, juste en dessous, ne change ensuite que la couleur

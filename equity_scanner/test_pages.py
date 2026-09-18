@@ -26,6 +26,16 @@ def _v(cond, libelle: str) -> None:
         ECHECS.append(libelle)
 
 
+def _re_couleurs(css: str) -> list:
+    """Tout ce qui ressemble a un code couleur dans une DECLARATION.
+
+    On ecarte les selecteurs d'identifiant (#tiroir, #roue), qui
+    commencent aussi par un diese sans etre des couleurs.
+    """
+    return [c for c in re.findall(r"#[0-9a-zA-Z]+", css)
+            if not re.fullmatch(r"#[a-z]{4,}", c)]
+
+
 def _scripts(html: str) -> str:
     blocs = re.findall(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", html, re.S)
     return "\n;\n".join(blocs)
@@ -272,20 +282,35 @@ def main() -> int:
     # --- Les themes ---------------------------------------------------
     print("\n  THEMES")
     from . import reglages as _rg
-    _v(set(_rg.THEMES) == {"carruos", "jarvis", "ultron"},
-       "trois themes : CARRUOS, JARVIS, ULTRON")
+    _v(set(_rg.THEMES) == {"carruos", "jarvis", "ultron", "reacteur"},
+       "quatre themes : CARRUOS, JARVIS, ULTRON, REACTEUR")
     complet = all(
         all(k in t for k in ("nom", "resume", "accent", "marque", "fond",
                              "pos", "neg", "holo"))
         for t in _rg.THEMES.values())
     _v(complet, "chaque theme declare ses six couleurs et son resume")
-    _v(len({t["accent"] for t in _rg.THEMES.values()}) == 3
-       and len({t["fond"] for t in _rg.THEMES.values()}) == 3,
-       "les trois se distinguent par l'accent ET par le fond")
-    _v('class="themes"' in h and h.count('data-theme=') == 3,
+    n_themes = len(_rg.THEMES)
+    _v(len({t["accent"] for t in _rg.THEMES.values()}) == n_themes
+       and len({t["fond"] for t in _rg.THEMES.values()}) == n_themes,
+       "chacun se distingue par l'accent ET par le fond")
+    # Une couleur mal tapee ne casse rien : le navigateur ignore la
+    # regle en silence et l'element garde l'apparence de base. C'est
+    # exactement le genre de faute qu'on ne voit jamais a l'oeil.
+    faux_codes = [c for c in _re_couleurs(_rg.CSS_THEMES)
+                  if not re.fullmatch(
+                      r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})", c)]
+    _v(not faux_codes,
+       "toutes les couleurs hexadecimales des themes sont valides")
+    if faux_codes:
+        print(f"          -> invalides : {', '.join(faux_codes)}")
+    mauvais = [f"{k}.{c}" for k, t in _rg.THEMES.items()
+               for c in ("accent", "marque", "fond", "pos", "neg")
+               if not re.fullmatch(r"#[0-9a-fA-F]{6}", t[c])]
+    _v(not mauvais, "les cinq couleurs de chaque theme sont bien formees")
+    _v('class="themes"' in h and h.count("data-theme=") == n_themes,
        "le selecteur de theme est dans le tiroir")
     _v("theme-carruos" in h, "la classe du theme est posee sur le corps")
-    for cle in ("jarvis", "ultron"):
+    for cle in ("jarvis", "ultron", "reacteur"):
         _v(f"body.theme-{cle}" in css,
            f"le CSS du theme {cle.upper()} est charge")
     _v("--holo" in h, "la teinte de l'hologramme est une variable")

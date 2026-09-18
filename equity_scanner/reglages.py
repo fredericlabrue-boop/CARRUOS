@@ -45,6 +45,15 @@ THEMES = {
         "accent": "#b06cff", "marque": "#ff2d55", "fond": "#05030a",
         "pos": "#00e5a0", "neg": "#ff2d55", "holo": "176,108,255",
     },
+    # Le tableau de bord dense : bleu electrique franc sur noir, traits
+    # fins et lumineux, panneaux instrumentes. Plus dur et plus contraste
+    # que JARVIS, qui reste la version douce et doree.
+    "reacteur": {
+        "nom": "REACTEUR",
+        "resume": "bleu electrique dense, tableau de bord",
+        "accent": "#00b4ff", "marque": "#dff3ff", "fond": "#02060c",
+        "pos": "#00e08a", "neg": "#ff4d5e", "holo": "0,180,255",
+    },
 }
 
 DEFAUTS = {
@@ -290,6 +299,70 @@ body.theme-ultron .fond-cerf{opacity:.88}
 body.theme-ultron .f-c1{opacity:.7}
 body.theme-ultron .f-c2{opacity:.34}
 body.theme-ultron .fond-sol{opacity:.55}
+
+/* ================= REACTEUR =======================================
+   Tableau de bord d'instruments. Bleu electrique franc sur noir, traits
+   fins et lumineux, texte presque blanc. La densite vient d'une trame
+   de graduation posee sur les panneaux : une image de fond STATIQUE,
+   donc gratuite au repeint, jamais une animation. ================== */
+body.theme-reacteur{background:
+ radial-gradient(ellipse 130% 78% at 50% 120%,rgba(0,180,255,.16),
+ transparent 58%),
+ radial-gradient(ellipse 60% 40% at 50% 0%,rgba(0,180,255,.07),
+ transparent 62%),var(--fond)}
+body.theme-reacteur .pan{background:rgba(2,10,20,.78);border-color:#0e6d9e;
+ background-image:repeating-linear-gradient(90deg,
+  rgba(0,180,255,.17) 0 1px,transparent 1px 17px),
+ repeating-linear-gradient(0deg,
+  rgba(0,180,255,.13) 0 1px,transparent 1px 17px);
+ box-shadow:inset 0 0 0 1px rgba(0,180,255,.09),
+ inset 0 0 34px rgba(0,180,255,.07),0 0 20px rgba(0,0,0,.6)}
+body.theme-reacteur .pan::before,body.theme-reacteur .pan::after{
+ border-color:rgba(0,180,255,.9)}
+body.theme-reacteur .hud{background:rgba(2,9,17,.78);border-color:#0e6d9e;
+ box-shadow:inset 0 0 0 1px rgba(0,180,255,.1)}
+body.theme-reacteur .bar{border-color:#0e6d9e}
+body.theme-reacteur .bar h1{color:#dff3ff}
+body.theme-reacteur .pan h2{color:#7fd8ff;letter-spacing:.3em}
+body.theme-reacteur .pan h2::after{background:linear-gradient(90deg,
+ rgba(0,180,255,.85),transparent)}
+body.theme-reacteur .majp,body.theme-reacteur #tiroir{
+ background:rgba(1,7,14,.98);border-color:#0a4f77}
+body.theme-reacteur .majr{color:#e8f7ff}
+body.theme-reacteur input{background:#031320;border-color:#0a4f77;
+ color:#e8f7ff}
+body.theme-reacteur button{background:#04283d;border-color:#0d7fb8}
+body.theme-reacteur th{color:#4aa8d6}
+body.theme-reacteur td{border-color:#083247;color:#d5eeff}
+body.theme-reacteur .rail{background:#031320}
+body.theme-reacteur .rail .t{background:#062436}
+/* Hologramme : anneaux et cone plus francs, halo plus serre. */
+body.theme-reacteur .fond-cone{background:linear-gradient(0deg,
+ rgba(0,180,255,.3),rgba(0,180,255,0) 80%)}
+body.theme-reacteur .fond-socle{background:radial-gradient(ellipse at center,
+ rgba(190,240,255,.95) 0%,rgba(0,180,255,.4) 34%,transparent 68%)}
+body.theme-reacteur .fond-lueur{background:radial-gradient(circle,
+ rgba(0,180,255,.18) 0%,rgba(0,180,255,.05) 38%,transparent 64%)}
+body.theme-reacteur .fond-scan{background:repeating-linear-gradient(180deg,
+ transparent 0 3px,rgba(0,180,255,.06) 3px 4px)}
+/* Les anneaux passent au premier plan : c'est la signature du style.
+   Traits plus epais, opacite pleine, et un second jeu de graduations
+   dessine par une simple trame conique — statique, donc gratuite. */
+/* Les anneaux entrent ENTIEREMENT dans l'ecran : c'est le reacteur du
+   modele, un disque complet au centre, et non plus un arc qui sort du
+   cadre par le haut et par le bas. On change une taille, pas une
+   animation : rien ne se recalcule pendant la rotation. */
+body.theme-reacteur .fond-anneaux{opacity:1;
+ width:min(94vh,94vw);height:min(94vh,94vw)}
+body.theme-reacteur .fond-anneaux circle{stroke-width:2.1}
+body.theme-reacteur .fond-cerf{opacity:.78}
+body.theme-reacteur .f-c1,body.theme-reacteur .f-c2{opacity:.3}
+/* Titre et intitules francs, comme sur un vrai tableau de bord. */
+body.theme-reacteur #splash h1,body.theme-reacteur .hud-c h1,
+body.theme-reacteur .hud-id .tk{color:#dff3ff}
+body.theme-reacteur .rail .n{color:#4aa8d6}
+body.theme-reacteur .rail .v{color:#eaf8ff}
+body.theme-reacteur .bandeau{border-color:#0a4f77}
 
 /* Selecteur de theme dans le tiroir */
 .themes{display:flex;flex-direction:column;gap:6px}

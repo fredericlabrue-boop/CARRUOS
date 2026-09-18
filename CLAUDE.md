@@ -78,7 +78,7 @@ l'empreinte sous laquelle elle a été écrite. Un résultat ne peut plus
 | `qualite.py` | refus de signal sur données douteuses |
 | `audit.py` | journal des signaux, empreinte des paramètres |
 | `robuste.py` | stabilité, Monte Carlo, bootstrap par blocs |
-| `reglages.py` | 3 thèmes, 13 effets visuels débrayables |
+| `reglages.py` | 4 thèmes, 13 effets visuels débrayables |
 
 ## Chantiers
 
