@@ -47,14 +47,20 @@ _MEMOIRE: dict[tuple, pd.DataFrame] = {}
 # Validite du cache
 # ---------------------------------------------------------------------
 def _cloture_utc(quand: dt.datetime) -> dt.datetime:
-    """Derniere cloture US passee, en UTC.
+    """Derniere cloture de marche passee, en UTC.
 
     Les marches americains ferment a 21h00 UTC l'ete, 22h00 l'hiver ; on
     prend 22h00 pour ne jamais considerer comme definitive une bougie qui
     ne l'est pas encore. Avant cette heure, la reference est la veille.
+
+    Le week-end est saute : sans cela, un cache ecrit vendredi soir etait
+    juge perime des samedi et l'univers entier repartait sur le reseau
+    pour rien, deux jours durant, alors qu'aucune cotation n'a eu lieu.
     """
     jour = quand.date()
     if quand.hour < 22:
+        jour = jour - dt.timedelta(days=1)
+    while jour.weekday() >= 5:            # samedi, dimanche
         jour = jour - dt.timedelta(days=1)
     return dt.datetime.combine(jour, dt.time(22, 0), dt.timezone.utc)
 

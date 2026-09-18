@@ -1262,7 +1262,9 @@ def _etat():
     def ecart(tk):
         try:
             from . import cache as ch
-            d = enrich(ch.charge(tk, annees=2))
+            # Trois ans comme partout ailleurs : une seule entree de cache
+            # par titre, partagee avec le scan et les positions.
+            d = enrich(ch.charge(tk, annees=3))
             c = float(d["close"].iloc[-1])
             s = float(d["sma200"].iloc[-1])
             return round((c / s - 1) * 100, 1) if s == s and s else None

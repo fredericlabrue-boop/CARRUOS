@@ -224,9 +224,21 @@ def controle(d: pd.DataFrame, bench: pd.DataFrame | None = None,
         ecart = abs(_seances_ouvrees(min(d.index[-1], bench.index[-1]),
                                      max(d.index[-1], bench.index[-1])) - 1)
         if ecart > DESYNC_MAX:
+            # ATTENTION au sens de ce controle. Pour un SCAN du soir, une
+            # serie qui s'arrete des semaines avant l'indice est morte et
+            # ne doit produire aucun signal.
+            #
+            # Pour un BACKTEST, c'est l'inverse exact : une serie qui
+            # s'arrete tot, c'est un titre retire de la cote, rachete ou
+            # en faillite. L'ecarter reviendrait a ne tester que les
+            # survivants — precisement le biais du chantier n°1. On se
+            # contente donc de le signaler.
             r.anomalies.append(
-                (BLOQUANT, f"decrochage de {ecart} seances avec l'indice "
-                           f"(titre {r.fin}, indice {bench.index[-1].date()})"))
+                (BLOQUANT if exige_recent else ALERTE,
+                 f"decrochage de {ecart} seances avec l'indice "
+                 f"(titre {r.fin}, indice {bench.index[-1].date()})"
+                 + ("" if exige_recent else " — retrait de cote probable, "
+                                            "conserve pour le backtest")))
         recent = d.index[d.index >= bench.index[0]]
         if len(recent):
             commun = float(recent.isin(bench.index).mean())

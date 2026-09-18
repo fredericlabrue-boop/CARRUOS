@@ -382,6 +382,19 @@ def test_qualite() -> None:
        list(gardees) == ["BON"] and len(refusees) == 1
        and "division" in refusees[0][1])
 
+    # Un titre retire de la cote s'arrete des semaines avant l'indice.
+    # En SCAN il est mort et ne doit rien produire ; en BACKTEST il doit
+    # etre garde, sinon on ne teste que les survivants — le biais meme
+    # qu'on cherche a corriger.
+    retire = saine.iloc[:-60]
+    ok("retrait de cote : refuse pour un scan du soir",
+       not ql.controle(retire, bench, "T", exige_recent=True,
+                       aujourdhui=jour).utilisable)
+    r_bt = ql.controle(retire, bench, "T", exige_recent=False,
+                       aujourdhui=jour)
+    ok("retrait de cote : CONSERVE pour un backtest (biais du survivant)",
+       r_bt.utilisable and any("retrait de cote" in a for a in r_bt.alertes))
+
 
 def test_audit() -> None:
     from . import audit as ad
