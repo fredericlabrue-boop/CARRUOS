@@ -570,6 +570,92 @@ def test_resolve_et_app() -> None:
        'phase0.lance("sp500"' not in val and "tables_univers()" in val)
 
 
+def test_veto_resultats() -> None:
+    """Le veto « resultats inconnus » doit se lever pour les bons titres,
+    et pour eux seulement."""
+    from . import data as dl
+    from . import rules as R
+    from .indicators import enrich
+    from .scan import resout_resultats
+
+    print("\n— Veto resultats : levee a la demande —")
+
+    # Un titre dont les treize blocs passent : seule la date manque.
+    # L'indice est bati sur le MEME calendrier, sinon la force relative
+    # se calcule sur une serie recopiee et le cas de reference ne tient
+    # plus.
+    r = np.random.default_rng(5)
+    cb = [400.0]
+    for _ in range(419):
+        cb.append(cb[-1] * (1 + 0.0004 + r.normal(0, 0.004)))
+    c = [100.0]
+    for _ in range(414):
+        c.append(c[-1] * (1 + 0.0015 + r.normal(0, 0.004)))
+    for _ in range(4):
+        c.append(c[-1] * (1 - 0.007))
+    c.append(c[-1] * 1.016)
+    c = np.array(c)
+    idx = pd.bdate_range("2022-01-03", periods=len(c))
+    o = np.concatenate([[c[0]], c[:-1]])
+    v = np.full(len(c), 3e7)
+    v[-1] = 3e7 * 1.9
+    pret = pd.DataFrame({"open": o, "high": np.maximum(o, c) * 1.004,
+                         "low": np.minimum(o, c) * 0.996, "close": c,
+                         "volume": v}, index=idx)
+    bench_close = pd.Series(np.array(cb), index=idx)
+    assert len(cb) == len(c), "indice et titre doivent partager le calendrier"
+    d_pret = enrich(pret, bench_close=bench_close)
+    autre = serie(len(c), seed=62)
+    autre.index = idx
+    d_autre = enrich(autre, bench_close=bench_close)
+
+    s_pret = R.evaluate(d_pret, "PRET", True, days_to_earnings=None)
+    s_autre = R.evaluate(d_autre, "AUTRE", True, days_to_earnings=None)
+    ok("cas de reference : treize blocs passes, seul le veto resultats reste",
+       all(s_pret.blocks.values()) and len(s_pret.vetos) == 1)
+
+    appels = []
+    vrai = dl.days_to_earnings_yf
+
+    def compte(tk):
+        appels.append(tk)
+        return 30
+
+    dl.days_to_earnings_yf = compte
+    try:
+        sortie = resout_resultats([s_pret, s_autre],
+                                  {"PRET": d_pret, "AUTRE": d_autre}, True)
+    finally:
+        dl.days_to_earnings_yf = vrai
+
+    ok("la date n'est cherchee QUE pour le titre concerne",
+       appels == ["PRET"])
+    par_tk = {s.ticker: s for s in sortie}
+    ok("le veto leve, le candidat declenche", par_tk["PRET"].fired)
+    ok("les autres titres sont rendus intacts",
+       par_tk["AUTRE"] is s_autre and not par_tk["AUTRE"].fired)
+
+    # Date introuvable : le veto reste, le titre ne declenche pas.
+    dl.days_to_earnings_yf = lambda tk: None
+    try:
+        reste = resout_resultats([s_pret], {"PRET": d_pret}, True)
+    finally:
+        dl.days_to_earnings_yf = vrai
+    ok("date introuvable : le veto reste entier, aucun declenchement",
+       not reste[0].fired
+       and any("INCONNUS" in v for v in reste[0].vetos))
+
+    # Publication proche : le veto de blackout remplace celui d'inconnu.
+    dl.days_to_earnings_yf = lambda tk: 4
+    try:
+        proche = resout_resultats([s_pret], {"PRET": d_pret}, True)
+    finally:
+        dl.days_to_earnings_yf = vrai
+    ok("publication dans 4 seances : veto de blackout, pas de declenchement",
+       not proche[0].fired
+       and any("résultats dans" in v for v in proche[0].vetos))
+
+
 def test_univers_figes() -> None:
     from . import data as dl
 
@@ -605,6 +691,7 @@ def main() -> int:
     test_robuste()
     test_cache()
     test_resolve_et_app()
+    test_veto_resultats()
     test_univers_figes()
 
     print()

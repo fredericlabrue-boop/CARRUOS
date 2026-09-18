@@ -37,6 +37,23 @@ def load_yf(ticker: str, years: int = 3) -> pd.DataFrame:
     return _normalise(df)
 
 
+def days_to_earnings_lot(tickers, fils: int = 8) -> dict:
+    """Dates de resultats de plusieurs titres, en parallele.
+
+    Un appel reseau par titre : les enchainer, c'est attendre autant de
+    fois de suite. A n'appeler que sur les titres pour qui la reponse
+    CHANGE quelque chose — voir `scan.resout_resultats()`.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    tickers = list(dict.fromkeys(tickers))
+    if not tickers:
+        return {}
+    n = max(1, min(int(fils), 16, len(tickers)))
+    with ThreadPoolExecutor(max_workers=n) as pool:
+        return dict(zip(tickers, pool.map(days_to_earnings_yf, tickers)))
+
+
 def days_to_earnings_yf(ticker: str) -> int | None:
     """Renvoie None si la date est introuvable. None = INCONNU, pas SANS RISQUE :
     rules.evaluate() pose alors un veto explicite."""

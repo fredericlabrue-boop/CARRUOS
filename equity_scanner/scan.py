@@ -138,7 +138,7 @@ def run(tickers, sleeve, source="yf", open_tickers=(), verbose=False, pause=0.0,
     errors += echecs
 
     # --- Evaluation ---------------------------------------------------
-    signals = []
+    signals, enrichies, rapports = [], {}, {}
     for tk, brut in sorted(brutes.items()):
         try:
             rap = ql.controle(brut, bench_raw, ticker=tk)
@@ -152,17 +152,24 @@ def run(tickers, sleeve, source="yf", open_tickers=(), verbose=False, pause=0.0,
                 errors.append((tk, f"cotee depuis {len(d)} seances seulement — "
                                    f"SMA200 indisponible avant 200"))
                 continue
-            jours = (nw.seances_avant(cal.get(tk)) if cal
-                     else dl.days_to_earnings_yf(tk) if source == "yf"
-                     else None)
+            jours = nw.seances_avant(cal.get(tk)) if cal else None
             sig = evaluate(d, tk, bench_ok, open_tickers=tuple(open_tickers),
                            n_open=len(open_tickers), days_to_earnings=jours)
             signals.append(sig)
-            if journal_audit:
-                ad.enregistre(sig, d, source="scan",
-                              qualite={"alertes": rap.alertes})
+            enrichies[tk] = d
+            rapports[tk] = rap
         except Exception as e:
             errors.append((tk, str(e)[:70]))
+
+    # Le veto « resultats inconnus » n'est leve que pour les titres dont
+    # il est le dernier obstacle : quelques appels reseau au lieu de 500.
+    signals = resout_resultats(signals, enrichies, bench_ok, open_tickers,
+                               source, fils or 8, journal=print)
+    if journal_audit:
+        for sig in signals:
+            ad.enregistre(sig, enrichies.get(sig.ticker), source="scan",
+                          qualite={"alertes": rapports[sig.ticker].alertes
+                                   if sig.ticker in rapports else []})
 
     # --- Graphiques ---------------------------------------------------
     for n, tk in enumerate(sorted(brutes), 1):
@@ -196,6 +203,51 @@ def run(tickers, sleeve, source="yf", open_tickers=(), verbose=False, pause=0.0,
                                actus, errors)
         print(f"\nTableau de bord : {out}")
     return fired, signals, errors
+
+
+VETO_RESULTATS = "RÉSULTATS INCONNUS"
+
+
+def resout_resultats(signaux, series, bench_ok, open_tickers=(), source="yf",
+                     fils=8, journal=None):
+    """Leve le veto « resultats inconnus » pour les seuls titres concernes.
+
+    LE PROBLEME. La regle est juste : une date de publication inconnue
+    n'est pas une date sans risque, elle pose un veto. Mais aller
+    chercher cette date pour les 500 titres d'un univers, c'est 500
+    appels reseau pour une information qui ne change RIEN a 495 d'entre
+    eux — ils sont deja recales par un bloc manquant.
+
+    LA SOLUTION. On evalue d'abord tout le monde sans la date. Les seuls
+    titres pour qui elle compte sont ceux dont les treize blocs passent
+    et dont le veto resultats est le DERNIER obstacle. On va chercher la
+    date pour ceux-la, une poignee, puis on les reevalue.
+
+    Le veto reste entier : un titre dont la date reste introuvable le
+    garde, et ne declenche pas.
+    """
+    if source != "yf":
+        return signaux
+    a_resoudre = [s.ticker for s in signaux
+                  if all(s.blocks.values())
+                  and all(VETO_RESULTATS in v for v in s.vetos)
+                  and s.vetos]
+    if not a_resoudre:
+        return signaux
+    if journal:
+        journal(f"  {len(a_resoudre)} candidat(s) potentiel(s) : recherche "
+                f"de la date de publication.")
+    dates = dl.days_to_earnings_lot(a_resoudre, fils=fils)
+    par_tk = {s.ticker: s for s in signaux}
+    for tk, jours in dates.items():
+        d = series.get(tk)
+        if d is None:
+            continue
+        par_tk[tk] = evaluate(d, tk, bench_ok,
+                              open_tickers=tuple(open_tickers),
+                              n_open=len(open_tickers),
+                              days_to_earnings=jours)
+    return [par_tk.get(s.ticker, s) for s in signaux]
 
 
 def report(fired, allsig, sleeve, errors=()):

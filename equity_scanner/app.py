@@ -368,7 +368,15 @@ async function scan(u,m){
  try{
   const j=await (await fetch('/api/scan?universe='+u+'&marche='+m)).json();
   if(!j.ok){$('ms').textContent=j.erreur; $('ms').className='msg err'; return;}
-  $('ms').textContent=j.regime+'   '+j.fired.length+' candidat(s) sur '+j.n+' titres';
+  // Un titre ecarte par le controle qualite doit se VOIR. Sans cette
+  // ligne, "0 candidat sur 60 titres" ne dit pas que 40 series ont ete
+  // refusees : elles disparaissent en silence, ce qui est exactement le
+  // defaut que le controle qualite est cense corriger.
+  var ec=(j.ecartes&&j.ecartes.length)?
+   '   '+j.ecartes.length+' ecarte(s) : donnees refusees':'';
+  $('ms').textContent=j.regime+'   '+j.fired.length+' candidat(s) sur '+
+   j.n+' titres'+ec;
+  $('ms').title=ec?j.ecartes.join('  |  '):'';
   if(!j.fired.length){
    let h='<table><tr><th>LES PLUS PROCHES</th><th>BLOCS MANQUANTS</th></tr>';
    j.proches.forEach(x=>{h+='<tr><td class="go" onclick="pick(\\''+clean(x.ticker)+
@@ -1430,7 +1438,8 @@ def _scan(univers, marche):
 
     liste = tables[univers]()
     brutes, echecs = ch.charge_lot(liste, annees=3)
-    sigs, ecartes = [], [f"{tk} : {m}" for tk, m in echecs[:10]]
+    sigs, enrichies, rapports = [], {}, {}
+    ecartes = [f"{tk} : {m}" for tk, m in echecs[:10]]
     for tk, brut in sorted(brutes.items()):
         try:
             rap = ql.controle(brut, bench_raw, ticker=tk)
@@ -1442,13 +1451,26 @@ def _scan(univers, marche):
             if len(d) < 220:
                 continue
             jours = nw.seances_avant(cal.get(tk)) if cal else None
-            sig = evaluate(d, tk, regime_ok, open_tickers=detenus,
-                           n_open=len(detenus), days_to_earnings=jours)
-            sigs.append(sig)
-            ad.enregistre(sig, d, source="interface", univers=univers,
-                          qualite={"alertes": rap.alertes})
+            sigs.append(evaluate(d, tk, regime_ok, open_tickers=detenus,
+                                 n_open=len(detenus), days_to_earnings=jours))
+            enrichies[tk] = d
+            rapports[tk] = rap
         except Exception:
             continue
+
+    # Sans calendrier Alpha Vantage, `jours` vaut None pour tout le monde
+    # et la regle pose — a juste titre — un veto « resultats inconnus ».
+    # Sans la levee ci-dessous, ce veto frappait les 500 titres et aucun
+    # candidat ne pouvait jamais s'afficher : le meme bouton mort que
+    # celui corrige plus haut, sous une autre forme. On ne va chercher la
+    # date que pour les titres dont c'est le DERNIER obstacle.
+    from .scan import resout_resultats
+    sigs = resout_resultats(sigs, enrichies, regime_ok, detenus, "yf")
+    for sig in sigs:
+        ad.enregistre(sig, enrichies.get(sig.ticker), source="interface",
+                      univers=univers,
+                      qualite={"alertes": rapports[sig.ticker].alertes
+                               if sig.ticker in rapports else []})
 
     out = []
     for s in rank(sigs)[:5]:
