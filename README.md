@@ -111,6 +111,23 @@ dossier remet tout à zéro sans rien casser.
 
 ---
 
+## Changer de thème
+
+Roue dentée en haut à droite, section **THÈME**. Trois ambiances, qui
+s'appliquent immédiatement et sont reprises au lancement suivant :
+
+| | |
+|---|---|
+| **CARRUOS** | cyan et or, sobre — l'original |
+| **JARVIS** | hologramme bleu clair et or, lumineux |
+| **ULTRON** | très sombre, néons violet et rouge |
+
+Le thème repeint tout : fond, panneaux, jauges, radar, hologramme. La
+palette d'accent, juste en dessous, ne change ensuite que la couleur
+d'accent si vous voulez affiner.
+
+---
+
 ## Le majordome et le micro
 
 **Le micro ne peut pas fonctionner dans la fenêtre Windows.** Ce n'est pas

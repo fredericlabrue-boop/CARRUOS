@@ -15,7 +15,40 @@ from pathlib import Path
 
 FICHIER = Path(".bruce_cache") / "reglages.json"
 
+# =====================================================================
+# THEMES
+#
+# Un theme n'est pas qu'une couleur d'accent : c'est le fond, la teinte
+# de l'hologramme, la matiere des panneaux et le contraste du texte.
+# Les trois se distinguent au premier coup d'oeil, sans quoi changer de
+# theme ne sert a rien.
+#
+# `holo` est un triplet RVB, pas un code hexadecimal : il sert dans des
+# rgba() de degrades, ou l'hexadecimal ne passe pas.
+# =====================================================================
+THEMES = {
+    "carruos": {
+        "nom": "CARRUOS",
+        "resume": "cyan et or, sobre",
+        "accent": "#22d3ee", "marque": "#c9b28a", "fond": "#080b10",
+        "pos": "#34d399", "neg": "#f87171", "holo": "34,211,238",
+    },
+    "jarvis": {
+        "nom": "JARVIS",
+        "resume": "hologramme bleu clair et or, lumineux",
+        "accent": "#6cd8ff", "marque": "#ffc46b", "fond": "#030a14",
+        "pos": "#5eead4", "neg": "#ff8a5b", "holo": "125,211,252",
+    },
+    "ultron": {
+        "nom": "ULTRON",
+        "resume": "tres sombre, neons violet et rouge",
+        "accent": "#b06cff", "marque": "#ff2d55", "fond": "#05030a",
+        "pos": "#00e5a0", "neg": "#ff2d55", "holo": "176,108,255",
+    },
+}
+
 DEFAUTS = {
+    "theme": "carruos",
     "accent": "#22d3ee",
     "marque": "#c9b28a",
     "fond": "#080b10",
@@ -82,8 +115,25 @@ def charge() -> dict:
         return json.loads(json.dumps(DEFAUTS))
 
 
+def applique_theme(r: dict, cle: str) -> dict:
+    """Pose les cinq couleurs du theme. Choisir un theme repeint tout ;
+    la palette d'accent, ensuite, ne change que l'accent."""
+    t = THEMES.get(cle)
+    if not t:
+        return r
+    out = dict(r, theme=cle)
+    for k in ("accent", "marque", "fond", "pos", "neg"):
+        out[k] = t[k]
+    return out
+
+
 def sauve(r: dict) -> dict:
-    fusionne = _fusion(charge(), r)
+    actuel = charge()
+    # Un changement de theme repeint les couleurs AVANT la fusion, sinon
+    # l'ancien accent survivrait au nouveau theme.
+    if r.get("theme") and r["theme"] != actuel.get("theme"):
+        actuel = applique_theme(actuel, r["theme"])
+    fusionne = _fusion(actuel, r)
     FICHIER.parent.mkdir(exist_ok=True)
     FICHIER.write_text(json.dumps(fusionne, indent=1), encoding="utf-8")
     return fusionne
@@ -94,8 +144,10 @@ def variables(r: dict) -> str:
     d = {"normale": ("1", "14px"), "compacte": (".82", "13px"),
          "large": ("1.18", "15px")}
     ech, police = d.get(r.get("densite", "normale"), d["normale"])
+    theme = THEMES.get(r.get("theme", "carruos"), THEMES["carruos"])
     return (f":root{{--acc:{r['accent']};--marque:{r['marque']};"
             f"--fond:{r['fond']};--pos:{r['pos']};--neg:{r['neg']};"
+            f"--holo:{theme['holo']};"
             f"--ech:{ech};--police:{police}}}")
 
 
@@ -114,6 +166,7 @@ def classes(r: dict) -> str:
             cl.append(f"noind-{k}")
     if not r.get("grille", True):
         cl.append("sans-grille")
+    cl.append("theme-" + r.get("theme", "carruos"))
     return " ".join(cl)
 
 
@@ -150,6 +203,108 @@ CSS_OPTIONS = """
 .sans-cone .fond-cone,.sans-cone .fond-socle{display:none}
 .sans-chroma .f-c1,.sans-chroma .f-c2{display:none}
 """
+
+# --- CSS des themes ---------------------------------------------------
+#
+# Chaque theme se pose par une classe sur <body> et ne fait qu'OUTREPASSER
+# les regles de base : rien n'est retire, donc un theme inconnu retombe
+# proprement sur l'apparence d'origine.
+#
+# Contraintes respectees : aucune animation de mise en page (transform et
+# opacity seulement), aucun backdrop-filter, aucun mode de fusion sur le
+# fond. Ce sont les trois choses qui font sauter la page.
+CSS_THEMES = """
+/* ================= JARVIS =========================================
+   Projection bleu clair et or. Panneaux plus translucides, traits fins,
+   beaucoup de lumiere : on est dans un atelier eclaire, pas dans une
+   cave. ============================================================ */
+body.theme-jarvis{background:
+ radial-gradient(ellipse 120% 80% at 50% 118%,rgba(125,211,252,.13),
+ transparent 62%),
+ radial-gradient(ellipse 90% 60% at 50% -10%,rgba(255,196,107,.06),
+ transparent 60%),var(--fond)}
+body.theme-jarvis .pan{background:rgba(6,17,30,.52);border-color:#14405c;
+ box-shadow:inset 0 0 46px rgba(125,211,252,.09),0 0 26px rgba(0,0,0,.5)}
+body.theme-jarvis .pan::before,body.theme-jarvis .pan::after{
+ border-color:rgba(125,211,252,.55)}
+body.theme-jarvis .hud{background:rgba(5,15,27,.55);border-color:#14405c}
+body.theme-jarvis .bar{border-color:#14405c}
+body.theme-jarvis .pan h2{color:#8fd4f0}
+body.theme-jarvis .pan h2::after{background:linear-gradient(90deg,
+ rgba(125,211,252,.5),transparent)}
+body.theme-jarvis .majp,body.theme-jarvis #tiroir{
+ background:rgba(4,13,24,.97);border-color:#14405c}
+body.theme-jarvis .majr{color:#dff1ff}
+body.theme-jarvis input{background:#07172a;border-color:#14405c;color:#dff1ff}
+body.theme-jarvis button{background:#0a2338;border-color:#2b7fa8}
+body.theme-jarvis th{color:#5f9dbb}
+body.theme-jarvis td{border-color:#0f2f45}
+body.theme-jarvis .rail{background:#07172a}
+body.theme-jarvis .fond-cone{background:linear-gradient(0deg,
+ rgba(125,211,252,.24),rgba(125,211,252,0) 84%)}
+body.theme-jarvis .fond-socle{background:radial-gradient(ellipse at center,
+ rgba(205,240,255,.82) 0%,rgba(125,211,252,.3) 40%,transparent 70%)}
+body.theme-jarvis .fond-lueur{background:radial-gradient(circle,
+ rgba(125,211,252,.14) 0%,rgba(255,196,107,.05) 42%,transparent 68%)}
+body.theme-jarvis .fond-scan{background:repeating-linear-gradient(180deg,
+ transparent 0 3px,rgba(125,211,252,.045) 3px 4px)}
+body.theme-jarvis .fond-cerf{opacity:.96}
+body.theme-jarvis .f-c1,body.theme-jarvis .f-c2{opacity:.5}
+
+/* ================= ULTRON =========================================
+   Presque noir, neons violet et rouge, contraste dur. Les panneaux sont
+   opaques : la projection ne les traverse plus, elle les cerne. ==== */
+body.theme-ultron{background:
+ radial-gradient(ellipse 130% 85% at 50% 122%,rgba(176,108,255,.14),
+ transparent 60%),
+ radial-gradient(ellipse 70% 50% at 50% 8%,rgba(255,45,85,.07),
+ transparent 62%),var(--fond)}
+body.theme-ultron .pan{background:rgba(9,5,16,.88);border-color:#3a1b5c;
+ box-shadow:inset 0 0 40px rgba(176,108,255,.1),
+ 0 0 24px rgba(0,0,0,.72),0 0 1px rgba(176,108,255,.5)}
+body.theme-ultron .pan::before,body.theme-ultron .pan::after{
+ border-color:rgba(255,45,85,.7)}
+body.theme-ultron .hud{background:rgba(8,4,14,.9);border-color:#3a1b5c}
+body.theme-ultron .bar{border-color:#3a1b5c}
+body.theme-ultron .bar h1{color:#ff2d55}
+body.theme-ultron .pan h2{color:#c79bff}
+body.theme-ultron .pan h2::after{background:linear-gradient(90deg,
+ rgba(255,45,85,.6),transparent)}
+body.theme-ultron .majp,body.theme-ultron #tiroir{
+ background:rgba(7,3,12,.98);border-color:#3a1b5c}
+body.theme-ultron .majr{color:#e7d7ff}
+body.theme-ultron input{background:#140a22;border-color:#3a1b5c;color:#e7d7ff}
+body.theme-ultron button{background:#1b0d2e;border-color:#7b3fd4}
+body.theme-ultron th{color:#9a6fc4}
+body.theme-ultron td{border-color:#2a1440}
+body.theme-ultron .rail{background:#140a22}
+body.theme-ultron .fond-cone{background:linear-gradient(0deg,
+ rgba(176,108,255,.26),rgba(255,45,85,.05) 40%,rgba(176,108,255,0) 84%)}
+body.theme-ultron .fond-socle{background:radial-gradient(ellipse at center,
+ rgba(255,45,85,.6) 0%,rgba(176,108,255,.3) 38%,transparent 70%)}
+body.theme-ultron .fond-lueur{background:radial-gradient(circle,
+ rgba(176,108,255,.13) 0%,rgba(255,45,85,.05) 40%,transparent 68%)}
+body.theme-ultron .fond-scan{background:repeating-linear-gradient(180deg,
+ transparent 0 3px,rgba(176,108,255,.05) 3px 4px)}
+body.theme-ultron .fond-cerf{opacity:.88}
+body.theme-ultron .f-c1{opacity:.7}
+body.theme-ultron .f-c2{opacity:.34}
+body.theme-ultron .fond-sol{opacity:.55}
+
+/* Selecteur de theme dans le tiroir */
+.themes{display:flex;flex-direction:column;gap:6px}
+.themes button{text-align:left;padding:9px 11px;background:#121a24;
+ border:1px solid #223044;color:#94a3b8;border-radius:7px;cursor:pointer;
+ font-size:12px;line-height:1.45}
+.themes button .n{display:block;font:500 11px ui-monospace,monospace;
+ letter-spacing:.16em;color:#cbd5e1}
+.themes button .r{display:block;font-size:10.5px;color:#5b7183;margin-top:2px}
+.themes button.sel{border-color:var(--acc)}
+.themes button.sel .n{color:var(--acc)}
+.themes button i{display:inline-block;width:9px;height:9px;border-radius:50%;
+ margin-right:7px;vertical-align:baseline}
+"""
+
 
 TIROIR_CSS = """
 #roue{position:fixed;top:12px;right:12px;z-index:60;width:38px;height:38px;
@@ -207,9 +362,18 @@ def tiroir_html(r: dict) -> str:
         for d, lab in
         (("compacte", "Compacte"), ("normale", "Normale"), ("large", "Large")))
 
+    themes = "".join(
+        f'<button data-theme="{k}"'
+        + (' class="sel"' if r.get("theme", "carruos") == k else '')
+        + f'><span class="n"><i style="background:{t["accent"]}"></i>'
+          f'{t["nom"]}</span><span class="r">{t["resume"]}</span></button>'
+        for k, t in THEMES.items())
+
     return (
         '<button id="roue" title="Reglages">&#9881;</button>'
         '<div id="tiroir">'
+        '<h3>THEME</h3>'
+        f'<div class="themes">{themes}</div>'
         '<h3>COULEUR D\'ACCENT</h3>'
         f'<div class="pal">{pal}</div>'
         '<h3>DENSITE</h3>'
@@ -220,6 +384,19 @@ def tiroir_html(r: dict) -> str:
         + '<div class="pied">Les reglages sont enregistres et repris au '
           'prochain lancement.<button class="raz" id="raz">Tout remettre '
           'par defaut</button></div></div>')
+
+
+def tiroir_js() -> str:
+    """Le script du tiroir, avec la table des themes injectee.
+
+    Elle doit exister cote navigateur pour appliquer un theme sans
+    rechargement ; la recopier a la main serait la garantie qu'un jour
+    les deux divergent.
+    """
+    return TIROIR_JS.replace("__THEMES__", json.dumps(
+        {k: {c: t[c] for c in ("accent", "marque", "fond", "pos", "neg",
+                               "holo")}
+         for k, t in THEMES.items()}))
 
 
 TIROIR_JS = """
@@ -250,6 +427,29 @@ TIROIR_JS = """
    document.documentElement.style.setProperty('--ech',v[0]);
    document.documentElement.style.setProperty('--police',v[1]);
    envoie({densite:b.dataset.dens});
+  };});
+ // Theme : les couleurs s'appliquent en direct par variables CSS, et la
+ // classe sur <body> bascule les regles propres au theme. Aucun
+ // rechargement ; le serveur enregistre pour le prochain lancement.
+ var THEMES_JS = __THEMES__;
+ document.querySelectorAll('.themes button').forEach(function(b){
+  b.onclick=function(){
+   var cle=b.dataset.theme, t=THEMES_JS[cle];
+   if(!t) return;
+   document.querySelectorAll('.themes button').forEach(function(x){
+    x.classList.remove('sel');});
+   b.classList.add('sel');
+   Object.keys(THEMES_JS).forEach(function(k){
+    document.body.classList.remove('theme-'+k);});
+   document.body.classList.add('theme-'+cle);
+   var st=document.documentElement.style;
+   st.setProperty('--acc',t.accent); st.setProperty('--marque',t.marque);
+   st.setProperty('--fond',t.fond);  st.setProperty('--pos',t.pos);
+   st.setProperty('--neg',t.neg);    st.setProperty('--holo',t.holo);
+   // La pastille de la palette d'accent suit le nouveau theme.
+   document.querySelectorAll('.pal button').forEach(function(x){
+    x.classList.toggle('sel', x.dataset.col===t.accent);});
+   envoie({theme:cle});
   };});
  var prefixe={effets:'sans-',modules:'off-',indics:'noind-'};
  document.querySelectorAll('.opt').forEach(function(o){

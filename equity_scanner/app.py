@@ -99,7 +99,7 @@ CERF_FIXE = (
     '<path class="fx" d="' + TRACE_D + '"/></svg>'
 )
 
-CSS = hd.CSS + hd.FOND_CSS + rg.CSS_OPTIONS + rg.TIROIR_CSS + """
+CSS = hd.CSS + hd.FOND_CSS + rg.CSS_OPTIONS + rg.CSS_THEMES + rg.TIROIR_CSS + """
 *{box-sizing:border-box;margin:0}
 body{background:#080b10;color:#94a3b8;font:14px ui-sans-serif,Segoe UI,system-ui;
  min-height:100vh;overflow-x:hidden}
@@ -1224,7 +1224,7 @@ def _accueil(splash: bool = True) -> str:
             '</div></section>'
 
             '</div></div>'
-            f"<script>{JS}{JS_POS}{JS_HUD}{rg.TIROIR_JS}</script></body></html>")
+            f"<script>{JS}{JS_POS}{JS_HUD}{rg.tiroir_js()}</script></body></html>")
 
 
 class Bruce(http.server.BaseHTTPRequestHandler):

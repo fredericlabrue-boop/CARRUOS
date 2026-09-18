@@ -269,6 +269,47 @@ def main() -> int:
     _v("cadenas" in jsa and "Confidentialite" in jsa,
        "la marche a suivre nomme le cadenas du navigateur et Windows")
 
+    # --- Les themes ---------------------------------------------------
+    print("\n  THEMES")
+    from . import reglages as _rg
+    _v(set(_rg.THEMES) == {"carruos", "jarvis", "ultron"},
+       "trois themes : CARRUOS, JARVIS, ULTRON")
+    complet = all(
+        all(k in t for k in ("nom", "resume", "accent", "marque", "fond",
+                             "pos", "neg", "holo"))
+        for t in _rg.THEMES.values())
+    _v(complet, "chaque theme declare ses six couleurs et son resume")
+    _v(len({t["accent"] for t in _rg.THEMES.values()}) == 3
+       and len({t["fond"] for t in _rg.THEMES.values()}) == 3,
+       "les trois se distinguent par l'accent ET par le fond")
+    _v('class="themes"' in h and h.count('data-theme=') == 3,
+       "le selecteur de theme est dans le tiroir")
+    _v("theme-carruos" in h, "la classe du theme est posee sur le corps")
+    for cle in ("jarvis", "ultron"):
+        _v(f"body.theme-{cle}" in css,
+           f"le CSS du theme {cle.upper()} est charge")
+    _v("--holo" in h, "la teinte de l'hologramme est une variable")
+    # Le theme ne doit pas reintroduire ce que les autres controles
+    # interdisent : pas de flou de fond, pas de mode de fusion, et aucune
+    # animation de mise en page.
+    _v("backdrop-filter" not in _rg.CSS_THEMES,
+       "aucun flou de fond dans les themes")
+    _v("mix-blend-mode" not in _rg.CSS_THEMES,
+       "aucun mode de fusion dans les themes")
+    _v("@keyframes" not in _rg.CSS_THEMES,
+       "les themes n'ajoutent aucune animation")
+    jst = _scripts(h)
+    _v("THEMES_JS" in jst and "__THEMES__" not in jst,
+       "la table des themes est injectee dans le script, pas laissee en "
+       "marque-place")
+    _v("classList.add('theme-'+cle)" in jst.replace(" ", ""),
+       "changer de theme bascule la classe sans recharger la page")
+    # Les jauges et le radar doivent suivre l'accent, sinon ils restent
+    # cyan sur un fond violet.
+    from . import hud as _hd
+    _v("var(--acc)" in _hd.CSS and "#22d3ee" not in _hd.CSS,
+       "les jauges du HUD suivent la couleur du theme")
+
     print("\n  BLOC POSITIONS")
     _v('id="ptk"' in h and 'id="pq"' in h and 'id="pe"' in h and 'id="pst"' in h,
        "les quatre champs de saisie sont presents")

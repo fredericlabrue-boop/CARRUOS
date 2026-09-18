@@ -15,7 +15,11 @@ import html
 # Cerf allege (247 points) : suffisant a 168 px, et n'alourdit pas la page.
 TRACE = "M186 376C184 377 183 376 183 375C182 374 181 373 180 369C179 366 180 362 179 355C177 349 174 338 171 332C169 325 165 322 162 318C160 313 158 308 157 304C157 300 158 294 159 294C160 294 161 302 163 304C164 306 166 307 166 306C165 305 162 298 161 297C161 295 162 295 163 294C164 294 164 293 165 295C167 297 170 305 172 306C173 307 174 305 174 304C174 302 175 301 173 297C171 293 166 285 164 281C162 276 162 268 162 268C163 268 166 279 167 281C168 282 167 277 168 278C169 279 171 284 172 286C173 288 175 288 175 287C175 286 173 282 173 281C173 280 175 278 177 280C178 282 182 291 184 293C185 295 186 294 185 293C185 291 182 288 182 286C182 283 186 282 185 279C185 277 180 273 179 272C178 270 179 269 180 268C181 267 185 267 185 266C185 264 181 262 179 260C178 258 176 252 175 252C174 251 176 255 175 255C173 256 169 255 167 253C166 251 166 246 165 244C164 242 161 248 161 240C161 232 162 202 163 197C165 192 167 206 169 212C170 217 170 226 171 229C172 233 174 230 176 232C178 233 181 238 182 239C183 239 181 234 182 234C182 234 183 238 184 238C185 238 185 234 186 234C188 235 192 239 194 240C196 240 199 236 200 236C202 236 202 239 203 239C204 239 205 240 206 239C208 237 215 232 212 230C209 229 192 230 188 230C183 229 182 228 183 227C185 227 195 227 196 226C197 225 191 222 190 220C189 218 190 217 190 216C190 215 190 215 191 214C193 214 196 215 197 215C199 216 199 218 201 218C202 218 206 216 208 216C209 216 209 218 209 220C209 221 205 225 206 226C207 227 213 227 215 225C216 224 216 219 215 215C214 211 208 207 208 201C208 196 213 186 214 182C216 177 218 178 218 177C217 176 214 174 212 175C210 175 211 178 207 179C202 179 191 179 185 177C179 175 174 168 171 168C168 168 169 174 168 176C166 177 163 177 162 179C162 180 164 183 164 184C164 185 163 186 161 186C159 185 157 182 154 180C150 178 143 177 139 175C136 174 135 171 132 168C130 165 127 160 126 156C124 153 124 149 124 147C124 145 125 143 126 144C128 144 134 147 136 148C137 149 137 149 136 150C134 151 130 150 129 152C127 153 128 156 129 157C130 159 132 159 134 161C137 164 140 170 144 173C148 176 154 179 157 179C160 179 160 174 162 173C163 172 163 174 164 174C165 173 167 171 168 169C169 168 170 164 170 163C169 162 165 162 164 163C162 165 164 169 163 170C162 172 159 171 158 171C157 171 156 171 156 169C156 167 159 162 156 159C153 156 139 150 139 149C138 148 147 151 152 153C157 155 164 160 167 161C170 161 170 159 170 158C170 157 169 156 168 156C167 155 164 156 163 155C161 154 160 152 157 149C153 147 153 145 141 141C129 137 96 128 85 124C74 121 77 121 73 118C68 115 64 110 61 107C58 103 56 100 55 97C54 95 53 89 55 91C57 93 65 105 68 108C70 111 71 109 72 109C72 109 73 109 73 107C74 106 78 107 74 102C71 96 58 84 53 77C48 69 45 63 42 57C40 51 40 45 40 40C40 36 42 33 43 30C44 27 47 23 47 24C47 26 45 36 44 39C44 43 44 43 46 48C48 52 54 63 57 67C61 71 63 77 65 72C66 67 65 44 66 37C66 29 67 28 67 25C68 22 70 16 71 21C71 25 70 43 71 53C72 64 75 75 77 82C79 89 80 92 84 96C87 101 91 105 97 109C102 113 116 122 119 123C121 123 112 115 110 110C109 106 110 97 111 97C111 96 112 106 114 109C116 113 117 114 121 118C124 121 130 127 137 131C144 136 158 143 163 145C167 147 164 145 163 143C162 141 158 137 157 133C155 130 153 129 153 123C152 118 152 105 152 101C153 97 154 95 155 99C156 103 156 117 159 125C162 132 169 142 173 145C177 149 179 146 181 146C183 147 182 148 186 149C189 150 197 150 200 149C203 149 202 151 206 147C209 143 217 134 221 126C224 118 224 103 225 99C226 95 227 98 228 102C228 105 228 117 227 122C227 127 226 128 224 131C223 135 218 141 217 143C216 145 213 147 217 145C222 143 236 135 243 131C250 127 253 123 257 120C261 116 262 116 264 112C266 108 269 97 269 97C270 96 270 106 270 110C269 113 268 115 266 117C265 119 257 124 261 123C264 121 280 111 286 107C292 102 293 101 296 97C299 93 301 89 303 81C306 74 308 63 309 52C310 42 309 25 309 20C310 16 312 23 313 25C313 28 314 30 314 38C315 45 314 67 315 72C316 77 319 72 322 68C325 64 331 53 334 49C336 44 336 43 336 39C335 36 333 28 332 25C332 23 332 22 333 24C335 26 338 34 340 38C341 42 340 43 340 46C340 49 340 52 338 57C336 62 333 68 328 75C323 82 312 93 308 97C304 102 305 102 305 103C305 105 307 108 308 109C309 110 309 112 311 109C314 106 323 93 325 91C327 89 326 96 325 98C324 101 322 104 319 107C316 111 312 114 308 117C304 120 308 120 296 124C284 128 250 138 238 142C226 146 227 147 224 149C221 151 219 153 219 154C218 156 219 157 220 158C221 159 218 161 224 159C230 156 251 145 257 143C264 141 261 143 262 145C263 147 263 151 261 155C259 159 255 168 251 172C248 176 245 177 241 179C237 180 231 179 228 180C225 182 226 179 225 189C224 199 223 229 224 242C226 254 229 259 232 266C234 273 239 278 239 283C240 287 236 290 236 293C235 297 238 301 237 303C236 306 231 306 231 307C231 309 235 311 236 312C236 313 236 315 236 316C236 317 235 318 233 319C232 319 230 317 228 318C227 318 225 319 224 321C224 322 226 323 226 325C226 327 226 330 225 331C225 332 224 332 223 332C222 332 220 330 219 330C218 330 218 332 216 332C215 332 213 329 213 331C212 332 213 339 213 341C212 343 212 343 210 343C209 343 206 340 204 342C203 343 202 351 201 353C199 354 195 349 194 351C192 354 191 366 190 370C188 374 187 375 186 376ZM127 248C126 249 125 247 124 247C124 246 127 243 126 243C125 243 122 246 120 247C118 247 115 248 113 247C112 247 114 246 112 245C110 244 99 240 100 240C101 239 111 241 118 240C124 239 135 236 139 234C143 232 143 232 144 229C146 226 149 215 150 217C150 219 148 235 147 239C147 243 146 240 145 240C145 240 146 237 144 238C143 239 139 245 137 245C135 246 136 240 135 241C133 241 129 247 127 248ZM176 193C174 193 170 191 169 189C167 188 165 184 166 183C168 182 174 184 176 184C178 185 178 185 179 186C179 188 181 191 180 192C180 193 178 194 176 193Z"
 
-CYAN = "#22d3ee"
+# Couleur d'accent. `var(--acc)` plutot qu'un code fige : les
+# cadrans et le radar suivent alors le theme choisi, au lieu de
+# rester cyan sur un fond violet. Les SVG en ligne comprennent les
+# variables CSS comme n'importe quel element de la page.
+CYAN = "var(--acc)"
 OR = "#c9b28a"
 
 CSS = """
@@ -77,16 +81,16 @@ CSS = """
 .rail .n{color:#3f6b78}
 .rail .v{text-align:right;color:#cbe9f2;font-size:11.5px}
 .rail .t{height:3px;background:#0b2028;position:relative;overflow:hidden}
-.rail .t i{position:absolute;top:0;height:100%;background:#22d3ee}
+.rail .t i{position:absolute;top:0;height:100%;background:var(--acc)}
 .rail .t .z{background:#134a56}
-.rail.ok .v{color:#34d399}.rail.ko .v{color:#f87171}
+.rail.ok .v{color:var(--pos)}.rail.ko .v{color:var(--neg)}
 .bandeau{display:flex;flex-wrap:wrap;gap:0;margin-top:16px;border-top:1px solid #0e2b34;
  padding-top:11px;font:400 10px ui-monospace,Consolas,monospace;letter-spacing:.12em}
 .bandeau div{flex:1;min-width:104px;padding:0 9px;border-left:1px solid #0e2b34}
 .bandeau div:first-child{border-left:0;padding-left:0}
 .bandeau .n{color:#3f6b78;font-size:8.5px;letter-spacing:.2em}
 .bandeau .v{color:#cbe9f2;font-size:14px;margin-top:3px}
-.bandeau .v.pos{color:#34d399}.bandeau .v.neg{color:#f87171}
+.bandeau .v.pos{color:var(--pos)}.bandeau .v.neg{color:var(--neg)}
 .bandeau .v.or{color:#c9b28a}
 """
 
@@ -144,12 +148,12 @@ def noyau(trace: str) -> str:
         '<feMerge><feMergeNode in="f"/><feMergeNode in="f"/>'
         '<feMergeNode in="SourceGraphic"/></feMerge></filter>'
         '<radialGradient id="pad" cx="50%" cy="50%">'
-        '<stop offset="0" stop-color="#22d3ee" stop-opacity=".62"/>'
-        '<stop offset="1" stop-color="#22d3ee" stop-opacity="0"/>'
+        '<stop offset="0" stop-color="var(--acc)" stop-opacity=".62"/>'
+        '<stop offset="1" stop-color="var(--acc)" stop-opacity="0"/>'
         '</radialGradient>'
         '<linearGradient id="rai" x1="0" y1="1" x2="0" y2="0">'
-        '<stop offset="0" stop-color="#22d3ee" stop-opacity=".34"/>'
-        '<stop offset="1" stop-color="#22d3ee" stop-opacity="0"/>'
+        '<stop offset="0" stop-color="var(--acc)" stop-opacity=".34"/>'
+        '<stop offset="1" stop-color="var(--acc)" stop-opacity="0"/>'
         '</linearGradient>'
         '</defs>'
         # cone de projection, depuis le socle vers le haut
@@ -161,7 +165,7 @@ def noyau(trace: str) -> str:
         '<circle class="rot1" cx="125" cy="125" r="110" fill="none" '
         'stroke="#1b6b7d" stroke-width="1" stroke-dasharray="2 9"/>'
         '<circle class="rot2" cx="125" cy="125" r="100" fill="none" '
-        'stroke="#22d3ee" stroke-width="1" stroke-dasharray="42 26 8 26" '
+        'stroke="var(--acc)" stroke-width="1" stroke-dasharray="42 26 8 26" '
         'opacity=".55" filter="url(#bloom)"/>'
         '<circle class="rot1" cx="125" cy="125" r="90" fill="none" '
         'stroke="#0e2b34" stroke-width="6" stroke-dasharray="1 15"/>'
@@ -171,7 +175,7 @@ def noyau(trace: str) -> str:
         # Trace declare UNE fois, reference trois fois : les deux copies
         # decalees creent l'aberration chromatique sans tripler le poids.
         f'<defs><path id="cerf-t" d="{trace}"/></defs>'
-        '<use href="#cerf-t" class="spectre" fill="none" stroke="#22d3ee" '
+        '<use href="#cerf-t" class="spectre" fill="none" stroke="var(--acc)" '
         'stroke-width="1.1" transform="translate(-1.6,0)"/>'
         '<use href="#cerf-t" class="spectre" fill="none" stroke="#f0b76b" '
         'stroke-width="1.1" transform="translate(1.6,0)"/>'
@@ -498,7 +502,7 @@ def fond(trace: str) -> str:
         # Halo serre : un trait large et tres transparent SOUS le trait net.
         # Il ajoute de la lumiere sans toucher au contour, contrairement a
         # un flou qui, lui, deplacerait les pixels du contour lui-meme.
-        '<use href="#fond-t" class="f-halo" fill="none" stroke="#22d3ee" '
+        '<use href="#fond-t" class="f-halo" fill="none" stroke="var(--acc)" '
         'stroke-width="7" vector-effect="non-scaling-stroke" '
         'stroke-linejoin="round" opacity=".13"/>'
         '<use href="#fond-t" class="f-halo" fill="none" stroke="#f5e3b8" '

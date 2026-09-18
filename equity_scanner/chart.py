@@ -320,7 +320,7 @@ def _analyse(brut, bench_brut, regle, nb, ticker, sleeve, ccy):
     return out
 
 
-CSS = hd.CSS + rg.CSS_OPTIONS + rg.TIROIR_CSS + """
+CSS = hd.CSS + rg.CSS_OPTIONS + rg.CSS_THEMES + rg.TIROIR_CSS + """
 *{box-sizing:border-box;margin:0}
 html,body{height:100%;margin:0;overflow:hidden}
 body{background:var(--fond);color:#94a3b8;
@@ -911,7 +911,7 @@ def build_html(brut, ticker, bench_brut, sleeve=8000.0, ccy="",
         + '</div>'
         f'<script src="{CDN}"></script>'
         "<script>const DATA=__D__;const CHANCE=" + json.dumps(chance)
-        + ";const TICKER=" + json.dumps(ticker) + ";" + JS + rg.TIROIR_JS + "</script></body></html>"
+        + ";const TICKER=" + json.dumps(ticker) + ";" + JS + rg.tiroir_js() + "</script></body></html>"
     ).replace("__D__", json.dumps(data, separators=(",", ":")))
 
     return doc

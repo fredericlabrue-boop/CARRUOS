@@ -78,7 +78,7 @@ l'empreinte sous laquelle elle a été écrite. Un résultat ne peut plus
 | `qualite.py` | refus de signal sur données douteuses |
 | `audit.py` | journal des signaux, empreinte des paramètres |
 | `robuste.py` | stabilité, Monte Carlo, bootstrap par blocs |
-| `reglages.py` | 13 effets visuels débrayables |
+| `reglages.py` | 3 thèmes, 13 effets visuels débrayables |
 
 ## Chantiers
 
@@ -114,6 +114,12 @@ l'empreinte sous laquelle elle a été écrite. Un résultat ne peut plus
   tout le script de la page.
 - Ne jamais réutiliser un alias de module comme variable locale.
   `test_pages` le vérifie aussi.
+- Un thème ne fait qu'**outrepasser** les règles de base, par une classe
+  `theme-…` sur `<body>`. Rien n'est retiré : un thème inconnu retombe
+  proprement sur l'apparence d'origine. Les couleurs qui doivent suivre
+  le thème passent par `var(--acc)`, `var(--pos)`, `var(--neg)` ou
+  `var(--holo)` — jamais par un code hexadécimal figé, sinon l'élément
+  reste cyan sur un fond violet.
 - Les téléchargements passent par `cache.charge()` ou `cache.charge_lot()`,
   jamais par `data.load_yf()` en direct : sinon le même titre repart sur
   le réseau à chaque écran. Un module de test qui veut des données
