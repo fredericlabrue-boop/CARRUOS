@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+
+# Donnees locales : cours en cache, cles, positions, journaux, rapports.
+# Rien de tout cela n'a sa place dans le depot.
+.bruce_cache/
+*.csv
+dashboard.html
