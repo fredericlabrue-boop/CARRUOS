@@ -1087,6 +1087,200 @@ etat();
 setInterval(etat, 300000);
 """
 
+# --- Page STRATEGIE ---------------------------------------------------
+# Deux colonnes : a gauche de l'arithmetique, a droite des faits mesures.
+# Aucune animation de mise en page : uniquement transform et opacity.
+CSS_STRAT = """
+/* .app attend TROIS rangees (barre, console, grille). Cette page n'en a
+   que deux : sans gabarit propre, les panneaux tombaient dans la rangee
+   « auto » et s'arretaient au milieu de l'ecran. */
+.app.strat-page{grid-template-rows:auto minmax(0,1fr)}
+.strat{display:grid;grid-template-columns:1fr 1.15fr;
+ grid-template-rows:minmax(0,1fr);gap:9px;min-height:0}
+.strat .corps{overflow-y:auto;min-height:0}
+@media(max-width:1150px){.strat{grid-template-columns:1fr;
+ grid-template-rows:auto auto}}
+.champs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.champs label{display:flex;flex-direction:column;gap:4px;
+ font:400 10px ui-monospace,monospace;letter-spacing:.14em;color:#3f6b78}
+.champs input{width:100%}
+.ex{font-size:11.5px;line-height:1.6;color:#5b7183;margin-bottom:11px}
+.tproj{width:100%;border-collapse:collapse;margin-top:12px;
+ font:400 11.5px ui-monospace,monospace}
+.tproj th{text-align:right;padding:5px 6px;font-weight:500;font-size:9.5px;
+ letter-spacing:.14em;color:#3f6b78;border-bottom:1px solid #0e2b34}
+.tproj th:first-child,.tproj td:first-child{text-align:left}
+.tproj td{text-align:right;padding:4px 6px;border-bottom:1px solid #0b2028}
+.tproj tr.fort td{color:#cbe9f2;font-weight:600}
+.bilan{margin-top:13px;padding-top:11px;border-top:1px solid #0e2b34;
+ font-size:12px;line-height:1.75;color:#8fb3c1}
+.bilan b{color:var(--acc)}
+.lig{border:1px solid #0e2b34;padding:11px 13px;margin-bottom:9px;
+ clip-path:polygon(11px 0,100% 0,100% calc(100% - 11px),
+ calc(100% - 11px) 100%,0 100%,0 11px)}
+.lig h3{font:500 13px ui-monospace,monospace;letter-spacing:.1em;
+ color:#cbe9f2;margin-bottom:8px}
+.lig h3 span{font-size:10.5px;color:#3f6b78;letter-spacing:.06em}
+.kv2{display:grid;grid-template-columns:1fr auto;gap:2px 10px;
+ font:400 11.5px ui-monospace,monospace;color:#6f93a3}
+.kv2 b{color:#cbe9f2;text-align:right}
+.trajet{margin:9px 0;padding:8px 10px;background:rgba(8,20,26,.5);
+ border-left:2px solid var(--acc)}
+.sortie{display:flex;justify-content:space-between;font-size:11px;
+ padding:3px 0;color:#5b7183}
+.sortie.on{color:var(--neg)}
+.sortie .et{font:500 9px ui-monospace,monospace;letter-spacing:.14em}
+.pos{color:var(--pos)}.neg{color:var(--neg)}
+"""
+
+JS_STRAT = r"""
+function $(i){return document.getElementById(i);}
+var PEA = false;
+
+function basculePea(){
+ PEA = !PEA;
+ $('benv').textContent = PEA ? 'PEA +5 ANS (17,2 %)'
+                             : 'COMPTE-TITRES (30 %)';
+ proj();
+}
+
+function eur(v){
+ return (v<0?'-':'') + Math.abs(Math.round(v)).toLocaleString('fr-FR')
+        + ' €';
+}
+
+async function proj(){
+ var q = 'capital=' + ($('pcap').value||0)
+       + '&mensuel=' + ($('pmens').value||0)
+       + '&taux=' + ($('ptaux').value||0)
+       + '&ans=' + ($('pans').value||10)
+       + (PEA ? '&pea=1' : '');
+ $('pres').innerHTML = '<div class="msg">Calcul...</div>';
+ try{
+  var j = await (await fetch('/api/projection?' + q)).json();
+  if(!j.ok){
+   $('pres').innerHTML = '<div class="msg err">' + (j.raison||'') + '</div>';
+   return;
+  }
+  var h = j.hypothese, jal = [1,3,5,10,15,20];
+  var t = '<table class="tproj"><tr><th>AN</th><th>VERSE</th>'
+        + '<th>CAPITALISANT</th><th>ROTATION</th><th>GAINS RETIRES</th></tr>';
+  j.lignes.forEach(function(x){
+   if(jal.indexOf(x.an) < 0 && x.an !== h.annees) return;
+   t += '<tr' + (x.an===h.annees ? ' class="fort"' : '') + '><td>' + x.an
+      + '</td><td>' + eur(x.verse) + '</td><td>' + eur(x.capitalisant_net)
+      + '</td><td>' + eur(x.rotation_net) + '</td><td>'
+      + eur(x.retire_total) + '</td></tr>';
+  });
+  t += '</table>';
+  t += '<div class="bilan">Vous aurez verse <b>' + eur(j.verse_total)
+     + '</b> en ' + h.annees + ' ans.<br>'
+     + 'La friction fiscale de la rotation coute <b>'
+     + eur(j.ecart_capitalisant_rotation) + '</b>, soit '
+     + j.part_perdue_en_friction.toFixed(1) + ' % du capitalisant.<br>'
+     + 'Pour seulement <b>egaler</b> le capitalisant, une rotation doit '
+     + 'produire <b>' + (j.barre_brute*100).toFixed(2) + ' %</b> brut par '
+     + 'an au lieu de ' + (h.taux*100).toFixed(2) + ' %.'
+     + "<br><span style=\"color:#3f6b78\">Ce tableau n'est pas une "
+     + "prevision : il deroule l'hypothese que vous avez saisie.</span>"
+     + '</div>';
+  $('pres').innerHTML = t;
+ }catch(e){
+  $('pres').innerHTML = '<div class="msg err">Erreur : ' + e + '</div>';
+ }
+}
+
+function sgn(v, suff){
+ var c = v > 0 ? 'pos' : (v < 0 ? 'neg' : '');
+ return '<b class="' + c + '">' + (v>0?'+':'') + v.toFixed(2)
+        + (suff||' %') + '</b>';
+}
+
+async function lignes(){
+ try{
+  var j = await (await fetch('/api/lignes')).json();
+  if(!j.ok){
+   $('lres').className = 'msg err';
+   $('lres').textContent = j.erreur || 'indisponible';
+   return;
+  }
+  if(!j.lignes.length){
+   $('lres').className = 'msg';
+   $('lres').textContent = "Aucune position enregistree. "
+     + "Ajoutez-les depuis la page d'accueil.";
+   return;
+  }
+  var h = '';
+  j.lignes.forEach(function(r){
+   if(!r.ok){
+    h += '<div class="lig"><h3>' + r.ticker + '</h3>'
+       + '<div class="msg err">' + (r.erreur||'') + '</div></div>';
+    return;
+   }
+   h += '<div class="lig"><h3>' + r.ticker
+      + ' <span>' + r.quantite + ' titres a ' + r.entree.toFixed(2)
+      + ' &middot; depuis le ' + r.depuis + '</span></h3>';
+   h += '<div class="trajet"><div class="kv2">'
+      + '<span>cours</span><b>' + r.cours.toFixed(2) + '</b>'
+      + '<span>plus haut atteint (' + r.date_plus_haut + ')</span><b>'
+      + r.plus_haut.toFixed(2) + '</b>'
+      + '<span>gain latent maximum</span>' + sgn(r.mfe_pct)
+      + "<span>gain latent aujourd'hui</span>" + sgn(r.pnl_pct)
+      + '<span>recul depuis le sommet</span>' + sgn(r.recul_depuis_haut_pct)
+      + '<span>part du gain rendue</span><b>'
+      + r.gain_rendu_pct.toFixed(2) + ' pts</b>'
+      + '</div></div>';
+   h += '<div class="kv2">';
+   [['EMA 20','ema20'],['SMA 50','sma50'],['SMA 200','sma200']]
+    .forEach(function(p){
+     var e = r[p[1]];
+     if(!e) return;
+     h += '<span>ecart a la ' + p[0] + '</span>' + sgn(e.pct)
+        + (e.atr===null ? '' : '');
+    });
+   if(r.rsi!==null) h += '<span>RSI 14</span><b>' + r.rsi + '</b>';
+   if(r.marge_stop_pct!==null)
+     h += '<span>marge avant le stop</span>' + sgn(r.marge_stop_pct);
+   h += '</div>';
+   h += '<div style="margin-top:9px;font:500 9px ui-monospace,monospace;'
+      + 'letter-spacing:.16em;color:#3f6b78">CE QUE DIT VOTRE PLAN &mdash; '
+      + r.n_sorties + ' / 4 ACTIVE(S)</div>';
+   Object.keys(r.sorties).forEach(function(k){
+    var on = r.sorties[k];
+    h += '<div class="sortie' + (on?' on':'') + '"><span>' + k
+       + '</span><span class="et">' + (on?'ACTIVE':'dormante')
+       + '</span></div>';
+   });
+   if(r.resultats && r.resultats.jours !== undefined
+      && r.resultats.jours !== null)
+     h += '<div class="sortie on"><span>resultats dans '
+        + r.resultats.jours + ' seances</span><span class="et">'
+        + (r.resultats.date||'') + '</span></div>';
+   if(r.point_mort)
+     h += "<div class=\"bilan\" style=\"margin-top:9px\">Vendre aujourd'hui : "
+        + 'impot de <b>' + eur(r.point_mort.impot) + '</b>, il resterait <b>'
+        + eur(r.point_mort.net_si_vendu) + '</b> a replacer. Le nouveau '
+        + 'placement partirait avec <b>'
+        + r.point_mort.handicap_pct.toFixed(2) + ' %</b> de retard.</div>';
+   h += '</div>';
+  });
+  h += "<p class=\"ex\" style=\"margin-top:10px\">Les actualites et le "
+     + "contexte geopolitique n'entrent dans <b>aucune</b> regle et ne "
+     + "sont pas chiffres ici : une information publique est deja dans "
+     + "les cours. Servez-vous en pour votre verification avant de passer "
+     + "l'ordre, pas comme d'un signal.</p>";
+  $('lres').className = '';
+  $('lres').innerHTML = h;
+ }catch(e){
+  $('lres').className = 'msg err';
+  $('lres').textContent = 'Erreur : ' + e;
+ }
+}
+
+proj(); lignes();
+"""
+
+
 BARRE = ('<div style="margin-bottom:15px"><button onclick="location.href=\'/\'" '
          'style="background:#121a24;border:1px solid #22303f;color:#94a3b8;'
          'border-radius:9px;padding:9px 18px;font:500 13px inherit;cursor:pointer">'
@@ -1143,6 +1337,8 @@ def _accueil(splash: bool = True) -> str:
             '<span class="sep"></span>'
             '<button class="raf" id="raf" onclick="toutRafraichir()">'
             '&#8635; ACTUALISER</button>'
+            '<button class="raf" onclick="location.href=&#39;/strategie&#39;">'
+            'STRATEGIE</button>'
             '<span class="etat" id="horloge">&mdash;</span></div>'
             + hd.console(TRACE_D, hologramme=False)
             + '<div class="grille">'
@@ -1292,6 +1488,12 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                 return self._json(_verifie(q.get("ticker", "")))
             if u.path == "/graphique":
                 return self._envoie(_page_graphique(q.get("ticker", "")))
+            if u.path == "/strategie":
+                return self._envoie(_page_strategie())
+            if u.path == "/api/projection":
+                return self._json(_projection(q))
+            if u.path == "/api/lignes":
+                return self._json(_revue_lignes())
             if u.path == "/api/reglages":
                 return self._json(rg.charge())
             if u.path == "/api/positions":
@@ -1757,6 +1959,129 @@ def _scan(univers, marche):
     except Exception as exc:
         print(f"  radar : ecriture impossible ({type(exc).__name__}: {exc})")
     return res
+
+
+def _projection(q: dict) -> dict:
+    """Projection de reinvestissement. Tout vient de la requete : le taux
+    est une hypothese de l'utilisateur, jamais une valeur devinee ici."""
+    from . import strategie as sg
+
+    def nombre(cle, defaut, mini=0.0, maxi=1e9):
+        try:
+            return max(mini, min(maxi, float(q.get(cle, defaut))))
+        except (TypeError, ValueError):
+            return defaut
+
+    capital = nombre("capital", REGLAGES["sleeve"])
+    taux = nombre("taux", 8.0, -50.0, 60.0) / 100.0
+    ans = int(nombre("ans", 15, 1, 40))
+    mensuel = nombre("mensuel", 0.0)
+    impot = sg.PEA_5ANS if q.get("pea") in ("1", "true", "oui") else sg.PFU
+    p = sg.projette(capital, taux, ans, mensuel, impot)
+    if p.get("ok"):
+        p["friction"] = sg.table_friction(taux, impot)
+    return p
+
+
+def _revue_lignes() -> dict:
+    """Les faits sur chaque ligne detenue. Aucun verdict n'est calcule :
+    les conditions de sortie affichees sont celles de la specification."""
+    from . import cache as ch
+    from . import qualite as ql
+    from . import strategie as sg
+
+    lignes = ps.charge()
+    if not lignes:
+        return {"ok": True, "lignes": [], "vide": True}
+    try:
+        bench_brut = ch.charge("SPY", annees=3)
+        marche = market_regime_ok(enrich(bench_brut))
+    except Exception as exc:
+        return {"ok": False, "erreur": f"indice indisponible ({exc})"}
+
+    cal = {}
+    cle = cle_av()
+    if cle:
+        try:
+            cal = nw.earnings_map(cle)
+        except Exception:
+            cal = {}
+
+    out = []
+    for l in lignes:
+        tk = l["ticker"]
+        try:
+            brut = ch.charge(tk, annees=3)
+            rap = ql.controle(brut, bench_brut, ticker=tk)
+            if not rap.utilisable:
+                out.append({"ticker": tk, "ok": False,
+                            "erreur": rap.resume()})
+                continue
+            d = enrich(brut, bench_close=bench_brut["close"])
+            earn = {}
+            if tk in cal:
+                earn = {"date": cal[tk].isoformat(),
+                        "jours": nw.seances_avant(cal[tk])}
+            r = sg.revue_ligne(l, d, marche, earn=earn)
+            r["point_mort"] = sg.point_mort_fiscal(r)
+            r["alertes"] = rap.alertes
+            out.append(r)
+        except Exception as exc:
+            out.append({"ticker": tk, "ok": False,
+                        "erreur": f"{type(exc).__name__}: {exc}"})
+    return {"ok": True, "lignes": out, "marche_ok": marche}
+
+
+def _page_strategie() -> str:
+    """La page STRATEGIE. Deux moities de nature differente, et le texte
+    le dit : a gauche de l'arithmetique, a droite des faits mesures."""
+    reg = rg.charge()
+    return (
+        '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        f"<title>{NOM} - strategie</title>"
+        f"<style>{rg.variables(reg)}{CSS}{CSS_STRAT}</style></head>"
+        f'<body class="{rg.classes(reg)}">'
+        + rg.tiroir_html(reg)
+        + hd.fond(TRACE_D)
+        + '<div class="app strat-page">'
+          f'<div class="bar">{CERF_FIXE.format(28, 30)}'
+          f"<h1>{NOM}</h1><span class=\"sst\">STRATEGIE</span>"
+          '<span class="sep"></span>'
+          '<button class="raf" onclick="location.href=&#39;/&#39;">'
+          '&#8592; ACCUEIL</button></div>'
+
+          '<div class="strat">'
+          '<section class="pan"><h2>SI JE REINVESTIS</h2>'
+          '<div class="corps">'
+          '<p class="ex">Le meme rendement, trois traitements fiscaux. '
+          'Le taux ci-dessous est <b>votre hypothese</b> : ce tableau en '
+          'tire les consequences, il ne les devine pas.</p>'
+          '<div class="champs">'
+          '<label>Capital<input id="pcap" type="number" value="8000"></label>'
+          '<label>Versement / mois<input id="pmens" type="number" value="0">'
+          '</label>'
+          '<label>Rendement brut %/an<input id="ptaux" type="number" '
+          'value="8" step="0.5"></label>'
+          '<label>Horizon (ans)<input id="pans" type="number" value="15">'
+          '</label>'
+          '</div>'
+          '<div class="row" style="margin-top:9px">'
+          '<button onclick="proj()">CALCULER</button>'
+          '<button class="sec" id="benv" onclick="basculePea()">'
+          'COMPTE-TITRES (30 %)</button></div>'
+          '<div id="pres"></div>'
+          '</div></section>'
+
+          '<section class="pan"><h2>MES LIGNES</h2>'
+          '<div class="corps">'
+          '<p class="ex">Les faits mesurables sur chaque position, et '
+          'l\'etat des <b>quatre conditions de sortie de votre '
+          'specification</b>. Aucun verdict n\'est calcule ici.</p>'
+          '<div id="lres" class="msg">Releve en cours...</div>'
+          '</div></section>'
+          '</div></div>'
+        + f"<script>{JS_STRAT}{rg.tiroir_js()}</script></body></html>")
 
 
 def _icone() -> str:

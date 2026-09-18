@@ -45,6 +45,15 @@ l'empreinte sous laquelle elle a été écrite. Un résultat ne peut plus
 
 - Un pourcentage unique de « chances de gagner ». Toujours l'intervalle
   de confiance de Wilson avec le nombre de trades.
+- Un avis « garder / vendre » sur une ligne détenue. `strategie.py`
+  donne les **faits** (plus haut atteint, recul depuis ce sommet, part
+  du gain rendue, écarts aux moyennes, coût fiscal d'une vente) et
+  l'état des **quatre conditions de sortie de la spécification**. La
+  différence entre « trois conditions sur quatre sont actives » et
+  « vends » n'est pas une nuance de style : la première est vérifiable,
+  la seconde est une opinion déguisée.
+- Un chiffrage du risque géopolitique. Les actualités sont du contexte
+  pour la vérification avant l'ordre, elles n'entrent dans aucune règle.
 - Un score composite construit sur des poids non testés.
 - Un verdict directionnel (HAUSSIER / ACHAT) dérivé d'un tel score.
 - Une ligne de prédiction de prix. Le cône de dispersion existe : dérive
@@ -78,6 +87,7 @@ l'empreinte sous laquelle elle a été écrite. Un résultat ne peut plus
 | `qualite.py` | refus de signal sur données douteuses |
 | `audit.py` | journal des signaux, empreinte des paramètres |
 | `robuste.py` | stabilité, Monte Carlo, bootstrap par blocs |
+| `strategie.py` | projection de réinvestissement, revue de ligne |
 | `reglages.py` | 4 thèmes, 13 effets visuels débrayables |
 
 ## Chantiers

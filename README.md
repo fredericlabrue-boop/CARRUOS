@@ -111,6 +111,37 @@ dossier remet tout à zéro sans rien casser.
 
 ---
 
+## L'onglet STRATÉGIE
+
+Bouton **STRATEGIE** en haut de l'accueil. Deux moitiés, de nature très
+différente — et c'est important.
+
+**À gauche, de l'arithmétique.** Le même rendement traité de trois
+façons : un ETF capitalisant (impôt seulement à la revente), une
+rotation active (PFU chaque année plus les frais), et des gains retirés
+au fil de l'eau. Le rendement que vous saisissez est **votre
+hypothèse** : la page en tire les conséquences, elle ne les devine pas.
+Elle affiche aussi la *barre à franchir* — le rendement brut qu'une
+rotation doit produire pour seulement **égaler** un capitalisant, une
+fois l'impôt annuel et les frais comptés. Bascule compte-titres (30 %)
+ou PEA de plus de cinq ans (17,2 %).
+
+**À droite, des faits.** Pour chaque ligne détenue : le plus haut
+atteint depuis l'entrée et sa date, le recul depuis ce sommet, la part
+du gain maximum rendue, les écarts aux moyennes en ATR, la marge avant
+le stop, la date de publication des résultats, et ce que coûterait
+fiscalement une vente aujourd'hui.
+
+Puis l'état des **quatre conditions de sortie de votre spécification** —
+actives ou dormantes. C'est votre plan qui parle, pas un score.
+
+**Aucun verdict n'est calculé.** Pas de « garder » ni de « vendre », pas
+de score composite, pas de chiffrage du géopolitique. Une information
+publique est déjà dans les cours ; les actualités sont du contexte pour
+votre vérification avant de passer l'ordre, jamais un signal.
+
+---
+
 ## Changer de thème
 
 Roue dentée en haut à droite, section **THÈME**. Trois ambiances, qui

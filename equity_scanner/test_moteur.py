@@ -410,6 +410,103 @@ def test_comparatif() -> None:
        cp.barre_a_franchir(0.15, 10) > cp.barre_a_franchir(0.15, 3))
 
 
+def test_strategie() -> None:
+    """La projection est de l'ARITHMETIQUE : elle se verifie a la main."""
+    from . import strategie as sg
+
+    print("\n— Projection de reinvestissement —")
+    # 10 000 EUR, 10 %/an, 1 an, sans versement, PFU 30 %, frais 1 %.
+    p = sg.projette(10_000, 0.10, 1)
+    L = p["lignes"][0]
+    ok("capitalisant : 11 000 brut, moins 30 % de 1 000 = 10 700",
+       abs(L["capitalisant_net"] - 10_700) < 0.01)
+    ok("rotation : 11 000 - 100 de frais - 270 d'impot = 10 630",
+       abs(L["rotation_net"] - 10_630) < 0.01
+       and abs(L["frais_annee_rotation"] - 100) < 0.01
+       and abs(L["impot_annee_rotation"] - 270) < 0.01)
+    ok("gains retires : capital 10 000 + 700 nets = 10 700",
+       abs(L["retire_capital"] - 10_000) < 0.01
+       and abs(L["retire_total"] - 10_700) < 0.01)
+
+    # A rendement nul, seuls les frais de rotation mordent.
+    z = sg.projette(10_000, 0.0, 10)
+    ok("rendement nul : le capitalisant ne bouge pas",
+       abs(z["capitalisant_net"] - 10_000) < 0.01)
+    ok("rendement nul : la rotation perd ses frais chaque annee",
+       z["rotation_net"] < 9_200)
+
+    # Ordre attendu sur longue periode : l'impot differe travaille.
+    g = sg.projette(10_000, 0.08, 20)
+    ok("sur 20 ans : capitalisant > rotation > gains retires",
+       g["capitalisant_net"] > g["rotation_net"] > g["retire_total"])
+    pea = sg.projette(10_000, 0.08, 20, impot=sg.PEA_5ANS)
+    ok("une imposition plus faible laisse plus de capital",
+       pea["capitalisant_net"] > g["capitalisant_net"])
+
+    ok("la barre a franchir monte avec l'horizon",
+       sg.barre_a_franchir(0.08, 20) > sg.barre_a_franchir(0.08, 3)
+       > sg.barre_a_franchir(0.08, 1))
+    ok("elle est toujours au-dessus du taux de reference",
+       all(x["surcout"] > 0 for x in sg.table_friction(0.08)))
+    ok("des versements seuls, sans capital de depart, fonctionnent",
+       sg.projette(0, 0.06, 10, versement_mensuel=300)["ok"])
+    ok("ni capital ni versement : refuse au lieu de rendre zero",
+       not sg.projette(0, 0.06, 10)["ok"])
+
+    print("\n— Revue d'une ligne : le cas monte-puis-redescendu —")
+    from .indicators import enrich
+    r = np.random.default_rng(4)
+    c = [9.0]
+    for _ in range(299):
+        c.append(c[-1] * (1 + 0.0018 + r.normal(0, 0.012)))
+    for _ in range(100):
+        c.append(c[-1] * (1 - 0.0035 + r.normal(0, 0.012)))
+    c = np.array(c)
+    idx = pd.bdate_range("2023-01-02", periods=len(c))
+    o = np.concatenate([[c[0]], c[:-1]])
+    d = pd.DataFrame({"open": o, "high": np.maximum(o, c) * 1.006,
+                      "low": np.minimum(o, c) * 0.994, "close": c,
+                      "volume": r.uniform(2e6, 9e6, len(c))}, index=idx)
+    d = enrich(d, bench_close=pd.Series(c * 40, index=idx))
+    ligne = {"ticker": "TLX", "quantite": 70, "entree": 11.69,
+             "stop": 10.60, "date": str(idx[150].date())}
+    rv = sg.revue_ligne(ligne, d, marche_ok=True)
+
+    ok("le plus haut releve est posterieur a l'entree",
+       rv["date_plus_haut"] >= rv["depuis"])
+    ok("le gain maximum atteint depasse le gain du jour",
+       rv["mfe_pct"] > rv["pnl_pct"])
+    ok("le recul depuis le sommet est negatif",
+       rv["recul_depuis_haut_pct"] < 0)
+    ok("la part du gain rendue vaut bien maximum moins aujourd'hui",
+       abs(rv["gain_rendu_pct"] - (rv["mfe_pct"] - rv["pnl_pct"])) < 0.01)
+    ok("les quatre conditions de sortie de la specification sont rendues",
+       len(rv["sorties"]) == 4)
+    ok("l'impot d'une vente immediate est chiffre",
+       rv["impot_si_vente"] >= 0
+       and abs(rv["net_si_vente"]
+               - (rv["valeur"] - rv["impot_si_vente"])) < 0.01)
+
+    pm = sg.point_mort_fiscal(rv)
+    ok("le handicap du replacement est chiffre et positif",
+       pm is not None and pm["handicap_pct"] > 0)
+
+    # La regle absolue du projet : aucun verdict directionnel n'est
+    # produit, et le texte le dit au lecteur au lieu de le laisser
+    # deviner.
+    texte = sg.texte_revue(rv).lower()
+    ok("le texte ne rend aucun verdict directionnel",
+       not [m for m in ("acheter", "haussier", "baissier", "confiance",
+                        "recommand", "score") if m in texte])
+    ok("il dit explicitement qu'aucun verdict n'est calcule",
+       "aucun verdict" in texte)
+
+    # Ligne sans prix d'entree : on refuse au lieu de deviner.
+    ok("une ligne sans prix d'entree est refusee proprement",
+       not sg.revue_ligne({"ticker": "X", "quantite": 1, "entree": 0},
+                          d, True)["ok"])
+
+
 def test_qualite() -> None:
     import datetime as dt
 
@@ -763,6 +860,7 @@ def main() -> int:
     test_phase0()
     test_pead()
     test_comparatif()
+    test_strategie()
     test_qualite()
     test_audit()
     test_robuste()

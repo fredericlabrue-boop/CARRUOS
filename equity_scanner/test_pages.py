@@ -61,9 +61,19 @@ def _apostrophes_effondrees(js: str) -> list[str]:
         for m in re.finditer(r"(\w+)\(''\s*\+|\+\s*''\)", ligne):
             fautes.append(f"ligne {i} : {ligne.strip()[:70]}")
             break
-        # apostrophe nue au milieu d'un litteral simple quote
-        if re.search(r"'[^'\"\n]*\bd'[a-z]", ligne) and "\\'" not in ligne:
-            fautes.append(f"ligne {i} (apostrophe francaise) : "
+        # --- apostrophe francaise NUE dans un litteral a simple quote ---
+        #
+        # L'ancienne version cherchait le motif DANS un litteral extrait
+        # par paires de quotes. C'est aveugle par construction : une
+        # apostrophe nue TERMINE le litteral, donc elle n'est jamais
+        # dedans. « aujourd'hui » passait, et cassait toute la page.
+        #
+        # On regarde donc la ligne entiere, apres avoir neutralise ce qui
+        # est entre guillemets doubles — la, l'apostrophe est un
+        # caractere ordinaire et ne pose aucun probleme.
+        sans_double = re.sub(r'"[^"\n]*"', '""', ligne)
+        if re.search(r"(?<!\\)[a-zA-Z]'[a-zA-Z]", sans_double):
+            fautes.append(f"ligne {i} (apostrophe francaise nue) : "
                           f"{ligne.strip()[:70]}")
     return fautes
 
@@ -121,7 +131,8 @@ def main() -> int:
     try:
         from . import app
         pages = {"accueil": app._accueil(splash=False),
-                 "graphique": app._page_graphique("AAA")}
+                 "graphique": app._page_graphique("AAA"),
+                 "strategie": app._page_strategie()}
     finally:
         dl.load_yf = vrai
 
@@ -280,6 +291,44 @@ def main() -> int:
        "la marche a suivre nomme le cadenas du navigateur et Windows")
 
     # --- Les themes ---------------------------------------------------
+    # --- La page STRATEGIE --------------------------------------------
+    print("\n  PAGE STRATEGIE")
+    st = pages["strategie"]
+    jss = _scripts(st)
+    _v("STRATEGIE" in h, "l'accueil donne acces a la page")
+    _v('id="pcap"' in st and 'id="ptaux"' in st and 'id="pans"' in st
+       and 'id="pmens"' in st,
+       "les quatre champs de la projection sont presents")
+    _v("/api/projection" in jss and "/api/lignes" in jss,
+       "la page interroge ses deux routes")
+    _v("hypothese" in st.lower() and "prevision" in jss.lower(),
+       "le taux est annonce comme une hypothese, pas une prevision")
+    _v("basculePea" in jss and "17,2" in jss,
+       "la bascule compte-titres / PEA existe")
+    # La regle absolue du projet : aucun verdict directionnel, aucun
+    # score composite. La page doit montrer les conditions de sortie
+    # ECRITES, pas en inventer une synthese.
+    _v("CE QUE DIT VOTRE PLAN" in jss,
+       "les conditions de sortie sont presentees comme celles du plan")
+    interdits = [m for m in ("HAUSSIER", "BAISSIER", "ACHETER", "SIGNAL ACHAT",
+                             "confiance", "score global", "recommandation")
+                 if m.lower() in st.lower()]
+    _v(not interdits,
+       "aucun verdict directionnel ni score compose sur la page")
+    if interdits:
+        print(f"          -> trouves : {', '.join(interdits)}")
+    _v("geopolitique" in jss.lower() and "aucune" in jss.lower(),
+       "le geopolitique est declare non chiffre")
+    _v("recul_depuis_haut_pct" in jss and "gain_rendu_pct" in jss,
+       "le recul depuis le sommet et le gain rendu sont affiches")
+    # `css` vient de l'accueil : le style propre a cette page se lit
+    # dans SON bloc <style>, pas dans celui d'une autre.
+    css_st = re.search(r"<style>(.*?)</style>", st, re.S).group(1)
+    _v(".app.strat-page" in css_st and "grid-template-rows" in css_st,
+       "la page a son propre gabarit de rangees")
+    _v('class="app strat-page"' in st,
+       "le corps de la page porte bien cette classe")
+
     print("\n  THEMES")
     from . import reglages as _rg
     _v(set(_rg.THEMES) == {"carruos", "jarvis", "ultron", "reacteur"},
