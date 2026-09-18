@@ -222,6 +222,20 @@ def charge_univers(tickers, bench_tk="SPY", ans=20, journal=print,
     return bench, series, rates
 
 
+def _plie(texte: str, largeur: int = 66) -> list[str]:
+    """Coupe un paragraphe en lignes, sans couper les mots."""
+    mots, lignes, cur = texte.split(), [], ""
+    for m in mots:
+        if len(cur) + len(m) + 1 > largeur:
+            lignes.append(cur)
+            cur = m
+        else:
+            cur = f"{cur} {m}".strip()
+    if cur:
+        lignes.append(cur)
+    return lignes
+
+
 def tableau(titre, m, journal=print):
     journal(f"\n  {titre}")
     journal(f"    trades              {m['n']}")
@@ -242,11 +256,42 @@ def tableau(titre, m, journal=print):
                 ", ".join(f"{k} {v}" for k, v in m["motifs"].items()))
 
 
-def lance(tickers, csv=None, journal=print):
+def lance(tickers, csv=None, journal=print, univers: str = ""):
+    """Rejeu complet sur un univers.
+
+    `univers` est la CLE de l'univers (« sp500 », « us »...). Elle sert a
+    retrouver une composition d'epoque figee, et a avertir quand il n'y
+    en a pas.
+    """
+    from . import audit as ad
+
+    if isinstance(tickers, str):
+        # Garde-fou : une chaine a len() et s'itere caractere par
+        # caractere. Passer "sp500" ici rejouait les regles sur cinq
+        # titres nommes s, p, 5, 0 et 0, sans qu'aucune erreur ne sorte.
+        raise TypeError("lance() attend une LISTE de tickers, pas la chaine "
+                        f"{tickers!r}. Utilise data.UNIVERS[{tickers!r}][1]().")
+    tickers = list(tickers)
+
     journal(f"\n  PHASE 0 — {len(tickers)} titres")
     journal(f"  in-sample {IN_DEBUT[:4]}-{IN_FIN[:4]}   "
             f"hors echantillon {OOS_DEBUT[:4]}-{OOS_FIN[:4]}")
-    journal(f"  parametres FIGES, aucun grid search\n")
+    journal(f"  parametres FIGES, aucun grid search")
+    journal(f"  empreinte des parametres : {ad.empreinte()[:16]}…\n")
+
+    # Chantier n°1 : composition d'epoque si elle existe, avertissement
+    # explicite sinon. On ne masque pas un biais qu'on ne sait pas corriger.
+    if univers:
+        histo, jour = dl.univers_a_la_date(univers, IN_DEBUT)
+        if histo:
+            journal(f"  Composition figee du {jour} : {len(histo)} titres "
+                    f"(au lieu de la liste actuelle).")
+            tickers = histo
+        mot = dl.avertissement(univers, IN_DEBUT)
+        if mot:
+            for bout in _plie(mot, 66):
+                journal(f"  {bout}")
+            journal("")
     journal("  Chargement...")
     bench, series, rates = charge_univers(tickers, journal=journal)
     journal(f"  {len(series)} titres exploitables"
@@ -302,13 +347,23 @@ def lance(tickers, csv=None, journal=print):
     bt.EXECUTION_J1, bt.COUT_PAR_COTE, bt.SLIPPAGE = _j1, _c, _s
     journal("    Si l'avantage ne survit pas a la derniere ligne, il n'existe pas.")
 
+    # Les cinq criteres rendent des POINTS. Les epreuves ci-dessous disent
+    # ce que ces points valent : reparti ou concentre, robuste a l'ordre
+    # des trades, et mesure avec quelle precision.
+    if tr_oos:
+        try:
+            from . import robuste as rbs
+            rbs.rapport(tr_oos, journal=journal)
+        except Exception as exc:
+            journal(f"  Epreuves de robustesse indisponibles "
+                    f"({type(exc).__name__}: {exc}).")
+
     journal("\n  " + "=" * 62)
     if ok:
         journal("  GO — les cinq criteres passent sur donnees hors echantillon.")
         journal("  Etape suivante : le comparatif contre SMH, net d'impot.")
         try:
             from . import comparatif as cp
-            from . import data as dl
             courbe = bt.portefeuille(tr_oos, series=series)["courbe"]
             ref = dl.load_yf("SMH", years=20)["close"]
             ref = ref[(ref.index >= courbe.index[0])
@@ -347,7 +402,7 @@ def main():
               "europe": dl.europe_tickers, "cac40": dl.cac40_tickers_fige}
     tk = ([x.strip().upper() for x in a.tickers.split(",") if x.strip()]
           or tables[a.univers]())
-    lance(tk, a.csv)
+    lance(tk, a.csv, univers=("" if a.tickers else a.univers))
 
 
 if __name__ == "__main__":

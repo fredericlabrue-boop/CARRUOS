@@ -1129,7 +1129,8 @@ def _val_lance(quoi: str) -> dict:
                 # Le bouton VALIDATION rendait donc toujours NO-GO, sans
                 # avoir teste quoi que ce soit.
                 phase0.lance(tables_univers()["sp500"](),
-                             csv="phase0-sp500.csv", journal=_val_journal)
+                             csv="phase0-sp500.csv", journal=_val_journal,
+                             univers="sp500")
         except Exception as exc:
             import traceback
             _val_journal(f"ECHEC : {type(exc).__name__}: {exc}")
@@ -1168,7 +1169,8 @@ def _p0_lance(univers: str) -> None:
         try:
             from . import phase0
             note(f"  Univers : {dl.UNIVERS[univers][0]}")
-            phase0.lance(tables_univers()[univers](), journal=note)
+            phase0.lance(tables_univers()[univers](), journal=note,
+                         univers=univers)
         except Exception as exc:
             note(f"  ECHEC : {type(exc).__name__}: {exc}")
             import traceback

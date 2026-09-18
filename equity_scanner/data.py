@@ -10,6 +10,7 @@ avant la première vraie passe.
 from __future__ import annotations
 
 import datetime as dt
+from pathlib import Path
 
 import pandas as pd
 
@@ -297,3 +298,138 @@ UNIVERS = {
     "stoxx600": ("STOXX Europe 600", stoxx600_tickers),
     "europe_total": ("Europe complet", europe_total_tickers),
 }
+
+
+# =====================================================================
+# Univers historiques — chantier n°1 du registre : le biais du survivant
+#
+# Toutes les fonctions ci-dessus rendent la composition D'AUJOURD'HUI.
+# Rejouer 2010-2021 sur la liste actuelle du S&P 500, c'est tester une
+# strategie sur les seules societes qui ont SURVECU jusqu'en 2026 : les
+# faillites, les rachats et les retraits de cote ont ete retires de
+# l'echantillon apres coup. Le backtest ne peut alors pas perdre sur
+# elles, et son resultat est mecaniquement flatte.
+#
+# Aucune ruse ne repare ca : il faut la vraie composition d'epoque. Ce
+# que ce module apporte :
+#
+#   1. figer_univers()      enregistre la composition DU JOUR, datee.
+#      Lancee une fois par trimestre, elle construit l'historique qui
+#      manque. On ne peut pas remonter le temps, on peut arreter de le
+#      perdre.
+#   2. univers_a_la_date()  relit la composition connue la plus proche
+#      AVANT une date donnee, et jamais apres.
+#   3. avertissement()      dit en toutes lettres, dans le rapport, que
+#      le resultat est flatte quand aucune composition d'epoque n'existe.
+#
+# Format du fichier : CSV a une colonne `ticker`, nomme
+# `<cle>-AAAA-MM-JJ.csv` dans .bruce_cache/univers/.
+# Un CSV recupere ailleurs (fournisseur, archive) se depose la et sera lu
+# de la meme facon.
+# =====================================================================
+
+DOSSIER_UNIVERS = Path(".bruce_cache") / "univers"
+
+
+def figer_univers(cle: str, tickers: list[str] | None = None,
+                  date: str | None = None) -> Path:
+    """Enregistre la composition d'un univers a une date. Rend le chemin."""
+    if cle not in UNIVERS:
+        raise ValueError(f"univers inconnu : {cle}")
+    tickers = tickers if tickers is not None else UNIVERS[cle][1]()
+    jour = date or dt.date.today().isoformat()
+    DOSSIER_UNIVERS.mkdir(parents=True, exist_ok=True)
+    f = DOSSIER_UNIVERS / f"{cle}-{jour}.csv"
+    f.write_text("ticker\n" + "\n".join(sorted(set(tickers))) + "\n",
+                 encoding="utf-8")
+    return f
+
+
+def compositions(cle: str) -> list[tuple[str, Path]]:
+    """Compositions figees disponibles pour cet univers, du plus ancien
+    au plus recent. Rend [(date, chemin)]."""
+    out = []
+    try:
+        for f in DOSSIER_UNIVERS.glob(f"{cle}-*.csv"):
+            jour = f.stem[len(cle) + 1:]
+            try:
+                dt.date.fromisoformat(jour)
+            except ValueError:
+                continue
+            out.append((jour, f))
+    except Exception:
+        return []
+    return sorted(out)
+
+
+def univers_a_la_date(cle: str, date: str) -> tuple[list[str], str]:
+    """Composition connue la plus proche AVANT `date`.
+
+    Rend (tickers, date_de_la_composition). Si rien n'a ete fige avant
+    cette date, rend ([], "") — a l'appelant de dire qu'il se rabat sur
+    la composition actuelle, et de le dire fort.
+    """
+    dispo = [(j, f) for j, f in compositions(cle) if j <= date]
+    if not dispo:
+        return [], ""
+    jour, f = dispo[-1]
+    lignes = [l.strip() for l in f.read_text(encoding="utf-8").splitlines()]
+    tickers = [l for l in lignes[1:] if l and l.lower() != "nan"]
+    return sorted(set(tickers)), jour
+
+
+def avertissement(cle: str, debut: str) -> str:
+    """Phrase a afficher dans tout rapport de backtest. Vide si une
+    composition d'epoque couvre le debut de la periode testee."""
+    _, jour = univers_a_la_date(cle, debut)
+    if jour:
+        return ""
+    return (f"BIAIS DU SURVIVANT : aucune composition de « {cle} » figee "
+            f"avant {debut}. Le test tourne sur la liste D'AUJOURD'HUI, "
+            f"donc sur les seules societes qui ont survecu. Le resultat est "
+            f"flatte d'un montant inconnu, et generalement de plusieurs "
+            f"points par an. Lance `py -m equity_scanner.data --figer {cle}` "
+            f"chaque trimestre pour cesser de perdre cette information.")
+
+
+def _main_univers() -> None:
+    import argparse
+    a = argparse.ArgumentParser(description="Univers et compositions figees")
+    a.add_argument("--figer", metavar="CLE", default=None,
+                   help="enregistre la composition du jour")
+    a.add_argument("--liste", metavar="CLE", default=None,
+                   help="montre les compositions figees disponibles")
+    a.add_argument("--selftest", metavar="TICKER", default=None,
+                   help="verifie qu'un ticker se charge chez le fournisseur")
+    o = a.parse_args()
+    if o.selftest:
+        d = load_yf(o.selftest)
+        print(f"\n  {o.selftest} : {len(d)} barres, "
+              f"{d.index[0].date()} → {d.index[-1].date()}")
+        print(d.tail(3).to_string(), "\n")
+        return
+    if o.figer:
+        f = figer_univers(o.figer)
+        n = len(f.read_text(encoding="utf-8").splitlines()) - 1
+        print(f"\n  Composition de « {o.figer} » figee : {n} titres → {f}\n")
+        return
+    cle = o.liste or ""
+    if cle:
+        c = compositions(cle)
+        print(f"\n  COMPOSITIONS FIGEES DE « {cle} » : {len(c)}")
+        for jour, f in c:
+            n = len(f.read_text(encoding="utf-8").splitlines()) - 1
+            print(f"    {jour}   {n:>4} titres")
+        if not c:
+            print("    aucune. `--figer " + cle + "` en enregistre une.")
+        print()
+        return
+    print("\n  UNIVERS DISPONIBLES")
+    for k, (nom, _) in UNIVERS.items():
+        c = compositions(k)
+        print(f"    {k:<14}{nom:<44}{len(c)} composition(s) figee(s)")
+    print()
+
+
+if __name__ == "__main__":
+    _main_univers()
