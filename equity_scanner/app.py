@@ -869,6 +869,93 @@ function majMicroIndispo(txt){
  if(c) c.focus();
 }
 
+// --- Autorisation du micro -------------------------------------------
+//
+// « J'appuie sur micro et rien ne se passe. » C'est le symptome d'une
+// autorisation jamais DEMANDEE. La reconnaissance vocale peut echouer
+// sans bruit : ni resultat, ni erreur, ni fin. getUserMedia, lui, pose
+// franchement la question au navigateur et repond toujours — accorde,
+// refuse, ou aucun micro branche. On passe donc par lui d'abord.
+
+async function majPermission(){
+ if(!window.isSecureContext && location.protocol!=='http:')
+  return {ok:false, motif:'contexte'};
+ if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)
+  return {ok:false, motif:'absent'};
+ try{
+  const flux=await navigator.mediaDevices.getUserMedia({audio:true});
+  // On relache le micro aussitot : le seul but etait d'obtenir l'accord.
+  try{ flux.getTracks().forEach(function(t){t.stop();}); }catch(e){}
+  return {ok:true};
+ }catch(e){
+  return {ok:false, motif:(e&&e.name)||'refus'};
+ }
+}
+
+const PERM_DIT = {
+ 'NotAllowedError': 'Le micro est REFUSE pour cette page. Cliquez le '
+  +'cadenas a gauche de l\'adresse, puis Micro, puis Autoriser. '
+  +'Si le reglage est grise, c\'est Windows qui bloque : Parametres, '
+  +'Confidentialite, Microphone, et activez l\'acces pour les '
+  +'applications de bureau.',
+ 'NotFoundError': 'Aucun micro n\'est branche, ou aucun n\'est choisi '
+  +'comme peripherique d\'entree dans les reglages de son de Windows.',
+ 'NotReadableError': 'Le micro est occupe par une autre application. '
+  +'Fermez Teams, Discord ou Zoom, puis reessayez.',
+ 'SecurityError': 'Le navigateur refuse le micro sur cette adresse.',
+ 'absent': 'Ce navigateur n\'expose pas le micro. Utilisez Edge ou '
+  +'Chrome.',
+ 'contexte': 'Le micro exige une adresse locale ou securisee.',
+ 'refus': 'Le micro a ete refuse.'
+};
+
+// --- Diagnostic -------------------------------------------------------
+// Un bouton qui repond a la seule question utile : qu'est-ce qui bloque,
+// exactement ? Chaque ligne est un fait verifiable, pas une hypothese.
+
+async function majDiag(){
+ majOuvre();
+ $('majr').textContent='Diagnostic du micro en cours...';
+ const L=[];
+ const R=window.SpeechRecognition||window.webkitSpeechRecognition;
+ L.push((window.isSecureContext?'OK':'NON')
+  +' &nbsp; adresse consideree comme sure');
+ L.push(((navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)
+  ?'OK':'NON')+' &nbsp; le navigateur expose le micro');
+ L.push((R?'OK':'NON')+' &nbsp; moteur de reconnaissance vocale present');
+
+ let etat='inconnu';
+ try{
+  if(navigator.permissions&&navigator.permissions.query){
+   const p=await navigator.permissions.query({name:'microphone'});
+   etat=p.state;
+  }
+ }catch(e){}
+ L.push((etat==='granted'?'OK':(etat==='denied'?'NON':'?  '))
+  +' &nbsp; autorisation : '+etat);
+
+ let micros=0;
+ try{
+  const d=await navigator.mediaDevices.enumerateDevices();
+  micros=d.filter(function(x){return x.kind==='audioinput';}).length;
+ }catch(e){}
+ L.push((micros?'OK':'NON')+' &nbsp; '+micros+' micro(s) detecte(s)');
+
+ const p=await majPermission();
+ L.push((p.ok?'OK':'NON')+' &nbsp; acces effectif au micro'
+  +(p.ok?'':' ('+p.motif+')'));
+
+ let conseil='';
+ if(!R) conseil='Le moteur de reconnaissance manque : ouvrez cette page '
+  +'dans Edge ou Chrome.';
+ else if(!p.ok) conseil=PERM_DIT[p.motif]||PERM_DIT['refus'];
+ else conseil='Tout est en place. Cliquez MICRO et parlez.';
+
+ $('majr').innerHTML='<div style="font:11px ui-monospace,monospace;'
+  +'line-height:1.85">'+L.join('<br>')+'</div>'
+  +'<div style="margin-top:9px;color:#f59e0b">'+conseil+'</div>';
+}
+
 function majEcoute(){
  majOuvre();
  if(MAJ.ecoute){ majStop(); $('majr').textContent='Ecoute arretee.'; return; }
@@ -879,6 +966,23 @@ function majEcoute(){
    +'instruction.', false);
   return;
  }
+ $('majr').textContent='Autorisation du micro...';
+ majPermission().then(function(p){
+  if(!p.ok){
+   const dit=PERM_DIT[p.motif]||PERM_DIT['refus'];
+   $('majr').innerHTML=dit
+    +'<br><span style="color:#3f6b78">Le bouton DIAGNOSTIC dit '
+    +'precisement ce qui bloque.</span>';
+   majDit('Le micro est refuse. Voyez le diagnostic.', false);
+   const c=$('majc');
+   if(c) c.focus();
+   return;
+  }
+  majDemarre(R);
+ });
+}
+
+function majDemarre(R){
  let r;
  try{ r=new R(); }catch(e){
   majMicroIndispo('Le micro n\'a pas pu demarrer.');
@@ -922,8 +1026,18 @@ function majEcoute(){
    if(c) c.focus();
   }
  };
+ // Un demarrage refuse ne leve pas toujours : le filet ci-dessous
+ // garantit qu'il se passe TOUJOURS quelque chose a l'ecran.
  try{ r.start(); }catch(e){ majStop();
-  majMicroIndispo('Le micro n\'a pas pu demarrer.'); }
+  majMicroIndispo('Le micro n\'a pas pu demarrer ('+(e.name||'erreur')+').');
+  return; }
+ setTimeout(function(){
+  if(MAJ.ecoute && !MAJ.recu
+     && $('majr').textContent.indexOf('ecoute')>=0){
+   $('majr').innerHTML='Le micro ne repond pas. Cliquez '
+    +'<b>DIAGNOSTIC</b> pour savoir pourquoi, ou ecrivez ci-dessous.';
+  }
+ }, 9000);
 }
 
 (function(){
@@ -1017,6 +1131,7 @@ def _accueil(splash: bool = True) -> str:
               '<div class="row" style="margin-top:7px">'
               '<button class="sec" id="majmic" onclick="majEcoute()">'
               'MICRO</button>'
+              '<button class="sec" onclick="majDiag()">DIAGNOSTIC</button>'
               '<button class="sec" onclick="ouvrirWeb()">EDGE</button>'
               '</div>'
               '<div class="maje">analyse sanofi &middot; scan cac 40 &middot; '

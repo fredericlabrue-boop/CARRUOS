@@ -261,6 +261,82 @@ def test_moteur_backtest() -> None:
        abs(r["final"] - attendu) < 1e-6)
 
 
+def test_optimisations() -> None:
+    """Les versions rapides doivent rendre EXACTEMENT le meme resultat.
+
+    Une optimisation qui change un chiffre n'est pas une optimisation,
+    c'est un bug plus rapide.
+    """
+    from . import backtest as bt
+    from . import qualite as ql
+    from .indicators import enrich
+
+    print("\n— Optimisations : resultat inchange —")
+    braw = serie(1500, seed=311, derive=0.0005, vol=0.009, depart=400.0)
+    bench = enrich(braw)
+    d = enrich(serie(1500, seed=23), bench_close=braw["close"])
+    bo = bench.reindex(d.index).ffill()
+    positions = np.flatnonzero(bt.signaux_vectorises(d, bo))[:200]
+
+    col = bt.colonnes_numpy(d, bo)
+    memes = True
+    for i in positions:
+        a = bt.simule(d, int(i), "X", bo)            # colonnes extraites seule
+        b = bt.simule(d, int(i), "X", bo, col)       # colonnes pre-extraites
+        if (a is None) != (b is None):
+            memes = False
+            break
+        if a is not None and (a.entree_d != b.entree_d
+                              or a.sortie_d != b.sortie_d
+                              or abs(a.entree - b.entree) > 1e-12
+                              or abs(a.sortie - b.sortie) > 1e-12
+                              or abs(a.stop0 - b.stop0) > 1e-12
+                              or a.motif != b.motif):
+            memes = False
+            break
+    ok(f"simule : {len(positions)} signaux, trades identiques avec et sans "
+       f"colonnes pre-extraites", memes)
+
+    # Le controle qualite construisait un pd.bdate_range par COUPLE de
+    # barres : 150 000 appels sur une Phase 0, soit la moitie du temps
+    # total. Il coutait plus cher que le backtest qu'il protege.
+    def trou_lent(index):
+        pire = 0
+        for a, b in zip(index[:-1], index[1:]):
+            pire = max(pire, len(pd.bdate_range(a, b)) - 2)
+        return max(0, pire)
+
+    def serie_lente(masque):
+        m = np.asarray(masque, dtype=bool)
+        pire = cur = 0
+        for x in m:
+            cur = cur + 1 if x else 0
+            pire = max(pire, cur)
+        return pire
+
+    rng = np.random.default_rng(3)
+    accord_trou = accord_serie = True
+    for k in range(6):
+        idx = pd.bdate_range("2015-01-02", periods=700)
+        troue = idx[rng.random(700) > 0.02 * k]
+        if trou_lent(troue) != ql._plus_long_trou(troue):
+            accord_trou = False
+        m = rng.random(400) < (0.08 * k + 0.05)
+        if serie_lente(m) != ql._plus_longue_serie(m):
+            accord_serie = False
+    ok("_plus_long_trou vectorise : identique a la version lente",
+       accord_trou)
+    ok("_plus_longue_serie vectorisee : identique a la version lente",
+       accord_serie)
+    ok("_plus_long_trou tient les cas limites",
+       ql._plus_long_trou(pd.DatetimeIndex([])) == 0
+       and ql._plus_longue_serie([]) == 0
+       and ql._plus_longue_serie([True] * 5) == 5)
+    ok("_seances_ouvrees accorde avec pandas",
+       ql._seances_ouvrees("2024-01-01", "2024-01-05")
+       == len(pd.bdate_range("2024-01-01", "2024-01-05")))
+
+
 def test_phase0() -> None:
     from . import backtest as bt
     from . import phase0
@@ -683,6 +759,7 @@ def main() -> int:
     test_regles()
     test_equivalence()
     test_moteur_backtest()
+    test_optimisations()
     test_phase0()
     test_pead()
     test_comparatif()

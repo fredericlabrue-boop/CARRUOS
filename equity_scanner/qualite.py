@@ -105,7 +105,17 @@ class Rapport:
 
 # ---------------------------------------------------------------------
 def _seances_ouvrees(debut, fin) -> int:
-    return len(pd.bdate_range(debut, fin))
+    """Nombre de seances ouvrees entre deux dates, bornes comprises.
+
+    numpy.busday_count compte l'intervalle [debut, fin) : on ajoute la
+    borne de droite. C'est le meme resultat que pd.bdate_range, pour une
+    fraction du cout — et ici le cout compte, voir _plus_long_trou.
+    """
+    a = np.datetime64(pd.Timestamp(debut).date(), "D")
+    b = np.datetime64(pd.Timestamp(fin).date(), "D")
+    if b < a:
+        return 0
+    return int(np.busday_count(a, b)) + 1
 
 
 def controle(d: pd.DataFrame, bench: pd.DataFrame | None = None,
@@ -250,27 +260,33 @@ def controle(d: pd.DataFrame, bench: pd.DataFrame | None = None,
 
 
 def _plus_long_trou(index: pd.DatetimeIndex) -> int:
-    """Plus longue suite de seances ouvrees sans aucune barre."""
+    """Plus longue suite de seances ouvrees sans aucune barre.
+
+    Version vectorisee. La premiere construisait un pd.bdate_range par
+    COUPLE de barres consecutives : sur trente titres de 5 000 barres,
+    cela faisait 150 000 appels et representait la moitie du temps total
+    d'une Phase 0. Le controle qualite coutait plus cher que le backtest
+    qu'il protege. numpy.busday_count fait le meme calcul d'un coup.
+    """
     if len(index) < 2:
         return 0
-    pire = 0
-    for a, b in zip(index[:-1], index[1:]):
-        manque = _seances_ouvrees(a, b) - 2
-        if manque > pire:
-            pire = manque
-    return max(0, pire)
+    jours = index.to_numpy().astype("datetime64[D]")
+    # busday_count compte [a, b) : entre deux seances consecutives il
+    # vaut 1, donc le nombre de seances absentes est la valeur moins 1.
+    manque = np.busday_count(jours[:-1], jours[1:]) - 1
+    return int(max(0, manque.max())) if len(manque) else 0
 
 
 def _plus_longue_serie(masque) -> int:
-    """Plus longue suite de True consecutifs."""
+    """Plus longue suite de True consecutifs, sans boucle Python."""
     m = np.asarray(masque, dtype=bool)
     if not m.any():
         return 0
-    pire = courant = 0
-    for x in m:
-        courant = courant + 1 if x else 0
-        pire = max(pire, courant)
-    return pire
+    # Longueur de chaque plage : on compte les True depuis le debut et on
+    # retranche le compteur figé au dernier False rencontre.
+    cumul = np.cumsum(m)
+    remise = np.maximum.accumulate(np.where(m, 0, cumul))
+    return int((cumul - remise).max())
 
 
 # ---------------------------------------------------------------------

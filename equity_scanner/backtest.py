@@ -100,36 +100,73 @@ def _prix_sortie(c: float) -> float:
     return c * (1 - COUT_PAR_COTE - SLIPPAGE)
 
 
-def simule(d: pd.DataFrame, i: int, ticker: str, bo: pd.DataFrame) -> Trade | None:
+def colonnes_numpy(d: pd.DataFrame, bo: pd.DataFrame) -> dict:
+    """Les colonnes dont `simule` a besoin, extraites UNE SEULE FOIS.
+
+    Chaque `d.iloc[j]` d'une boucle construit une Series pandas complete
+    pour lire trois nombres. Sur un backtest, cela se paie des centaines
+    de milliers de fois : c'etait 40 % du temps d'une Phase 0. Les memes
+    valeurs lues dans des tableaux numpy donnent exactement le meme
+    resultat — verifie trade par trade — pour une fraction du cout.
+    """
+    return {
+        "open": d["open"].to_numpy(dtype=float),
+        "low": d["low"].to_numpy(dtype=float),
+        "close": d["close"].to_numpy(dtype=float),
+        "atr14": d["atr14"].to_numpy(dtype=float),
+        "sma50": d["sma50"].to_numpy(dtype=float),
+        "ema20": d["ema20"].to_numpy(dtype=float),
+        "regime": (bo["close"].to_numpy(dtype=float)
+                   > bo["sma200"].to_numpy(dtype=float)),
+    }
+
+
+def simule(d: pd.DataFrame, i: int, ticker: str, bo: pd.DataFrame,
+           col: dict | None = None) -> Trade | None:
     """Signal a la cloture de la barre i, execution a l'ouverture de i+1.
 
     Le stop et l'ATR sont ceux connus AU MOMENT DU SIGNAL : on ne peut
     pas dimensionner sur une information posterieure.
+
+    `col` evite de re-extraire les colonnes a chaque appel ; sans lui, la
+    fonction se debrouille seule et se comporte a l'identique.
     """
-    ligne = d.iloc[i]
-    atr = float(ligne["atr14"])
+    if col is None:
+        col = colonnes_numpy(d, bo)
+    close, low = col["close"], col["low"]
+    sma50, ema20, regime = col["sma50"], col["ema20"], col["regime"]
+    n = len(close)
+
+    atr = float(col["atr14"][i])
     if not np.isfinite(atr) or atr <= 0:
         return None
-    ex = _prix_entree(d, i)
-    if ex is None:
-        return None
-    entree, i0 = ex
+
+    # Prix d'achat reel : ouverture de la barre suivante, spread et
+    # slippage compris. Un signal le dernier jour n'est pas jouable.
+    if EXECUTION_J1:
+        if i + 1 >= n:
+            return None
+        o = float(col["open"][i + 1])
+        if not np.isfinite(o) or o <= 0:
+            return None
+        entree, i0 = o * (1 + COUT_PAR_COTE + SLIPPAGE), i + 1
+    else:
+        entree, i0 = float(close[i]), i
 
     # La fenetre du plus bas de repli EST celle de la regle. Elle etait
     # ecrite « i - 9 » en dur : quand la Phase 0 decalait PULLBACK_WINDOW
     # de +-20 % pour tester la robustesse, le moteur continuait de placer
     # le stop sur 10 barres et le test de robustesse ne testait rien.
-    fenetre = d.iloc[max(0, i - R.PULLBACK_WINDOW + 1):i + 1]
-    stop = min(float(fenetre["low"].min()) - R.STOP_SWING_BUFFER * atr,
+    bas = float(np.nanmin(low[max(0, i - R.PULLBACK_WINDOW + 1):i + 1]))
+    stop = min(bas - R.STOP_SWING_BUFFER * atr,
                entree - R.STOP_ATR_MULT * atr)
     if stop >= entree:
         return None
     stop0 = stop
     sous_ema = 0
 
-    for j in range(i0 + 1, min(i0 + 1 + MAX_BARRES, len(d))):
-        r = d.iloc[j]
-        c = float(r["close"])
+    for j in range(i0 + 1, min(i0 + 1 + MAX_BARRES, n)):
+        c = float(close[j])
 
         # 1. Stop (sur cloture). Un gap sous le stop sort au cours reel.
         if c <= stop:
@@ -137,30 +174,29 @@ def simule(d: pd.DataFrame, i: int, ticker: str, bo: pd.DataFrame) -> Trade | No
                          _prix_sortie(c), stop0, atr, j - i0, "stop")
 
         # 2. Regime : marche sous sa MM200 -> liquidation
-        if not bool(bo["close"].iloc[j] > bo["sma200"].iloc[j]):
+        if not regime[j]:
             return Trade(ticker, d.index[i0], d.index[j], entree,
                          _prix_sortie(c), stop0, atr, j - i0, "regime")
 
         # 3. Sortie tendance
-        if c < float(r["sma50"]):
+        if c < sma50[j]:
             return Trade(ticker, d.index[i0], d.index[j], entree,
                          _prix_sortie(c), stop0, atr, j - i0, "sma50")
-        sous_ema = sous_ema + 1 if c < float(r["ema20"]) else 0
+        sous_ema = sous_ema + 1 if c < ema20[j] else 0
         if sous_ema >= 2:
             return Trade(ticker, d.index[i0], d.index[j], entree,
                          _prix_sortie(c), stop0, atr, j - i0, "ema20")
 
         # 4. Remontee du stop. Jamais vers le bas.
         gain = c - entree
-        if gain >= TRAIL_ATR * atr and np.isfinite(r["ema20"]):
-            stop = max(stop, float(r["ema20"]))
+        if gain >= TRAIL_ATR * atr and np.isfinite(ema20[j]):
+            stop = max(stop, float(ema20[j]))
         elif gain >= BE_ATR * atr:
             stop = max(stop, entree)
 
-    j = min(i0 + MAX_BARRES, len(d) - 1)
+    j = min(i0 + MAX_BARRES, n - 1)
     return Trade(ticker, d.index[i0], d.index[j], entree,
-                 _prix_sortie(float(d.iloc[j]["close"])), stop0, atr,
-                 j - i0, "duree")
+                 _prix_sortie(float(close[j])), stop0, atr, j - i0, "duree")
 
 
 def signaux_vectorises(d: pd.DataFrame, bo: pd.DataFrame) -> np.ndarray:
@@ -235,6 +271,7 @@ def trades_ticker(d: pd.DataFrame, ticker: str, bench: pd.DataFrame,
     position par titre."""
     bo = bench.reindex(d.index).ffill()
     sig = signaux_vectorises(d, bo)
+    col = colonnes_numpy(d, bo)          # extraites une fois pour tout le titre
     idx = d.index
     d0 = pd.Timestamp(debut) if debut else None
     d1 = pd.Timestamp(fin) if fin else None
@@ -248,7 +285,7 @@ def trades_ticker(d: pd.DataFrame, ticker: str, bench: pd.DataFrame,
         if (d0 is not None and ts < d0) or (d1 is not None and ts > d1):
             i += 1
             continue
-        t = simule(d, i, ticker, bo)
+        t = simule(d, i, ticker, bo, col)
         if t is None:
             i += 1
             continue
@@ -381,9 +418,14 @@ def _courbe_quotidienne(retenus, engage: dict, realisee: pd.Series,
         if t.ticker not in series or t.risque <= 0:
             continue
         c = series[t.ticker]["close"]
-        seg = c[(c.index >= t.entree_d) & (c.index < t.sortie_d)]
-        if seg.empty:
+        # searchsorted plutot qu'un masque booleen : le masque relit la
+        # serie entiere pour chaque trade, ce qui devient quadratique des
+        # que le nombre de trades monte.
+        a = int(c.index.searchsorted(t.entree_d, side="left"))
+        b = int(c.index.searchsorted(t.sortie_d, side="left"))
+        if b <= a:
             continue
+        seg = c.iloc[a:b]
         r = ((seg - t.entree) / t.risque).reindex(calendrier)
         latent = latent.add(r.fillna(0.0) * engage.get(k, capital * 0.01),
                             fill_value=0.0)

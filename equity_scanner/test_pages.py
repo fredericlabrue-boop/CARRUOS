@@ -253,6 +253,21 @@ def main() -> int:
        "un micro indisponible renvoie vers le champ texte")
     _v("/api/navigateur" in jsa,
        "le bouton EDGE passe par le serveur, pas par window.open")
+    # « J'appuie sur micro et rien ne se passe » : symptome d'une
+    # autorisation jamais DEMANDEE. getUserMedia la demande franchement
+    # et repond toujours, la ou la reconnaissance vocale peut rester
+    # muette.
+    _v("getUserMedia" in jsa and "function majPermission" in jsa,
+       "l'autorisation du micro est demandee explicitement")
+    _v("NotAllowedError" in jsa and "NotFoundError" in jsa
+       and "NotReadableError" in jsa,
+       "refus, absence et micro occupe ont chacun leur message")
+    _v('onclick="majDiag()"' in h and "function majDiag" in jsa,
+       "un bouton DIAGNOSTIC dit ce qui bloque")
+    _v("enumerateDevices" in jsa and "permissions" in jsa,
+       "le diagnostic compte les micros et lit l'autorisation")
+    _v("cadenas" in jsa and "Confidentialite" in jsa,
+       "la marche a suivre nomme le cadenas du navigateur et Windows")
 
     print("\n  BLOC POSITIONS")
     _v('id="ptk"' in h and 'id="pq"' in h and 'id="pe"' in h and 'id="pst"' in h,

@@ -94,18 +94,17 @@ def z_contre_hasard(trades, series: dict, graine=7,
     if len(plan) < 20:
         return reel, 0.0, 0.0
 
-    # Vectorise : un seul tirage numpy pour les 1000 repetitions au lieu
-    # de 1000 boucles Python imbriquees.
-    moyennes = np.empty(TIRAGES)
+    # Entierement vectorise : une passe numpy par titre, au lieu de
+    # 1000 x len(plan) iterations Python. Les tirages sont les memes
+    # (meme graine, meme ordre), donc le z rendu est identique.
     debuts = np.empty((TIRAGES, len(plan)), dtype=np.int64)
     for m, (_px, _dur, lo, hi) in enumerate(plan):
         debuts[:, m] = rng.integers(lo, hi, TIRAGES)
-    for k in range(TIRAGES):
-        acc = np.empty(len(plan))
-        for m, (px, dur, _lo, _hi) in enumerate(plan):
-            i = int(debuts[k, m])
-            acc[m] = px[i + dur] / px[i] - 1.0 - cout
-        moyennes[k] = acc.mean()
+    rendements = np.empty((TIRAGES, len(plan)))
+    for m, (px, dur, _lo, _hi) in enumerate(plan):
+        d0 = debuts[:, m]
+        rendements[:, m] = px[d0 + dur] / px[d0] - 1.0 - cout
+    moyennes = rendements.mean(axis=1)
     mu, sd = float(moyennes.mean()), float(moyennes.std(ddof=1))
     z = 0.0 if sd == 0 else (reel - mu) / sd
     return reel, mu, z
