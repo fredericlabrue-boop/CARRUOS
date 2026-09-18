@@ -99,7 +99,67 @@ CERF_FIXE = (
     '<path class="fx" d="' + TRACE_D + '"/></svg>'
 )
 
-CSS = hd.CSS + hd.FOND_CSS + rg.CSS_OPTIONS + rg.CSS_THEMES + rg.TIROIR_CSS + """
+# --- Panneau de detail de l'accueil -----------------------------------
+#
+# Cliquer un titre surveille ouvrait le graphique et rien d'autre. On
+# voyait la courbe sans savoir POURQUOI le titre etait la. Ce panneau
+# repond a la question avant d'ouvrir quoi que ce soit.
+# --- Style de la fiche, partage par les deux pages --------------------
+#
+# La fiche s'affiche sur l'accueil ET sur la page STRATEGIE. Son style
+# doit donc voyager avec elle : laisse dans le CSS d'une seule page,
+# elle s'affichait ailleurs sans mise en forme, libelles et valeurs
+# colles les uns aux autres.
+CSS_FICHE = """
+.lig{border:1px solid #0e2b34;padding:11px 13px;margin-bottom:9px;
+ clip-path:polygon(11px 0,100% 0,100% calc(100% - 11px),
+ calc(100% - 11px) 100%,0 100%,0 11px)}
+.lig h3{font:500 13px ui-monospace,monospace;letter-spacing:.1em;
+ color:#cbe9f2;margin-bottom:8px}
+.lig h3 span{font-size:10.5px;color:#3f6b78;letter-spacing:.06em}
+.kv2{display:grid;grid-template-columns:1fr auto;gap:2px 10px;
+ font:400 11.5px ui-monospace,monospace;color:#6f93a3}
+.kv2 b{color:#cbe9f2;text-align:right}
+.trajet{margin:9px 0;padding:8px 10px;background:rgba(8,20,26,.5);
+ border-left:2px solid var(--acc)}
+.sortie{display:flex;justify-content:space-between;font-size:11px;
+ padding:3px 0;color:#5b7183}
+.sortie.on{color:var(--neg)}
+.sortie .et{font:500 9px ui-monospace,monospace;letter-spacing:.14em}
+.pos{color:var(--pos)}.neg{color:var(--neg)}
+"""
+
+
+CSS_DETAIL = """
+#voile{position:fixed;inset:0;z-index:80;background:rgba(2,5,9,.82);
+ display:none;align-items:center;justify-content:center;padding:26px}
+#voile.ouvert{display:flex}
+#detail{width:min(760px,94vw);max-height:88vh;overflow-y:auto;
+ background:rgba(4,10,14,.98);border:1px solid #123c47;padding:19px 22px;
+ clip-path:polygon(15px 0,100% 0,100% calc(100% - 15px),
+ calc(100% - 15px) 100%,0 100%,0 15px)}
+#detail .tete{display:flex;align-items:baseline;gap:10px;margin-bottom:6px}
+#detail .tete h2{flex:1;font:500 15px ui-monospace,monospace;
+ letter-spacing:.14em;color:var(--acc)}
+#detail .fx{cursor:pointer;font-size:17px;color:#5d8a97;padding:0 5px;
+ user-select:none}
+#detail .fx:hover{color:var(--neg)}
+#detail .pourquoi{margin:10px 0 13px;padding:10px 12px;
+ background:rgba(8,20,26,.55);border-left:2px solid var(--acc);
+ font-size:12px;line-height:1.7;color:#8fb3c1}
+#detail .pourquoi b{color:#cbe9f2}
+#detail .manque{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+#detail .manque span{font:400 10px ui-monospace,monospace;padding:3px 7px;
+ border:1px solid #7d2530;color:#f87171}
+#detail .manque span.ok{border-color:#10705a;color:var(--pos)}
+#detail .actions{display:flex;gap:7px;margin-top:14px}
+.rap{border:1px solid #0e2b34;padding:10px 12px;margin-bottom:8px}
+.rap .n{font:500 12px ui-monospace,monospace;color:#cbe9f2}
+.rap .d{font-size:11px;color:#5b7183;margin-top:3px;line-height:1.6}
+"""
+
+CSS = hd.CSS + hd.FOND_CSS + rg.CSS_OPTIONS + rg.CSS_THEMES \
+    + rg.TIROIR_CSS + CSS_FICHE + CSS_DETAIL + """
 *{box-sizing:border-box;margin:0}
 body{background:#080b10;color:#94a3b8;font:14px ui-sans-serif,Segoe UI,system-ui;
  min-height:100vh;overflow-x:hidden}
@@ -389,12 +449,12 @@ async function scan(u,m){
   $('ms').title=ec?j.ecartes.join('  |  '):'';
   if(!j.fired.length){
    let h='<table><tr><th>LES PLUS PROCHES</th><th>BLOCS MANQUANTS</th></tr>';
-   j.proches.forEach(x=>{h+='<tr><td class="go" onclick="pick(\\''+clean(x.ticker)+
-    '\\')"><b>'+clean(x.ticker)+'</b></td><td>'+clean(x.manque)+'</td></tr>';});
+   j.proches.forEach(x=>{h+='<tr><td class="go" onclick="fiche(\\''+clean(x.ticker)+
+    '\\',\\''+clean(x.manque)+'\\')"><b>'+clean(x.ticker)+'</b></td><td>'+clean(x.manque)+'</td></tr>';});
    $('rs').innerHTML=h+'</table>'; radar(); return;}
   let h='<table><tr><th>TITRE</th><th>ENTREE</th><th>STOP</th><th>TITRES</th><th>RS 6M</th></tr>';
-  j.fired.forEach(x=>{h+='<tr><td class="go" onclick="pick(\\''+clean(x.ticker)+
-   '\\')"><b>'+clean(x.ticker)+'</b></td><td>'+x.entree+'</td><td>'+x.stop+
+  j.fired.forEach(x=>{h+='<tr><td class="go" onclick="fiche(\\''+clean(x.ticker)+
+   '\\',\\'\\')"><b>'+clean(x.ticker)+'</b></td><td>'+x.entree+'</td><td>'+x.stop+
    '</td><td>'+x.titres+'</td><td>'+x.rs+'</td></tr>';});
   $('rs').innerHTML=h+'</table>'; radar();
  }catch(e){$('ms').textContent='Erreur : '+e; $('ms').className='msg err';}
@@ -1087,136 +1147,118 @@ etat();
 setInterval(etat, 300000);
 """
 
-# --- Page STRATEGIE ---------------------------------------------------
-# Deux colonnes : a gauche de l'arithmetique, a droite des faits mesures.
-# Aucune animation de mise en page : uniquement transform et opacity.
-CSS_STRAT = """
-/* .app attend TROIS rangees (barre, console, grille). Cette page n'en a
-   que deux : sans gabarit propre, les panneaux tombaient dans la rangee
-   « auto » et s'arretaient au milieu de l'ecran. */
-.app.strat-page{grid-template-rows:auto minmax(0,1fr)}
-.strat{display:grid;grid-template-columns:1fr 1.15fr;
- grid-template-rows:minmax(0,1fr);gap:9px;min-height:0}
-.strat .corps{overflow-y:auto;min-height:0}
-@media(max-width:1150px){.strat{grid-template-columns:1fr;
- grid-template-rows:auto auto}}
-.champs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.champs label{display:flex;flex-direction:column;gap:4px;
- font:400 10px ui-monospace,monospace;letter-spacing:.14em;color:#3f6b78}
-.champs input{width:100%}
-.ex{font-size:11.5px;line-height:1.6;color:#5b7183;margin-bottom:11px}
-.tproj{width:100%;border-collapse:collapse;margin-top:12px;
- font:400 11.5px ui-monospace,monospace}
-.tproj th{text-align:right;padding:5px 6px;font-weight:500;font-size:9.5px;
- letter-spacing:.14em;color:#3f6b78;border-bottom:1px solid #0e2b34}
-.tproj th:first-child,.tproj td:first-child{text-align:left}
-.tproj td{text-align:right;padding:4px 6px;border-bottom:1px solid #0b2028}
-.tproj tr.fort td{color:#cbe9f2;font-weight:600}
-.bilan{margin-top:13px;padding-top:11px;border-top:1px solid #0e2b34;
- font-size:12px;line-height:1.75;color:#8fb3c1}
-.bilan b{color:var(--acc)}
-.lig{border:1px solid #0e2b34;padding:11px 13px;margin-bottom:9px;
- clip-path:polygon(11px 0,100% 0,100% calc(100% - 11px),
- calc(100% - 11px) 100%,0 100%,0 11px)}
-.lig h3{font:500 13px ui-monospace,monospace;letter-spacing:.1em;
- color:#cbe9f2;margin-bottom:8px}
-.lig h3 span{font-size:10.5px;color:#3f6b78;letter-spacing:.06em}
-.kv2{display:grid;grid-template-columns:1fr auto;gap:2px 10px;
- font:400 11.5px ui-monospace,monospace;color:#6f93a3}
-.kv2 b{color:#cbe9f2;text-align:right}
-.trajet{margin:9px 0;padding:8px 10px;background:rgba(8,20,26,.5);
- border-left:2px solid var(--acc)}
-.sortie{display:flex;justify-content:space-between;font-size:11px;
- padding:3px 0;color:#5b7183}
-.sortie.on{color:var(--neg)}
-.sortie .et{font:500 9px ui-monospace,monospace;letter-spacing:.14em}
-.pos{color:var(--pos)}.neg{color:var(--neg)}
-.titre-sec{font:500 9px ui-monospace,monospace;letter-spacing:.2em;
- color:#3f6b78;margin:16px 0 9px;padding-top:11px;
- border-top:1px solid #0e2b34}
-"""
+JS_DETAIL = r"""
+function fermeDetail(){ $('voile').classList.remove('ouvert'); }
 
-JS_STRAT = r"""
-function $(i){return document.getElementById(i);}
-var PEA = false;
+// Cliquer LE VOILE ferme ; cliquer le panneau ne ferme pas.
+function voileClic(e){ if(e.target === $('voile')) fermeDetail(); }
 
-function basculePea(){
- PEA = !PEA;
- $('benv').textContent = PEA ? 'PEA +5 ANS (17,2 %)'
-                             : 'COMPTE-TITRES (30 %)';
- proj();
+function ouvreDetail(titre, corps){
+ $('dtitre').textContent = titre;
+ $('dcorps').innerHTML = corps;
+ $('voile').classList.add('ouvert');
 }
 
+// Cliquer un titre surveille : on dit POURQUOI il est la, puis tous les
+// faits mesures. Aucun avis d'achat : les blocs manquants et les
+// conditions de sortie sont ceux de la specification.
+async function fiche(tk, manque){
+ ouvreDetail(tk, '<div class="msg">Releve de ' + tk + '...</div>');
+ var h = '';
+ if(manque){
+  h += '<div class="pourquoi"><b>Pourquoi ce titre est surveille</b><br>'
+     + "Il remplit une partie des treize blocs d'entree, pas tous. "
+     + 'Ce qui manque :<div class="manque">';
+  manque.split(',').forEach(function(m){
+   m = m.trim();
+   if(m) h += '<span>' + m + '</span>';
+  });
+  h += '</div></div>';
+ }
+ try{
+  var j = await (await fetch('/api/revue?ticker=' + encodeURIComponent(tk))).json();
+  h += j.ok ? carte(j.revue)
+            : '<div class="msg err">' + (j.erreur||'') + '</div>';
+ }catch(e){
+  h += '<div class="msg err">Erreur : ' + e + '</div>';
+ }
+ h += '<div class="actions">'
+    + '<button onclick="voirGraphique(&#39;' + tk + '&#39;)">GRAPHIQUE '
+    + 'COMPLET</button>'
+    + '<button class="sec" onclick="location.href=&#39;/strategie&#39;">'
+    + 'PAGE STRATEGIE</button>'
+    + '<button class="sec" onclick="fermeDetail()">FERMER</button></div>';
+ ouvreDetail(tk, h);
+}
+
+function voirGraphique(tk){ $('tk').value = tk; fermeDetail(); go(); }
+
+// Ce que contiennent les rapports poses a cote du programme. Un chiffre
+// qu'on ne peut pas ouvrir n'apprend rien.
+async function rapports(){
+ ouvreDetail('RAPPORTS', '<div class="msg">Lecture...</div>');
+ try{
+  var j = await (await fetch('/api/rapports')).json();
+  var h = '<div class="pourquoi">' + j.explication + '</div>';
+  if(!j.rapports.length){
+   h += '<div class="msg">Aucun rapport pour le moment. Lancez une '
+      + 'Phase 0 depuis le panneau de validation : elle deposera un '
+      + 'fichier CSV a cote du programme.</div>';
+  }else{
+   j.rapports.forEach(function(r){
+    h += '<div class="rap"><div class="n">' + r.genre + ' &mdash; '
+       + r.univers + '</div><div class="d">'
+       + (r.trades||0) + ' trades sur ' + (r.titres||0) + ' titres';
+    if(r.periode) h += ' &middot; ' + r.periode;
+    h += '<br>' + r.fichier + ' &middot; ' + r.quand;
+    if(r.ev_R !== undefined && r.ev_R !== null)
+      h += '<br>esperance ' + (r.ev_R>0?'+':'') + r.ev_R + ' R par trade'
+         + (r.pf ? ' &middot; profit factor ' + r.pf : '')
+         + ' &middot; ' + (r.gagnants||0) + ' gagnants';
+    h += '</div></div>';
+   });
+  }
+  if(j.audit && j.audit.lignes)
+   h += "<div class=\"rap\"><div class=\"n\">Journal d'audit</div>"
+      + '<div class="d">' + j.audit.lignes + ' signal(aux) evalue(s), '
+      + j.audit.declenches + ' declenche(s)<br>empreinte des parametres '
+      + j.audit.empreinte + '\u2026'
+      + (j.audit.parametres_changes
+         ? "<br><span style=\"color:#f59e0b\">Les parametres ont change en "
+           + "cours de journal : les lignes d'avant et d'apres ne se "
+           + "comparent pas.</span>" : "")
+      + '</div></div>';
+  h += '<div class="pourquoi" style="border-color:var(--neg)">'
+     + j.verdict_connu + '</div>';
+  h += '<div class="actions"><button class="sec" onclick="fermeDetail()">'
+     + 'FERMER</button></div>';
+  ouvreDetail('RAPPORTS', h);
+ }catch(e){
+  ouvreDetail('RAPPORTS', '<div class="msg err">Erreur : ' + e + '</div>');
+ }
+}
+
+document.addEventListener('keydown', function(e){
+ if(e.key === 'Escape') fermeDetail();
+});
+"""
+
+
+# --- Fiche d'un titre, partagee par les deux pages ---------------------
+#
+# L'accueil et la page STRATEGIE affichent la meme fiche. Elle est ecrite
+# une fois : deux copies finiraient par diverger, et c'est toujours celle
+# qu'on ne regarde pas qui garde le bug.
+JS_FICHE = r"""
 function eur(v){
  return (v<0?'-':'') + Math.abs(Math.round(v)).toLocaleString('fr-FR')
         + ' €';
-}
-
-async function proj(){
- var q = 'capital=' + ($('pcap').value||0)
-       + '&mensuel=' + ($('pmens').value||0)
-       + '&taux=' + ($('ptaux').value||0)
-       + '&ans=' + ($('pans').value||10)
-       + (PEA ? '&pea=1' : '');
- $('pres').innerHTML = '<div class="msg">Calcul...</div>';
- try{
-  var j = await (await fetch('/api/projection?' + q)).json();
-  if(!j.ok){
-   $('pres').innerHTML = '<div class="msg err">' + (j.raison||'') + '</div>';
-   return;
-  }
-  var h = j.hypothese, jal = [1,3,5,10,15,20];
-  var t = '<table class="tproj"><tr><th>AN</th><th>VERSE</th>'
-        + '<th>CAPITALISANT</th><th>ROTATION</th><th>GAINS RETIRES</th></tr>';
-  j.lignes.forEach(function(x){
-   if(jal.indexOf(x.an) < 0 && x.an !== h.annees) return;
-   t += '<tr' + (x.an===h.annees ? ' class="fort"' : '') + '><td>' + x.an
-      + '</td><td>' + eur(x.verse) + '</td><td>' + eur(x.capitalisant_net)
-      + '</td><td>' + eur(x.rotation_net) + '</td><td>'
-      + eur(x.retire_total) + '</td></tr>';
-  });
-  t += '</table>';
-  t += '<div class="bilan">Vous aurez verse <b>' + eur(j.verse_total)
-     + '</b> en ' + h.annees + ' ans.<br>'
-     + 'La friction fiscale de la rotation coute <b>'
-     + eur(j.ecart_capitalisant_rotation) + '</b>, soit '
-     + j.part_perdue_en_friction.toFixed(1) + ' % du capitalisant.<br>'
-     + 'Pour seulement <b>egaler</b> le capitalisant, une rotation doit '
-     + 'produire <b>' + (j.barre_brute*100).toFixed(2) + ' %</b> brut par '
-     + 'an au lieu de ' + (h.taux*100).toFixed(2) + ' %.'
-     + "<br><span style=\"color:#3f6b78\">Ce tableau n'est pas une "
-     + "prevision : il deroule l'hypothese que vous avez saisie.</span>"
-     + '</div>';
-  $('pres').innerHTML = t;
- }catch(e){
-  $('pres').innerHTML = '<div class="msg err">Erreur : ' + e + '</div>';
- }
 }
 
 function sgn(v, suff){
  var c = v > 0 ? 'pos' : (v < 0 ? 'neg' : '');
  return '<b class="' + c + '">' + (v>0?'+':'') + v.toFixed(2)
         + (suff||' %') + '</b>';
-}
-
-async function revue(){
- var tk = ($('rtk').value||'').trim();
- if(!tk){ $('rres').innerHTML = '<div class="msg err">Donnez un ticker.</div>';
-          return; }
- var q = 'ticker=' + encodeURIComponent(tk);
- var e = ($('rent').value||'').trim();
- if(e) q += '&entree=' + encodeURIComponent(e);
- $('rres').innerHTML = '<div class="msg">Releve de ' + tk + '...</div>';
- try{
-  var j = await (await fetch('/api/revue?' + q)).json();
-  if(!j.ok){
-   $('rres').innerHTML = '<div class="msg err">' + (j.erreur||'') + '</div>';
-   return;
-  }
-  $('rres').innerHTML = carte(j.revue);
- }catch(err){
-  $('rres').innerHTML = '<div class="msg err">Erreur : ' + err + '</div>';
- }
 }
 
 // Le rendu d'une carte, commun au releve des positions et a l'examen
@@ -1288,6 +1330,114 @@ function carte(r){
       + 'titre : ni gain latent, ni cout fiscal ne sont calcules. '
       + "Donnez un prix d'entree pour obtenir le trajet complet.</div>";
  return h + '</div>';
+}
+
+"""
+
+
+# --- Page STRATEGIE ---------------------------------------------------
+# Deux colonnes : a gauche de l'arithmetique, a droite des faits mesures.
+# Aucune animation de mise en page : uniquement transform et opacity.
+CSS_STRAT = """
+/* .app attend TROIS rangees (barre, console, grille). Cette page n'en a
+   que deux : sans gabarit propre, les panneaux tombaient dans la rangee
+   « auto » et s'arretaient au milieu de l'ecran. */
+.app.strat-page{grid-template-rows:auto minmax(0,1fr)}
+.strat{display:grid;grid-template-columns:1fr 1.15fr;
+ grid-template-rows:minmax(0,1fr);gap:9px;min-height:0}
+.strat .corps{overflow-y:auto;min-height:0}
+@media(max-width:1150px){.strat{grid-template-columns:1fr;
+ grid-template-rows:auto auto}}
+.champs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.champs label{display:flex;flex-direction:column;gap:4px;
+ font:400 10px ui-monospace,monospace;letter-spacing:.14em;color:#3f6b78}
+.champs input{width:100%}
+.ex{font-size:11.5px;line-height:1.6;color:#5b7183;margin-bottom:11px}
+.tproj{width:100%;border-collapse:collapse;margin-top:12px;
+ font:400 11.5px ui-monospace,monospace}
+.tproj th{text-align:right;padding:5px 6px;font-weight:500;font-size:9.5px;
+ letter-spacing:.14em;color:#3f6b78;border-bottom:1px solid #0e2b34}
+.tproj th:first-child,.tproj td:first-child{text-align:left}
+.tproj td{text-align:right;padding:4px 6px;border-bottom:1px solid #0b2028}
+.tproj tr.fort td{color:#cbe9f2;font-weight:600}
+.bilan{margin-top:13px;padding-top:11px;border-top:1px solid #0e2b34;
+ font-size:12px;line-height:1.75;color:#8fb3c1}
+.bilan b{color:var(--acc)}
+.titre-sec{font:500 9px ui-monospace,monospace;letter-spacing:.2em;
+ color:#3f6b78;margin:16px 0 9px;padding-top:11px;
+ border-top:1px solid #0e2b34}
+"""
+
+JS_STRAT = r"""
+async function proj(){
+ var q = 'capital=' + ($('pcap').value||0)
+       + '&mensuel=' + ($('pmens').value||0)
+       + '&taux=' + ($('ptaux').value||0)
+       + '&ans=' + ($('pans').value||10)
+       + (PEA ? '&pea=1' : '');
+ $('pres').innerHTML = '<div class="msg">Calcul...</div>';
+ try{
+  var j = await (await fetch('/api/projection?' + q)).json();
+  if(!j.ok){
+   $('pres').innerHTML = '<div class="msg err">' + (j.raison||'') + '</div>';
+   return;
+  }
+  var h = j.hypothese, jal = [1,3,5,10,15,20];
+  var t = '<table class="tproj"><tr><th>AN</th><th>VERSE</th>'
+        + '<th>CAPITALISANT</th><th>ROTATION</th><th>GAINS RETIRES</th></tr>';
+  j.lignes.forEach(function(x){
+   if(jal.indexOf(x.an) < 0 && x.an !== h.annees) return;
+   t += '<tr' + (x.an===h.annees ? ' class="fort"' : '') + '><td>' + x.an
+      + '</td><td>' + eur(x.verse) + '</td><td>' + eur(x.capitalisant_net)
+      + '</td><td>' + eur(x.rotation_net) + '</td><td>'
+      + eur(x.retire_total) + '</td></tr>';
+  });
+  t += '</table>';
+  t += '<div class="bilan">Vous aurez verse <b>' + eur(j.verse_total)
+     + '</b> en ' + h.annees + ' ans.<br>'
+     + 'La friction fiscale de la rotation coute <b>'
+     + eur(j.ecart_capitalisant_rotation) + '</b>, soit '
+     + j.part_perdue_en_friction.toFixed(1) + ' % du capitalisant.<br>'
+     + 'Pour seulement <b>egaler</b> le capitalisant, une rotation doit '
+     + 'produire <b>' + (j.barre_brute*100).toFixed(2) + ' %</b> brut par '
+     + 'an au lieu de ' + (h.taux*100).toFixed(2) + ' %.'
+     + "<br><span style=\"color:#3f6b78\">Ce tableau n'est pas une "
+     + "prevision : il deroule l'hypothese que vous avez saisie.</span>"
+     + '</div>';
+  $('pres').innerHTML = t;
+ }catch(e){
+  $('pres').innerHTML = '<div class="msg err">Erreur : ' + e + '</div>';
+ }
+}
+
+function $(i){return document.getElementById(i);}
+var PEA = false;
+
+function basculePea(){
+ PEA = !PEA;
+ $('benv').textContent = PEA ? 'PEA +5 ANS (17,2 %)'
+                             : 'COMPTE-TITRES (30 %)';
+ proj();
+}
+
+async function revue(){
+ var tk = ($('rtk').value||'').trim();
+ if(!tk){ $('rres').innerHTML = '<div class="msg err">Donnez un ticker.</div>';
+          return; }
+ var q = 'ticker=' + encodeURIComponent(tk);
+ var e = ($('rent').value||'').trim();
+ if(e) q += '&entree=' + encodeURIComponent(e);
+ $('rres').innerHTML = '<div class="msg">Releve de ' + tk + '...</div>';
+ try{
+  var j = await (await fetch('/api/revue?' + q)).json();
+  if(!j.ok){
+   $('rres').innerHTML = '<div class="msg err">' + (j.erreur||'') + '</div>';
+   return;
+  }
+  $('rres').innerHTML = carte(j.revue);
+ }catch(err){
+  $('rres').innerHTML = '<div class="msg err">Erreur : ' + err + '</div>';
+ }
 }
 
 async function lignes(){
@@ -1374,6 +1524,10 @@ def _accueil(splash: bool = True) -> str:
               '<div class="maje">analyse sanofi &middot; scan cac 40 &middot; '
               'etat du marche &middot; mes positions &middot; actualise</div>'
               '</div>'
+            + '<div id="voile" onclick="voileClic(event)">'
+              '<div id="detail"><div class="tete"><h2 id="dtitre"></h2>'
+              '<div class="fx" onclick="fermeDetail()" title="Fermer (Echap)">'
+              '&times;</div></div><div id="dcorps"></div></div></div>'
             + '<div class="app">'
             + f'<div class="bar">{CERF_FIXE.format(28, 30)}'
             f"<h1>{NOM}</h1><span class=\"sst\">REPLI EN TENDANCE</span>"
@@ -1463,7 +1617,8 @@ def _accueil(splash: bool = True) -> str:
             '</div></section>'
 
             '</div></div>'
-            f"<script>{JS}{JS_POS}{JS_HUD}{rg.tiroir_js()}</script></body></html>")
+            f"<script>{JS}{JS_POS}{JS_HUD}{JS_FICHE}{JS_DETAIL}"
+            f"{rg.tiroir_js()}</script></body></html>")
 
 
 class Bruce(http.server.BaseHTTPRequestHandler):
@@ -1539,6 +1694,8 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                 return self._json(_revue_lignes())
             if u.path == "/api/revue":
                 return self._json(_revue_titre(q))
+            if u.path == "/api/rapports":
+                return self._json(_rapports())
             if u.path == "/api/reglages":
                 return self._json(rg.charge())
             if u.path == "/api/positions":
@@ -2077,6 +2234,78 @@ def _revue_lignes() -> dict:
     return {"ok": True, "lignes": out, "marche_ok": marche}
 
 
+def _rapports() -> dict:
+    """Ce que contiennent les rapports poses a cote du programme.
+
+    La case PHASE 0 de l'accueil affichait « 2 RAPPORT(S) » sans dire
+    lesquels ni ce qu'ils valaient. Un chiffre qu'on ne peut pas ouvrir
+    n'apprend rien.
+    """
+    import csv as _csv
+
+    out = []
+    for f in sorted(Path(".").glob("*.csv")):
+        nom = f.name
+        if not (nom.startswith("phase0-") or nom.startswith("pead-")):
+            continue
+        genre = "Phase 0" if nom.startswith("phase0-") else "Derive post-annonce"
+        info = {"fichier": nom, "genre": genre,
+                "univers": nom.split("-", 1)[1].rsplit(".", 1)[0],
+                "quand": _dt.datetime.fromtimestamp(
+                    f.stat().st_mtime).strftime("%d/%m/%Y %H:%M"),
+                "octets": f.stat().st_size}
+        try:
+            with f.open(encoding="utf-8") as fp:
+                lignes = list(_csv.DictReader(fp))
+            info["trades"] = len(lignes)
+            rs = [float(x["R"]) for x in lignes if x.get("R")]
+            if rs:
+                gains = sum(r for r in rs if r > 0)
+                pertes = -sum(r for r in rs if r < 0)
+                info["gagnants"] = sum(1 for r in rs if r > 0)
+                info["ev_R"] = round(sum(rs) / len(rs), 3)
+                info["pf"] = (round(gains / pertes, 2) if pertes > 0
+                              else None)
+            tickers = {x.get("ticker", "") for x in lignes}
+            info["titres"] = len(tickers - {""})
+            dates = sorted(x.get("entree", "") for x in lignes
+                           if x.get("entree"))
+            if dates:
+                info["periode"] = f"{dates[0]} → {dates[-1]}"
+        except Exception as exc:
+            info["erreur"] = f"{type(exc).__name__}"
+        out.append(info)
+
+    # Le journal d'audit n'est pas un rapport de validation, mais c'est
+    # la meme question : qu'est-ce que le programme a garde comme trace ?
+    audit = {}
+    try:
+        from . import audit as ad
+        v = ad.verifie()
+        audit = {"lignes": v["lignes"],
+                 "declenches": v["signaux_declenches"],
+                 "parametres_changes": v["parametres_changes"],
+                 "empreinte": v["empreinte_actuelle"][:16]}
+    except Exception:
+        audit = {}
+
+    return {
+        "ok": True, "rapports": out, "audit": audit,
+        "explication": (
+            "Un rapport de Phase 0 est le resultat d'un REJEU des regles "
+            "sur l'historique. Il contient chaque trade qu'aurait pris le "
+            "systeme : date d'entree, de sortie, prix, stop, resultat en "
+            "multiples de risque, et motif de sortie. Il sert a repondre a "
+            "une seule question : le signal fait-il mieux que le hasard ? "
+            "Ce n'est pas une liste d'actions a acheter."),
+        "verdict_connu": (
+            "Strategie 1, repli en tendance : NO-GO. Les cinq criteres "
+            "n'ont pas ete franchis sur donnees hors echantillon. Les "
+            "candidats affiches par le scan restent donc une watchlist, "
+            "pas des ordres."),
+    }
+
+
 def _revue_titre(q: dict) -> dict:
     """Revue de N'IMPORTE QUEL titre, detenu ou non.
 
@@ -2157,7 +2386,7 @@ def _page_strategie() -> str:
         '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         f"<title>{NOM} - strategie</title>"
-        f"<style>{rg.variables(reg)}{CSS}{CSS_STRAT}</style></head>"
+        f"<style>{rg.variables(reg)}{CSS}{CSS_FICHE}{CSS_STRAT}</style></head>"
         f'<body class="{rg.classes(reg)}">'
         + rg.tiroir_html(reg)
         + hd.fond(TRACE_D)
@@ -2207,7 +2436,8 @@ def _page_strategie() -> str:
           '<div id="lres" class="msg">Releve en cours...</div>'
           '</div></section>'
           '</div></div>'
-        + f"<script>{JS_STRAT}{rg.tiroir_js()}</script></body></html>")
+        + f"<script>{JS_FICHE}{JS_STRAT}{rg.tiroir_js()}</script>"
+          "</body></html>")
 
 
 def _icone() -> str:

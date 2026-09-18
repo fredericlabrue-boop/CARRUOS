@@ -86,6 +86,9 @@ CSS = """
 .rail.ok .v{color:var(--pos)}.rail.ko .v{color:var(--neg)}
 .bandeau{display:flex;flex-wrap:wrap;gap:0;margin-top:16px;border-top:1px solid #0e2b34;
  padding-top:11px;font:400 10px ui-monospace,Consolas,monospace;letter-spacing:.12em}
+.bandeau .cliq{cursor:pointer}
+.bandeau .cliq:hover .v{color:var(--acc)}
+.bandeau .cliq .n::after{content:" \\2197";opacity:.6}
 .bandeau div{flex:1;min-width:104px;padding:0 9px;border-left:1px solid #0e2b34}
 .bandeau div:first-child{border-left:0;padding-left:0}
 .bandeau .n{color:#3f6b78;font-size:8.5px;letter-spacing:.2em}
@@ -192,9 +195,16 @@ def rail(nom, valeur, pct, txt, etat="") -> str:
 
 
 def bandeau(cases) -> str:
+    """Chaque case peut porter une action au clic : (nom, valeur, classe,
+    action). Un chiffre qu'on ne peut pas ouvrir n'apprend rien — la case
+    PHASE 0 affichait « 2 RAPPORT(S) » sans dire lesquels."""
     out = []
-    for nom, val, cls in cases:
-        out.append(f'<div><div class="n">{html.escape(nom)}</div>'
+    for case in cases:
+        nom, val, cls = case[0], case[1], case[2]
+        action = case[3] if len(case) > 3 else ""
+        attr = (f' class="cliq" onclick="{action}" title="Cliquer pour voir"'
+                if action else "")
+        out.append(f'<div{attr}><div class="n">{html.escape(nom)}</div>'
                    f'<div class="v {cls}">{html.escape(str(val))}</div></div>')
     return '<div class="bandeau">' + "".join(out) + "</div>"
 
@@ -398,7 +408,7 @@ def console_etat(e: dict) -> dict:
         ("EXECUTION", "21H40 - 21H55", "or"),
         ("POSITIONS", f"{n}/{nmax}", "" if n < nmax else "neg"),
         ("PHASE 0", e.get("phase0", "NON LANCEE"),
-         "pos" if e.get("phase0_ok") else "neg"),
+         "pos" if e.get("phase0_ok") else "neg", "rapports()"),
     ])
     return {"rails": rails, "bandeau": band,
             "verdict": e.get("verdict", "--")}

@@ -292,6 +292,33 @@ def main() -> int:
 
     # --- Les themes ---------------------------------------------------
     # --- La page STRATEGIE --------------------------------------------
+    # --- Le panneau de detail de l'accueil ----------------------------
+    print("\n  FICHE ET RAPPORTS")
+    ja = _scripts(h)
+    _v('id="voile"' in h and 'id="dcorps"' in h and 'id="dtitre"' in h,
+       "le panneau de detail existe sur l'accueil")
+    _v("function fiche" in ja and "function rapports" in ja,
+       "la fiche d'un titre et la liste des rapports sont cablees")
+    _v('onclick="fiche(' in ja,
+       "cliquer un titre surveille ouvre sa fiche, pas seulement le "
+       "graphique")
+    _v("Pourquoi ce titre est surveille" in ja,
+       "la fiche dit d'abord POURQUOI le titre est la")
+    _v("function voileClic" in ja and "'Escape'" in ja,
+       "le panneau se ferme au clic dehors et par Echap")
+    _v("/api/rapports" in ja,
+       "la case PHASE 0 interroge la liste des rapports")
+    _v("cliq" in h and "rapports()" in h,
+       "la case PHASE 0 est cliquable")
+    # La fiche est ECRITE UNE FOIS : deux copies finiraient par diverger,
+    # et c'est toujours celle qu'on ne regarde pas qui garde le bug.
+    _v("function carte" in ja,
+       "le rendu de fiche est disponible sur l'accueil")
+    _v(".kv2" in css and ".trajet" in css,
+       "le style de la fiche voyage avec elle sur l'accueil")
+    _v(ja.count("function carte") == 1,
+       "le rendu de fiche n'est ecrit qu'une fois")
+
     print("\n  PAGE STRATEGIE")
     st = pages["strategie"]
     jss = _scripts(st)

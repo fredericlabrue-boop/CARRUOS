@@ -111,6 +111,29 @@ dossier remet tout à zéro sans rien casser.
 
 ---
 
+## Comprendre la page d'accueil
+
+**La case PHASE 0** en bas du bandeau affiche le nombre de rapports
+posés à côté du programme. **Cliquez dessus** : elle explique ce qu'est
+un rapport de Phase 0, liste ceux que vous avez (nombre de trades,
+période, espérance, profit factor) et rappelle le verdict connu.
+
+Un rapport de Phase 0 est le résultat d'un **rejeu des règles sur
+l'historique** : chaque trade que le système aurait pris, avec son
+entrée, sa sortie, son stop et son résultat. Il répond à une seule
+question — le signal fait-il mieux que le hasard ? **Ce n'est pas une
+liste d'actions à acheter.**
+
+**Les actions à surveiller**, après un scan, sont les titres qui
+remplissent une partie des treize blocs d'entrée, pas tous. La colonne
+de droite dit lesquels manquent. **Cliquez sur le nom** : une fiche
+s'ouvre avec le motif de la surveillance, puis tous les faits mesurés —
+le plus haut de la période, le recul depuis ce sommet, les écarts aux
+moyennes, le RSI, et l'état des quatre conditions de sortie. Le
+graphique complet reste à un bouton de là. Échap referme.
+
+---
+
 ## L'onglet STRATÉGIE
 
 Bouton **STRATEGIE** en haut de l'accueil. Deux moitiés, de nature très
