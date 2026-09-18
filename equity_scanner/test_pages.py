@@ -319,6 +319,19 @@ def main() -> int:
     _v(ja.count("function carte") == 1,
        "le rendu de fiche n'est ecrit qu'une fois")
 
+    # « A SURVEILLER » se lisait comme une liste d'achats. C'etait un
+    # comptage de SES propres lignes. Le libelle ne doit pas revenir.
+    _v("A SURVEILLER" not in h,
+       "le libelle trompeur « A SURVEILLER » a disparu de l'accueil")
+    _v("MES LIGNES A TRAITER" in h,
+       "le rail dit desormais de quoi il parle : MES LIGNES A TRAITER")
+    _v("function lignesATraiter" in ja and "lignesATraiter()" in h,
+       "le rail est cliquable et ouvre son explication")
+    _v("pas des titres a acheter" in ja,
+       "l'explication dit noir sur blanc que ce ne sont pas des achats")
+    _v("/api/positions" in ja,
+       "elle relit les positions plutot que de recopier un chiffre")
+
     print("\n  PAGE STRATEGIE")
     st = pages["strategie"]
     jss = _scripts(st)

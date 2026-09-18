@@ -29,6 +29,7 @@ affichée dans une fenêtre Windows.
 | **2** | installer ou mettre à jour les dépendances |
 | **5 / 6** | Phase 0 — go/no-go, S&P 500 ou 120 titres US |
 | **P** | dérive post-annonce (hypothèse 2) |
+| **S** | dérive post-annonce **négative**, vente à découvert (hypothèse 3) |
 | **Q** | pourquoi un titre est-il refusé ? |
 | **J** | journal d'audit des signaux |
 | **F** | figer la composition d'un univers |
@@ -65,14 +66,34 @@ Le programme refuse par construction d'afficher :
 - une ligne de prédiction de prix. Le cône de dispersion a sa dérive
   fixée à zéro : il donne l'amplitude, jamais le sens.
 
-**Les paramètres de stratégie sont gelés**, et la règle est exécutable :
-`audit.empreinte()` calcule le SHA256 de toutes les constantes, et
-`test_moteur` tombe si l'une d'elles bouge. Un résultat ne peut plus
-être attribué par erreur à un jeu de paramètres qui ne l'a pas produit.
+**Les paramètres de stratégie sont gelés**, et la règle est exécutable.
+Chaque hypothèse a sa propre empreinte SHA256 — trois empreintes
+séparées, pour qu'on sache **laquelle** a bougé — et `test_moteur` tombe
+si l'une d'elles change, ou si l'un des trois documents de spécification
+a été retouché. Un résultat ne peut plus être attribué par erreur à un
+jeu de paramètres qui ne l'a pas produit.
 
-**État de la validation.** Stratégie 1, « repli en tendance » : **NO-GO**.
-L'hypothèse est morte et ne se retouche pas. Stratégie 2, dérive
-post-annonce : moteur codé, test pas encore lancé.
+    py -m equity_scanner.audit --parametres
+
+**État de la validation.**
+
+| | hypothèse | état |
+|---|---|---|
+| 1 | repli en tendance | **NO-GO**. Morte, ne se retouche pas. |
+| 2 | dérive post-annonce | moteur codé, test pas encore lancé |
+| 3 | dérive post-annonce **négative** (short) | moteur codé, test pas encore lancé |
+
+L'hypothèse 3 n'est pas l'hypothèse 2 avec les signes inversés. Vendre à
+découvert a ses propres asymétries : la perte n'est pas bornée, la
+position **grossit** quand elle a tort, emprunter les titres se paie, et
+le marché dérive à la hausse — il ne suffit pas d'avoir raison, il faut
+avoir assez raison pour couvrir cette dérive.
+
+Et le test la flatte sur un point, qu'il faut retrancher à la main : le
+**dividende dû au prêteur n'est pas modélisé**, faute de données titre
+par titre. Sur 45 séances, cela représente environ **0,4 point par
+trade**. Si l'espérance mesurée est inférieure à 0,4 point, l'avantage
+n'existe pas.
 
 ---
 
@@ -123,6 +144,17 @@ l'historique** : chaque trade que le système aurait pris, avec son
 entrée, sa sortie, son stop et son résultat. Il répond à une seule
 question — le signal fait-il mieux que le hasard ? **Ce n'est pas une
 liste d'actions à acheter.**
+
+**Le rail MES LIGNES À TRAITER**, sous le titre CARRUOS, ne compte
+**pas** des titres à acheter. Il compte **vos propres positions** — celles
+que vous avez saisies dans le bloc du bas — dont au moins une des quatre
+conditions de sortie de la spécification est active, ou dont le stop que
+vous avez noté est dépassé. Le chiffre est à zéro quand toutes vos lignes
+sont à CONSERVER. **Cliquez dessus** : il nomme chaque ligne concernée et
+dit **quelle** condition est active, jamais « vends ».
+
+L'ancien libellé était « À SURVEILLER », et il se lisait comme une liste
+d'achats. Il ne l'a jamais été.
 
 **Les actions à surveiller**, après un scan, sont les titres qui
 remplissent une partie des treize blocs d'entrée, pas tous. La colonne

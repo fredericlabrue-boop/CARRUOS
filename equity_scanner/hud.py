@@ -76,6 +76,8 @@ CSS = """
 .hud-id .st{font:400 9px ui-monospace,Consolas,monospace;letter-spacing:.28em;
  color:#3f6b78;margin-top:3px}
 .rails{display:flex;flex-direction:column;gap:7px}
+.rail.cliq{cursor:pointer}
+.rail.cliq:hover .n{color:var(--acc)}
 .rail{display:grid;grid-template-columns:74px 1fr 62px;gap:9px;align-items:center;
  font:400 10px ui-monospace,Consolas,monospace;letter-spacing:.1em}
 .rail .n{color:#3f6b78}
@@ -187,9 +189,12 @@ def noyau(trace: str) -> str:
         '</svg></div>')
 
 
-def rail(nom, valeur, pct, txt, etat="") -> str:
+def rail(nom, valeur, pct, txt, etat="", action="") -> str:
+    """Un rail peut porter une action au clic, comme une case du bandeau."""
     p = max(0.0, min(100.0, pct))
-    return (f'<div class="rail {etat}"><span class="n">{html.escape(nom)}</span>'
+    clic = f' cliq" onclick="{action}" title="Cliquer pour voir' if action else ""
+    return (f'<div class="rail {etat}{clic}">'
+            f'<span class="n">{html.escape(nom)}</span>'
             f'<span class="t"><i style="width:{p:.0f}%"></i></span>'
             f'<span class="v">{html.escape(txt)}</span></div>')
 
@@ -361,7 +366,7 @@ def console(trace: str, hologramme: bool = True) -> str:
         '<div class="st" id="hud-verdict">RELEVE DU MARCHE...</div></div></div>'
         '<div id="hud-rails"><div class="rails">'
         + rail("REGIME US", 0, 0, "--") + rail("REGIME EUR", 0, 0, "--")
-        + rail("LIGNES", 0, 0, "--") + rail("A SURVEILLER", 0, 0, "--")
+        + rail("LIGNES", 0, 0, "--") + rail("MES LIGNES A TRAITER", 0, 0, "--")
         + '</div></div></div>'
         '<div id="hud-band">'
         + bandeau([("SEANCE", "--", ""), ("EXECUTION", "21H40", "or"),
@@ -387,8 +392,8 @@ def console_etat(e: dict) -> dict:
                     couleur=CYAN if n < nmax else "#f59e0b")
            + '</div>')
 
-    def r(nom, ok, txt, pct):
-        return rail(nom, 0, pct, txt, "ok" if ok else "ko")
+    def r(nom, ok, txt, pct, action=""):
+        return rail(nom, 0, pct, txt, "ok" if ok else "ko", action)
 
     rails = ('<div class="rails">'
              + r("REGIME US", (us or -1) >= 0,
@@ -398,8 +403,9 @@ def console_etat(e: dict) -> dict:
                  "--" if eu is None else f"{eu:+.1f}%",
                  50 + max(-50, min(50, (eu or 0) * 2.5)))
              + r("LIGNES", n < nmax, f"{n}/{nmax}", n / nmax * 100)
-             + r("A SURVEILLER", surv == 0, str(surv),
-                 0 if not n else surv / max(n, 1) * 100)
+             + r("MES LIGNES A TRAITER", surv == 0, str(surv),
+                 0 if not n else surv / max(n, 1) * 100,
+                 action="lignesATraiter()")
              + '</div>')
 
     band = bandeau([

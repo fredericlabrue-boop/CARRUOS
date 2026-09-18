@@ -38,6 +38,25 @@ ECHECS: list[str] = []
 EMPREINTE_GELEE = ("827439d2d46ccbea1c021394f4a0fba3628045546b21bf767db2416c"
                    "78f5c127")
 
+# Les deux autres hypotheses du registre ont leurs propres constantes, donc
+# leur propre empreinte. Trois empreintes separees, pas une seule : quand
+# l'une bouge, on sait laquelle.
+EMPREINTE_PEAD = ("d32cd9bf113ec0d70654224b21a03312e456d66a6e0f09e48f5ef801"
+                  "78f8bd55")
+EMPREINTE_SHORT = ("47d593c5c32df36d3e6336952a0968771d74cffb441668ffcff2fa7"
+                   "d3b8ba63a")
+
+# Empreinte des DOCUMENTS de specification, qui n'est pas la meme chose que
+# celle des constantes : l'une protege le texte, l'autre le code.
+DOCS_GELES = {
+    "derive-post-annonce-v1.md":
+        "f37d22bd76d253a4c686edb8fe1debb394490240593cc400a423a6f8fb428dee",
+    "strategie-short-v1.md":
+        "bc6a8d1798c38be9ca134c38b309e1d65a1b1108b8d92b6b99fe1a7c77aa175b",
+    "protocole-validation-v1.md":
+        "a65538649263f69e9d3f8e465e5ae0a1a3cb85918ec6f86349438b12138063ae",
+}
+
 
 def ok(nom: str, cond) -> None:
     cond = bool(cond)
@@ -89,6 +108,42 @@ def test_parametres_geles() -> None:
         print(f"          -> obtenue  {actuelle[:32]}…")
         print("          -> un parametre a change. Le resultat de toute")
         print("             validation anterieure ne s'applique plus.")
+
+    # --- les deux autres hypotheses ---
+    for nom, obtenue, attendue in (
+            ("derive post-annonce (hypothese n°2)",
+             ad.empreinte_pead(), EMPREINTE_PEAD),
+            ("vente a decouvert (hypothese n°3)",
+             ad.empreinte_short(), EMPREINTE_SHORT)):
+        ok(f"empreinte des constantes de {nom} ({obtenue[:12]}…)",
+           obtenue == attendue)
+        if obtenue != attendue:
+            print(f"          -> attendue {attendue[:32]}…")
+            print(f"          -> obtenue  {obtenue[:32]}…")
+
+    ok("les trois hypotheses ont des empreintes DISTINCTES",
+       len({ad.empreinte(), ad.empreinte_pead(),
+            ad.empreinte_short()}) == 3)
+    ok("empreintes() rend les trois, aucune a None",
+       set(ad.empreintes()) == {ad.VERSION_STRATEGIE, ad.VERSION_PEAD,
+                                ad.VERSION_SHORT}
+       and all(v for v in ad.empreintes().values()))
+
+    # --- les documents de specification ---
+    import hashlib
+    from pathlib import Path
+    racine = Path(__file__).resolve().parent.parent
+    for nom, attendu in DOCS_GELES.items():
+        f = racine / nom
+        if not f.exists():
+            ok(f"{nom} present a cote du programme", False)
+            continue
+        h = hashlib.sha256(f.read_bytes()).hexdigest()
+        ok(f"{nom} n'a pas ete retouche ({h[:12]}…)", h == attendu)
+
+    from . import pead as P
+    ok("pead.py cite bien l'empreinte de sa specification",
+       DOCS_GELES["derive-post-annonce-v1.md"] in (P.__doc__ or ""))
 
 
 def test_indicateurs() -> None:
@@ -530,6 +585,152 @@ def test_strategie() -> None:
        and avec["impot_si_vente"] is not None)
 
 
+def test_short() -> None:
+    """Hypothese n°3 : vente a decouvert. Les conventions de signe sont
+    inversees, et c'est exactement la ou l'on se trompe."""
+    import hashlib
+    from pathlib import Path
+
+    from . import backtest as bt
+    from . import short as sh
+    from .indicators import enrich
+
+    print("\n— Vente a decouvert : specification gelee —")
+    doc = Path(__file__).resolve().parent.parent / "strategie-short-v1.md"
+    ok("la specification existe a cote du programme", doc.exists())
+    if doc.exists():
+        h = hashlib.sha256(doc.read_bytes()).hexdigest()
+        ok(f"son empreinte SHA256 est celle citee par le moteur "
+           f"({h[:12]}…)", h in (sh.__doc__ or ""))
+    ok("les seuils sont ceux du document",
+       (sh.CAR3_MAX, sh.RVOL_ANNONCE, sh.PRIX_MIN, sh.DOLLAR_VOL_MIN,
+        sh.MAX_BARRES, sh.STOP_ATR, sh.MAX_POS, sh.EMPRUNT_AN)
+       == (-0.050, 2.0, 10.0, 50e6, 45, 2.0, 10, 0.020))
+    ok("la liquidite exigee est PLUS severe qu'a l'achat",
+       sh.DOLLAR_VOL_MIN > 20e6)
+
+    print("\n— Arithmetique d'une vente —")
+    t = sh.TradeCourt("X", pd.Timestamp("2024-01-02"),
+                      pd.Timestamp("2024-03-06"), entree=100.0, sortie=90.0,
+                      stop0=110.0, atr=5.0, barres=45, motif="duree")
+    emprunt = 100.0 * sh.EMPRUNT_AN * 45 / sh.SEANCES_AN
+    ok("le risque est la distance AU-DESSUS de l'entree",
+       abs(t.risque - 10.0) < 1e-9)
+    ok("le cout d'emprunt court au prorata du temps de detention",
+       abs(t.cout_emprunt - emprunt) < 1e-9)
+    ok("vendre a 100 et racheter a 90 gagne, emprunt deduit",
+       abs(t.R - (10.0 - emprunt) / 10.0) < 1e-9 and t.R > 0)
+    ok("le rendement suit la meme convention",
+       abs(t.rendement - (10.0 - emprunt) / 100.0) < 1e-12)
+
+    # Un ecart d'ouverture coute PLUS que le risque prevu : c'est le
+    # risque propre a la vente, il doit apparaitre tel quel.
+    gap = sh.TradeCourt("X", pd.Timestamp("2024-01-02"),
+                        pd.Timestamp("2024-01-20"), 100.0, 112.0, 110.0,
+                        5.0, 12, "stop")
+    ok("un rachat au-dessus du stop coute plus que le risque prevu",
+       gap.R < -1.0)
+
+    print("\n— Le sens de la position traverse le portefeuille —")
+    idx = pd.bdate_range("2024-01-02", periods=60)
+    baisse = pd.Series(np.linspace(100, 80, 60), index=idx)
+    hausse = pd.Series(np.linspace(100, 120, 60), index=idx)
+    tb = sh.TradeCourt("X", idx[0], idx[-1], 100.0, 80.0, 110.0, 5.0, 59,
+                       "duree")
+    th = sh.TradeCourt("Y", idx[0], idx[-1], 100.0, 120.0, 110.0, 5.0, 59,
+                       "stop")
+    pb = bt.portefeuille([tb], risque=0.01,
+                         series={"X": pd.DataFrame({"close": baisse},
+                                                   index=idx)})
+    ph = bt.portefeuille([th], risque=0.01,
+                         series={"Y": pd.DataFrame({"close": hausse},
+                                                   index=idx)})
+    ok("une vente gagne quand le cours baisse", pb["final"] > 10_000)
+    ok("elle perd quand le cours monte", ph["final"] < 10_000)
+    ok("la courbe d'une vente gagnante ne plonge pas", pb["dd"] < 0.01)
+    ok("la perte latente d'une vente perdante est visible",
+       ph["dd"] > 0.01)
+
+    print("\n— Le signal part quand il doit, et pas autrement —")
+    n = 400
+    jours = pd.bdate_range("2024-01-02", periods=n)
+
+    def serie(car3=-0.09, rvol=3.0, derive=0.0, apres=-0.004):
+        c = [100.0]
+        for k in range(n - 1):
+            r = derive
+            if k == 299:
+                r = car3
+            elif k == 300:
+                r = -0.01
+            elif k > 300:
+                r = apres
+            c.append(c[-1] * (1 + r))
+        c = np.array(c)
+        v = np.full(n, 4e6)
+        v[299] = 4e6 * rvol
+        o = np.concatenate([[c[0]], c[:-1]])
+        d = pd.DataFrame({"open": o, "high": np.maximum(o, c) * 1.004,
+                          "low": np.minimum(o, c) * 0.996, "close": c,
+                          "volume": v}, index=jours)
+        b = pd.DataFrame({"open": np.full(n, 400.0),
+                          "high": np.full(n, 401.0),
+                          "low": np.full(n, 399.0),
+                          "close": np.full(n, 400.0),
+                          "volume": np.full(n, 1e7)}, index=jours)
+        return enrich(d, bench_close=b["close"]), b
+
+    d, b = serie()
+    pris, _ = sh.trades_ticker(d, "X", b, [jours[299]],
+                               "2024-01-01", "2026-12-31")
+    ok("une mauvaise surprise sur un titre en tendance baissiere "
+       "declenche", len(pris) == 1)
+    if pris:
+        tr = pris[0]
+        ok("la vente se fait a l'ouverture de J+3",
+           d.index.get_loc(tr.entree_d) == 302)
+        ok("le stop est AU-DESSUS du prix de vente", tr.stop0 > tr.entree)
+        ok("le stop vaut entree + 2 ATR",
+           abs(tr.stop0 - (tr.entree + sh.STOP_ATR * tr.atr)) < 1e-9)
+        ok("les frais reduisent ce qu'on encaisse a la vente",
+           tr.entree < float(d["open"].iloc[302]))
+
+    # Chaque condition doit bloquer pour SA raison.
+    for lib, kw, attendu in (
+            ("surprise trop faible", {"car3": -0.02},
+             "E1 mauvaise surprise"),
+            ("volume ordinaire", {"rvol": 1.0}, "E2 volume"),
+            ("titre au-dessus de sa SMA200", {"derive": 0.0016},
+             "E6 titre sous sa SMA200")):
+        dd, bb = serie(**kw)
+        evs = sh.evenements(dd, bb, [jours[299]])
+        bloque = [k for k, v in sh.passe(evs[0]).items() if not v] if evs else []
+        pr, _ = sh.trades_ticker(dd, "X", bb, [jours[299]],
+                                 "2024-01-01", "2026-12-31")
+        ok(f"{lib} : bloque par {attendu}",
+           attendu in bloque and not pr)
+
+    print("\n— Le cout d'emprunt mord vraiment —")
+    facile, _ = sh.trades_ticker(d, "X", b, [jours[299]], "2024-01-01",
+                                 "2026-12-31", sh.EMPRUNT_AN)
+    dur, _ = sh.trades_ticker(d, "X", b, [jours[299]], "2024-01-01",
+                              "2026-12-31", sh.EMPRUNT_DIFFICILE)
+    ok("un titre difficile a emprunter rapporte moins",
+       facile and dur and dur[0].R < facile[0].R)
+    ok("lance() refuse une chaine a la place d'une liste",
+       _leve_type_error(sh.lance))
+
+
+def _leve_type_error(fn) -> bool:
+    try:
+        fn("us")
+    except TypeError:
+        return True
+    except Exception:
+        return False
+    return False
+
+
 def test_qualite() -> None:
     import datetime as dt
 
@@ -884,6 +1085,7 @@ def main() -> int:
     test_pead()
     test_comparatif()
     test_strategie()
+    test_short()
     test_qualite()
     test_audit()
     test_robuste()

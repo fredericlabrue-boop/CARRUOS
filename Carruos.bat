@@ -34,6 +34,7 @@ echo      --- VALIDATION ---
 echo      5.  PHASE 0 - go/no-go sur le S^&P 500
 echo      6.  PHASE 0 - test rapide sur 120 titres US
 echo      P.  Derive post-annonce - univers US large
+echo      S.  Derive post-annonce NEGATIVE - vente a decouvert
 echo.
 echo      --- DONNEES ET CONTROLES ---
 echo      Q.  Pourquoi un titre est-il refuse ?
@@ -65,6 +66,7 @@ if "%CHOIX%"=="7" goto pfpapier
 if "%CHOIX%"=="8" goto pfgw
 if /i "%CHOIX%"=="G" goto pfreel
 if /i "%CHOIX%"=="P" goto pead
+if /i "%CHOIX%"=="S" goto short
 if /i "%CHOIX%"=="Q" goto qualite
 if /i "%CHOIX%"=="J" goto audit
 if /i "%CHOIX%"=="F" goto figer
@@ -125,6 +127,18 @@ echo   Derive post-annonce - regles GELEES, un seul passage.
 echo   Collecte des dates d'annonces puis rejeu.
 echo.
 %PY% -m equity_scanner.pead --univers us --csv "pead-us.csv"
+echo. & pause & goto menu
+
+:short
+echo.
+echo   VENTE A DECOUVERT - regles GELEES, un seul passage.
+echo.
+echo   Ce n'est pas la strategie a l'achat avec les signes inverses.
+echo   La perte n'est pas bornee, la position grossit quand elle a tort,
+echo   et emprunter les titres se paie. Le dividende du au preteur n'est
+echo   PAS modelise : retranche 0,4 point par trade au resultat affiche.
+echo.
+%PY% -m equity_scanner.short --univers us --csv "short-us.csv"
 echo. & pause & goto menu
 
 :qualite

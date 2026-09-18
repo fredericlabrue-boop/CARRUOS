@@ -1238,6 +1238,53 @@ async function rapports(){
  }
 }
 
+// L'ancien libelle de ce rail se lisait comme une liste de titres a
+// acheter. Ce sont VOS lignes dont au moins une condition de sortie est
+// active, ou dont le stop est depasse. On les nomme, et on dit laquelle.
+async function lignesATraiter(){
+ ouvreDetail('MES LIGNES A TRAITER', '<div class="msg">Releve...</div>');
+ try{
+  var j = await (await fetch('/api/positions')).json();
+  var l = (j.lignes||[]).filter(function(x){
+   return x.verdict !== 'CONSERVER'; });
+  var h = '<div class="pourquoi"><b>Ce que compte ce chiffre</b><br>'
+        + "Ce ne sont pas des titres a acheter : ce sont VOS positions "
+        + "dont au moins une condition de sortie de votre specification "
+        + "est active, ou dont le stop note est depasse.</div>";
+  if(!(j.lignes||[]).length){
+   h += '<div class="msg">Aucune position enregistree.</div>';
+  }else if(!l.length){
+   h += '<div class="msg">Vos ' + j.lignes.length + ' ligne(s) sont '
+      + 'toutes a CONSERVER : aucune condition de sortie active.</div>';
+  }else{
+   l.forEach(function(x){
+    var actives = Object.keys(x.sorties||{}).filter(function(k){
+     return x.sorties[k]; });
+    h += '<div class="rap"><div class="n">' + x.ticker + ' &mdash; '
+       + x.verdict + '</div><div class="d">'
+       + 'cours ' + (x.cours||'?') + ' &middot; P&amp;L '
+       + (x.pnl_pct>0?'+':'') + (x.pnl_pct||0) + ' %'
+       + (x.marge_stop_pct!==undefined && x.marge_stop_pct!==null
+          ? ' &middot; marge stop ' + (x.marge_stop_pct>0?'+':'')
+            + x.marge_stop_pct + ' %' : '')
+       + (actives.length ? '<br>conditions actives : ' + actives.join(', ')
+                         : '')
+       + (x.erreur ? '<br><span style="color:#f87171">' + x.erreur
+                     + '</span>' : '')
+       + '</div></div>';
+   });
+  }
+  h += '<div class="actions">'
+     + '<button class="sec" onclick="location.href=&#39;/strategie&#39;">'
+     + 'VOIR LE DETAIL COMPLET</button>'
+     + '<button class="sec" onclick="fermeDetail()">FERMER</button></div>';
+  ouvreDetail('MES LIGNES A TRAITER', h);
+ }catch(e){
+  ouvreDetail('MES LIGNES A TRAITER',
+              '<div class="msg err">Erreur : ' + e + '</div>');
+ }
+}
+
 document.addEventListener('keydown', function(e){
  if(e.key === 'Escape') fermeDetail();
 });

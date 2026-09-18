@@ -23,7 +23,8 @@ remettre en place.
 
 Les paramètres de stratégie sont **gelés**. `PERIODES` dans
 `indicators.py` (RSI 14, MACD 12-26-9, Bollinger 20/2, SMA 200/50,
-EMA 20) et les constantes de `pead.py` ne se modifient pas.
+EMA 20), les constantes de `pead.py` et celles de `short.py` ne se
+modifient pas.
 
 Raison : chaque jeu de paramètres a été fixé **avant** son test, avec une
 empreinte SHA256 de sa spécification. Les changer après coup invalide le
@@ -35,11 +36,20 @@ Si une modification de paramètre est demandée : refuser, expliquer qu'il
 faut une nouvelle spécification, une nouvelle empreinte et une période de
 validation non touchée.
 
-Cette règle est désormais **exécutable**. `audit.empreinte()` calcule le
-SHA256 de toutes les constantes de stratégie ; `test_moteur` la compare à
-la valeur de référence, et chaque ligne du journal d'audit porte
-l'empreinte sous laquelle elle a été écrite. Un résultat ne peut plus
-être attribué par erreur à un jeu de paramètres qui ne l'a pas produit.
+Cette règle est désormais **exécutable**, et sur les **trois**
+hypothèses. `audit.empreinte()`, `audit.empreinte_pead()` et
+`audit.empreinte_short()` calculent le SHA256 des constantes de chacune ;
+`audit.empreintes()` rend les trois d'un coup. `test_moteur` compare
+chacune à sa référence gelée, et vérifie en plus que les trois
+**documents** de spécification n'ont pas été retouchés — le texte et le
+code sont deux choses distinctes, on protège les deux.
+
+Trois empreintes séparées, jamais une seule : quand l'une bouge, on sait
+laquelle. Chaque ligne du journal d'audit porte l'empreinte sous laquelle
+elle a été écrite. Un résultat ne peut plus être attribué par erreur à un
+jeu de paramètres qui ne l'a pas produit.
+
+    py -m equity_scanner.audit --parametres   # les trois jeux, en clair
 
 ## Ce qu'il ne faut jamais afficher
 
@@ -58,6 +68,9 @@ l'empreinte sous laquelle elle a été écrite. Un résultat ne peut plus
 - Un verdict directionnel (HAUSSIER / ACHAT) dérivé d'un tel score.
 - Une ligne de prédiction de prix. Le cône de dispersion existe : dérive
   fixée à zéro, il donne l'amplitude, jamais le sens.
+- Un résultat de `short.py` sans le rappel du dividende non modélisé.
+  Une espérance de 0,3 point par trade y ressemble à un avantage ; elle
+  est en réalité négative une fois le dividende payé au prêteur.
 
 ## État de la validation
 
@@ -65,6 +78,13 @@ l'empreinte sous laquelle elle a été écrite. Un résultat ne peut plus
   et 120 titres US. Hypothèse morte, elle ne se retouche pas.
 - Stratégie 2, dérive post-annonce (`pead.py`) : spécifiée, moteur codé,
   **test pas encore lancé**.
+- Stratégie 3, dérive post-annonce **négative** — vente à découvert
+  (`short.py`) : spécifiée (`strategie-short-v1.md`), moteur codé,
+  **test pas encore lancé**. Ce n'est pas la stratégie 2 avec les signes
+  inversés : perte non bornée, position qui grossit quand elle a tort,
+  coût d'emprunt au prorata, dérive haussière du marché à couvrir. Le
+  **dividende dû au prêteur n'est pas modélisé** — environ 0,4 point par
+  trade d'optimisme à retrancher à la main du résultat affiché.
 
 ## Architecture
 
@@ -78,6 +98,7 @@ l'empreinte sous laquelle elle a été écrite. Un résultat ne peut plus
 | `backtest.py` | moteur de simulation, exécution J+1, coûts |
 | `phase0.py` | les 5 critères go/no-go |
 | `pead.py` | stratégie 2 — **constantes gelées** |
+| `short.py` | stratégie 3, vente à découvert — **constantes gelées** |
 | `comparatif.py` | système contre SMH buy & hold net de PFU |
 | `contexte.py` | faits mesurés d'un titre, sans score inventé |
 | `positions.py` | registre manuel des positions |

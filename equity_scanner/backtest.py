@@ -45,6 +45,7 @@ class Trade:
     atr: float
     barres: int
     motif: str
+    sens: int = 1              # +1 achat, -1 vente a decouvert
 
     @property
     def risque(self) -> float:
@@ -426,7 +427,10 @@ def _courbe_quotidienne(retenus, engage: dict, realisee: pd.Series,
         if b <= a:
             continue
         seg = c.iloc[a:b]
-        r = ((seg - t.entree) / t.risque).reindex(calendrier)
+        # Une ligne vendue a decouvert gagne quand le cours baisse : le
+        # sens de la position inverse le signe du gain latent.
+        r = (((seg - t.entree) / t.risque) * getattr(t, "sens", 1)
+             ).reindex(calendrier)
         latent = latent.add(r.fillna(0.0) * engage.get(k, capital * 0.01),
                             fill_value=0.0)
     return (base + latent).dropna()

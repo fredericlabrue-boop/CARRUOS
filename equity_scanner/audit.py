@@ -48,6 +48,8 @@ import numpy as np
 
 FICHIER = Path(".bruce_cache") / "audit-signaux.jsonl"
 VERSION_STRATEGIE = "repli-en-tendance-v1.0"
+VERSION_PEAD = "derive-post-annonce-v1.0"
+VERSION_SHORT = "derive-post-annonce-negative-v1.0"
 _VERROU = threading.Lock()
 
 # Indicateurs releves a chaque signal. Ce sont les entrees des regles :
@@ -95,6 +97,94 @@ def empreinte() -> str:
     """SHA256 des parametres. Change des qu'une seule constante bouge."""
     brut = json.dumps(parametres(), sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(brut.encode("utf-8")).hexdigest()
+
+
+def parametres_pead() -> dict:
+    """Constantes gelees de l'hypothese n°2, derive post-annonce.
+
+    Separees de celles de l'hypothese n°1 a dessein : ce sont deux
+    specifications distinctes, deux empreintes distinctes, deux lignes
+    distinctes au registre. Les melanger dans une seule empreinte
+    rendrait impossible de dire LAQUELLE a bouge.
+    """
+    from . import pead as P
+
+    return {
+        "CAR3_MIN": P.CAR3_MIN,
+        "RVOL_ANNONCE": P.RVOL_ANNONCE,
+        "PRIX_MIN": P.PRIX_MIN,
+        "DOLLAR_VOL_MIN": P.DOLLAR_VOL_MIN,
+        "DELAI_EXEC": P.DELAI_EXEC,
+        "MAX_BARRES": P.MAX_BARRES,
+        "STOP_ATR": P.STOP_ATR,
+        "AVANT_ANNONCE": P.AVANT_ANNONCE,
+        "RISQUE": P.RISQUE,
+        "MAX_POS": P.MAX_POS,
+        "OOS": [P.OOS_DEBUT, P.OOS_FIN],
+        "IN": [P.IN_DEBUT, P.IN_FIN],
+        "version": VERSION_PEAD,
+    }
+
+
+def parametres_short() -> dict:
+    """Constantes gelees de l'hypothese n°3, derive post-annonce negative.
+
+    Le cout d'emprunt en fait partie. Ce n'est pas un detail de mise en
+    oeuvre : baisser EMPRUNT_DIFFICILE apres coup transformerait un
+    NO-GO en GO sans qu'une seule regle d'entree ait bouge.
+    """
+    from . import short as S
+
+    return {
+        "CAR3_MAX": S.CAR3_MAX,
+        "RVOL_ANNONCE": S.RVOL_ANNONCE,
+        "PRIX_MIN": S.PRIX_MIN,
+        "DOLLAR_VOL_MIN": S.DOLLAR_VOL_MIN,
+        "DELAI_EXEC": S.DELAI_EXEC,
+        "MAX_BARRES": S.MAX_BARRES,
+        "STOP_ATR": S.STOP_ATR,
+        "AVANT_ANNONCE": S.AVANT_ANNONCE,
+        "RISQUE": S.RISQUE,
+        "MAX_POS": S.MAX_POS,
+        "MAX_POIDS": S.MAX_POIDS,
+        "EMPRUNT_AN": S.EMPRUNT_AN,
+        "EMPRUNT_DIFFICILE": S.EMPRUNT_DIFFICILE,
+        "SEANCES_AN": S.SEANCES_AN,
+        "OOS": [S.OOS_DEBUT, S.OOS_FIN],
+        "IN": [S.IN_DEBUT, S.IN_FIN],
+        "version": VERSION_SHORT,
+    }
+
+
+def _sha(params: dict) -> str:
+    return hashlib.sha256(
+        json.dumps(params, sort_keys=True, ensure_ascii=False)
+        .encode("utf-8")).hexdigest()
+
+
+def empreinte_pead() -> str:
+    return _sha(parametres_pead())
+
+
+def empreinte_short() -> str:
+    return _sha(parametres_short())
+
+
+def empreintes() -> dict:
+    """Les trois empreintes, une par hypothese du registre.
+
+    Une hypothese dont le moteur n'est pas installable rend None plutot
+    que de faire echouer l'appel : l'absence d'un module ne doit pas
+    empecher de verifier les deux autres.
+    """
+    out = {VERSION_STRATEGIE: empreinte()}
+    for nom, fn in ((VERSION_PEAD, empreinte_pead),
+                    (VERSION_SHORT, empreinte_short)):
+        try:
+            out[nom] = fn()
+        except Exception:
+            out[nom] = None
+    return out
 
 
 def identifiant(ticker: str, date_barre: str, emp: str) -> str:
@@ -303,8 +393,20 @@ def main() -> None:
                    help="affiche les parametres geles et leur empreinte")
     o = a.parse_args()
     if o.parametres:
-        print(json.dumps(parametres(), indent=2, ensure_ascii=False))
-        print(f"\n  empreinte SHA256 : {empreinte()}\n")
+        for titre, params, emp in (
+                ("HYPOTHESE n°1 — repli en tendance (NO-GO en Phase 0)",
+                 parametres, empreinte),
+                ("HYPOTHESE n°2 — derive post-annonce",
+                 parametres_pead, empreinte_pead),
+                ("HYPOTHESE n°3 — derive post-annonce NEGATIVE (short)",
+                 parametres_short, empreinte_short)):
+            print(f"\n  {titre}")
+            try:
+                print(json.dumps(params(), indent=2, ensure_ascii=False))
+                print(f"  empreinte SHA256 : {emp()}")
+            except Exception as exc:
+                print(f"  indisponible ({type(exc).__name__}: {exc})")
+        print()
         return
     if o.verifie:
         v = verifie()
@@ -316,6 +418,10 @@ def main() -> None:
               f"{len(v['decisions_contradictoires'])}")
         print(f"  identifiants non reproductibles : "
               f"{len(v['identifiants_incoherents'])}\n")
+        print("  empreintes des trois hypotheses du registre :")
+        for nom, e in empreintes().items():
+            print(f"      {nom:<36}{e or 'indisponible'}")
+        print()
         return
     if o.ticker or o.depuis:
         for r in lit(ticker=o.ticker, depuis=o.depuis)[-o.n:]:
