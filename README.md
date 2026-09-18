@@ -122,6 +122,32 @@ py -m equity_scanner.qualite AAPL MC.PA
 
 ---
 
+## La clé Alpha Vantage
+
+Elle est **à toi** : gratuite en trente secondes sur
+[alphavantage.co/support/#api-key](https://www.alphavantage.co/support/#api-key).
+Elle n'est écrite nulle part dans le programme, et elle ne doit pas
+l'être — un fichier partagé ou copié sur une clé USB l'emmènerait avec
+lui.
+
+Colle-la dans le champ **CLE ALPHA VANTAGE** de la page d'accueil. Elle
+est alors enregistrée **à deux endroits** :
+
+- `.bruce_cache\cle-alphavantage.txt`, à côté du programme ;
+- `%USERPROFILE%\.carruos\cle-alphavantage.txt`, dans ton dossier
+  personnel.
+
+C'est la seconde copie qui compte. `.bruce_cache` est créé à l'usage et
+ne fait pas partie de l'archive : installer une nouvelle version dans un
+dossier neuf faisait disparaître la clé sans un mot, et les actualités
+tombaient en panne sans explication. Elle est maintenant retrouvée toute
+seule.
+
+Pour l'effacer : vide le champ et enregistre — elle part des deux
+endroits à la fois.
+
+---
+
 ## Si quelque chose ne va pas
 
 | Symptôme | Cause la plus fréquente |

@@ -103,6 +103,7 @@ jeu de paramètres qui ne l'a pas produit.
 | `contexte.py` | faits mesurés d'un titre, sans score inventé |
 | `positions.py` | registre manuel des positions |
 | `news.py` | Alpha Vantage — quota 25/jour, caches obligatoires |
+| | la clé est rangée **deux fois** : `.bruce_cache` à côté du programme, et `~/.carruos/` — cette seconde copie est la seule qui survive à une mise à jour, `.bruce_cache` n'étant pas livré dans l'archive |
 | `data.py` | chargement yfinance, 8 univers, compositions figées |
 | `cache.py` | cache disque et téléchargements parallèles |
 | `qualite.py` | refus de signal sur données douteuses |

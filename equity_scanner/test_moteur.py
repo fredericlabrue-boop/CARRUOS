@@ -478,6 +478,65 @@ def test_phase0() -> None:
        leve)
 
 
+def test_cle_av() -> None:
+    """La cle Alpha Vantage doit survivre a une mise a jour.
+
+    `.bruce_cache` est cree a cote du programme et ne fait pas partie de
+    l'archive livree : installer une nouvelle version dans un dossier neuf
+    faisait disparaitre la cle sans un mot.
+    """
+    import os
+    import tempfile
+    from pathlib import Path
+
+    from . import app
+
+    print("\n— La cle Alpha Vantage survit a une mise a jour —")
+    maison = os.environ.get("HOME")
+    envs = {k: os.environ.get(k)
+            for k in ("CARRUOS_AV_KEY", "ALPHAVANTAGE_KEY")}
+    ici = os.getcwd()
+    try:
+        faux = tempfile.mkdtemp()
+        os.environ["HOME"] = faux
+        for k in envs:
+            os.environ.pop(k, None)
+        v1 = tempfile.mkdtemp()
+        os.chdir(v1)
+        ok("aucune cle dans un dossier vierge", app.cle_av() == "")
+        app.pose_cle("CLE_DE_TEST_0001")
+        ok("la cle enregistree est relue", app.cle_av() == "CLE_DE_TEST_0001")
+        ok("elle est posee a cote du programme",
+           (Path(v1) / ".bruce_cache" / "cle-alphavantage.txt").exists())
+        ok("elle est posee aussi dans le dossier personnel",
+           (Path(faux) / ".carruos" / "cle-alphavantage.txt").exists())
+
+        v2 = tempfile.mkdtemp()          # la mise a jour : dossier neuf
+        os.chdir(v2)
+        ok("nouvelle version : rien a cote du programme",
+           not (Path(v2) / ".bruce_cache" / "cle-alphavantage.txt").exists())
+        ok("la cle est retrouvee malgre le dossier neuf",
+           app.cle_av() == "CLE_DE_TEST_0001")
+        ok("et reposee a cote de la nouvelle version",
+           (Path(v2) / ".bruce_cache" / "cle-alphavantage.txt").exists())
+
+        app.pose_cle("")
+        ok("l'effacer l'efface des deux endroits", app.cle_av() == "")
+        ok("elle ne ressuscite pas au lancement suivant", app.cle_av() == "")
+        os.environ["CARRUOS_AV_KEY"] = "PAR_VARIABLE"
+        ok("une variable d'environnement reste un recours",
+           app.cle_av() == "PAR_VARIABLE")
+    finally:
+        os.chdir(ici)
+        if maison is not None:
+            os.environ["HOME"] = maison
+        for k, val in envs.items():
+            if val is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = val
+
+
 def test_pead() -> None:
     from . import pead
     from .indicators import enrich
@@ -1199,6 +1258,7 @@ def main() -> int:
     test_resolve_et_app()
     test_veto_resultats()
     test_univers_figes()
+    test_cle_av()
 
     print()
     if ECHECS:

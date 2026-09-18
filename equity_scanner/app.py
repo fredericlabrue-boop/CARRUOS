@@ -45,27 +45,72 @@ FICHIER_CLE = Path(".bruce_cache") / "cle-alphavantage.txt"
 FICHIER_RADAR = Path(".bruce_cache") / "radar.json"
 
 
-def cle_av() -> str:
-    """La cle Alpha Vantage, dans l'ordre : fichier, puis variables
-    d'environnement. Le fichier gagne, c'est celui que remplit le champ
-    de l'accueil."""
+def _cle_durable() -> Path:
+    """Copie de la cle dans le profil utilisateur, HORS du dossier du
+    programme.
+
+    `.bruce_cache` est cree a cote de l'executable et ne fait pas partie
+    de l'archive livree. Installer une nouvelle version dans un dossier
+    neuf faisait donc disparaitre la cle sans un mot, et les actualites
+    tombaient en panne sans explication. Celle-ci survit aux mises a
+    jour.
+
+    Fichier en clair, comme l'autre : c'est une cle de lecture gratuite,
+    sans acces a un compte ni a de l'argent. Si elle fuit, on en demande
+    une autre en trente secondes.
+    """
+    return Path.home() / ".carruos" / "cle-alphavantage.txt"
+
+
+def _lit(f: Path) -> str:
     try:
-        v = FICHIER_CLE.read_text(encoding="utf-8").strip()
-        if v:
-            return v
+        return f.read_text(encoding="utf-8").strip()
     except Exception:
-        pass
+        return ""
+
+
+def cle_av() -> str:
+    """La cle Alpha Vantage, dans l'ordre : fichier local, copie durable
+    du profil, puis variables d'environnement.
+
+    Le fichier local gagne : c'est celui que remplit le champ de
+    l'accueil. La copie durable le rattrape apres une mise a jour.
+    """
+    v = _lit(FICHIER_CLE)
+    if v:
+        return v
+    v = _lit(_cle_durable())
+    if v:
+        # Recuperation apres une mise a jour : on repose la cle a cote du
+        # programme pour que le reste du code n'ait rien a savoir de tout
+        # ca. Silencieux si le dossier n'est pas accessible en ecriture.
+        try:
+            FICHIER_CLE.parent.mkdir(exist_ok=True)
+            FICHIER_CLE.write_text(v, encoding="utf-8")
+        except Exception:
+            pass
+        return v
     return (os.environ.get("CARRUOS_AV_KEY")
             or os.environ.get("ALPHAVANTAGE_KEY") or "").strip()
 
 
 def pose_cle(v: str) -> bool:
+    """Enregistre la cle AUX DEUX ENDROITS, ou l'efface des deux.
+
+    Ecrire un seul des deux rendrait le comportement dependant de l'ordre
+    de lecture : effacer la cle localement la verrait revenir au prochain
+    lancement, ce qui ressemblerait a un bug.
+    """
     v = (v or "").strip()
-    FICHIER_CLE.parent.mkdir(exist_ok=True)
-    if v:
-        FICHIER_CLE.write_text(v, encoding="utf-8")
-    else:
-        FICHIER_CLE.unlink(missing_ok=True)
+    for f in (FICHIER_CLE, _cle_durable()):
+        try:
+            f.parent.mkdir(parents=True, exist_ok=True)
+            if v:
+                f.write_text(v, encoding="utf-8")
+            else:
+                f.unlink(missing_ok=True)
+        except Exception:
+            pass
     return bool(v)
 
 
@@ -1616,8 +1661,9 @@ def _accueil(splash: bool = True) -> str:
             '<button onclick="poseCle()">ENREGISTRER</button></div>'
             '<div class="note" style="margin-top:6px;border:0;padding:0">'
             'Gratuite sur alphavantage.co/support/#api-key. '
-            'Elle est enregistree dans .bruce_cache et reprise a chaque '
-            'lancement.</div></div>'
+            'Enregistree a deux endroits : a cote du programme, et '
+            'dans ton dossier personnel. La deuxieme copie est celle '
+            'qui te la rend apres une mise a jour.</div></div>'
             '<div id="ran"></div>'
             '<div class="avert">Aucune de ces actualites n\'entre dans une '
             "regle. Une information publique est deja dans les cours. "
