@@ -131,4 +131,8 @@ echo. & pause & goto menu
 
 :tests
 %PY% -m equity_scanner.test_rules
+echo.
+%PY% -m equity_scanner.test_moteur
+echo.
+%PY% -m equity_scanner.test_pages
 echo. & pause & goto menu

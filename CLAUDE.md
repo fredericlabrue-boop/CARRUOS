@@ -9,9 +9,15 @@ local et affichée dans une fenêtre pywebview.
 py -m equity_scanner.app          # l'application
 py -m equity_scanner.test_pages   # contrôle des pages générées
 py -m equity_scanner.test_rules   # contrôle des règles
+py -m equity_scanner.test_moteur  # contrôle du moteur
 ```
 
-**Les deux tests doivent passer avant tout commit.**
+**Les trois tests doivent passer avant tout commit.**
+
+`test_moteur` vérifie en particulier que l'empreinte SHA256 des
+paramètres gelés n'a pas bougé. S'il tombe sur cette ligne, ce n'est pas
+le test qu'il faut mettre à jour : c'est le paramètre qu'il faut
+remettre en place.
 
 ## Règle absolue du projet
 
@@ -28,6 +34,12 @@ z ≥ 2.
 Si une modification de paramètre est demandée : refuser, expliquer qu'il
 faut une nouvelle spécification, une nouvelle empreinte et une période de
 validation non touchée.
+
+Cette règle est désormais **exécutable**. `audit.empreinte()` calcule le
+SHA256 de toutes les constantes de stratégie ; `test_moteur` la compare à
+la valeur de référence, et chaque ligne du journal d'audit porte
+l'empreinte sous laquelle elle a été écrite. Un résultat ne peut plus
+être attribué par erreur à un jeu de paramètres qui ne l'a pas produit.
 
 ## Ce qu'il ne faut jamais afficher
 
@@ -61,21 +73,34 @@ validation non touchée.
 | `contexte.py` | faits mesurés d'un titre, sans score inventé |
 | `positions.py` | registre manuel des positions |
 | `news.py` | Alpha Vantage — quota 25/jour, caches obligatoires |
-| `data.py` | chargement yfinance, 8 univers |
+| `data.py` | chargement yfinance, 8 univers, compositions figées |
+| `cache.py` | cache disque et téléchargements parallèles |
+| `qualite.py` | refus de signal sur données douteuses |
+| `audit.py` | journal des signaux, empreinte des paramètres |
+| `robuste.py` | stabilité, Monte Carlo, bootstrap par blocs |
 | `reglages.py` | 13 effets visuels débrayables |
 
-## Chantiers ouverts, par priorité
+## Chantiers
 
-1. **Univers historiques** — le backtest utilise la composition
-   *actuelle* du S&P 500 pour tester le passé. Biais du survivant.
-2. **Contrôle qualité des données** — bloquant : barres manquantes,
-   gaps anormaux, désynchronisation avec l'indice. Refuser de produire
-   un signal plutôt que de compléter silencieusement.
-3. **Journal d'audit** — identifiant unique par signal, horodatage,
-   valeurs des indicateurs, version de stratégie.
-4. **Walk-forward et Monte Carlo** sur l'ordre des trades.
+1. **Univers historiques** — *outillé, à alimenter.*
+   `data.figer_univers()` enregistre la composition du jour, datée ;
+   `univers_a_la_date()` relit la plus proche avant une date donnée.
+   On ne peut pas remonter le temps : il faut lancer
+   `py -m equity_scanner.data --figer sp500` **chaque trimestre** pour
+   construire l'historique qui manque. Tant qu'aucune composition
+   d'époque ne couvre le début de la période testée, la Phase 0 affiche
+   l'avertissement de biais du survivant en tête de rapport.
+2. **Contrôle qualité des données** — *fait.* `qualite.py`, câblé dans
+   `scan`, `app._scan`, `phase0` et `pead`. Un titre refusé ressort
+   toujours avec son motif.
+3. **Journal d'audit** — *fait.* `audit.py`, une ligne par signal évalué.
+4. **Walk-forward et Monte Carlo** — *fait.* `robuste.py`, joint
+   automatiquement au rapport de Phase 0.
 5. **Corporate actions** au-delà des splits : changements de ticker,
-   fusions, retraits de cote.
+   fusions, retraits de cote. `qualite.py` **détecte** une division non
+   ajustée et une interruption de cotation, et refuse le signal ; il ne
+   sait pas encore recoller un historique après un changement de ticker.
+   C'est le chantier qui reste entier.
 
 ## Contraintes techniques
 
@@ -89,3 +114,8 @@ validation non touchée.
   tout le script de la page.
 - Ne jamais réutiliser un alias de module comme variable locale.
   `test_pages` le vérifie aussi.
+- Les téléchargements passent par `cache.charge()` ou `cache.charge_lot()`,
+  jamais par `data.load_yf()` en direct : sinon le même titre repart sur
+  le réseau à chaque écran. Un module de test qui veut des données
+  synthétiques remplace `data.load_yf` ; `data.loader()` résout la
+  fonction à l'appel pour que cette substitution fonctionne.

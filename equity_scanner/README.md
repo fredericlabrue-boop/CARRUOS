@@ -14,12 +14,21 @@ pip install ib_insync                       # source ibkr (optionnel)
 ## Vérifier avant d'utiliser
 
 ```bash
-python -m equity_scanner.test_rules
+python -m equity_scanner.test_rules     # les règles
+python -m equity_scanner.test_moteur    # le moteur
+python -m equity_scanner.test_pages     # les pages générées
 ```
 
-21 tests sur données synthétiques : indicateurs, les 13 blocs, les vetos, le
-dimensionnement. Chaque cas négatif vérifie que le rejet vient du **bon** bloc,
-pas seulement que le signal ne part pas.
+`test_rules` : 21 contrôles sur données synthétiques — indicateurs, les 13
+blocs, les vetos, le dimensionnement. Chaque cas négatif vérifie que le rejet
+vient du **bon** bloc, pas seulement que le signal ne part pas.
+
+`test_moteur` : 60 contrôles. Équivalence barre à barre entre le moteur
+vectorisé et `evaluate()`, non-régression sur chaque défaut corrigé, contrôle
+qualité, journal d'audit, épreuves de robustesse, cache. Et, en tête,
+l'empreinte SHA256 des paramètres gelés : si elle a bougé, le test le dit.
+
+Aucun des trois ne touche au réseau.
 
 ## Utilisation
 
@@ -27,17 +36,37 @@ pas seulement que le signal ne part pas.
 # quelques titres
 python -m equity_scanner.scan --tickers AMD,AVGO,MU,LRCX --sleeve 8000
 
-# univers complet (compter ~15 min avec yfinance)
-python -m equity_scanner.scan --universe sp500 --sleeve 8000 --pause 0.3 \
+# univers complet : téléchargements en parallèle, puis cache jusqu'à la
+# clôture suivante. La deuxième passe de la soirée ne touche plus le réseau.
+python -m equity_scanner.scan --universe sp500 --sleeve 8000 \
     --open NBIS --csv candidats.csv --verbose
 
 # via TWS (API à activer : Global Config → API → Enable Socket Clients)
 python -m equity_scanner.scan --tickers AMD,MU --sleeve 8000 --source ibkr
 ```
 
+`--fils N` règle le nombre de téléchargements simultanés (8 par défaut, 16 au
+maximum : au-delà, Yahoo limite le débit et renvoie des erreurs).
+
 À lancer **après la clôture US** (22h/23h Paris). Toutes les règles sont
 évaluées sur clôture ; un scan en séance produit des signaux qui n'existeront
 pas à 22h.
+
+## Outils annexes
+
+```bash
+python -m equity_scanner.qualite AAPL MC.PA      # pourquoi un titre est refusé
+python -m equity_scanner.audit                   # journal des signaux
+python -m equity_scanner.audit --parametres      # paramètres gelés + empreinte
+python -m equity_scanner.robuste --csv phase0-sp500.csv
+python -m equity_scanner.cache --etat            # taille du cache des cours
+python -m equity_scanner.data --figer sp500      # composition datée du jour
+```
+
+Un titre qui disparaît d'un scan sort toujours avec son motif : série trouée,
+division non ajustée, cotation figée, données périmées, décrochage du
+calendrier de l'indice. Le principe est de **refuser de conclure** plutôt que
+de compléter une barre manquante en silence.
 
 ## Ce que sort le scanner
 
