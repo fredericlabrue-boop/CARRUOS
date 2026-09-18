@@ -1131,6 +1131,9 @@ CSS_STRAT = """
 .sortie.on{color:var(--neg)}
 .sortie .et{font:500 9px ui-monospace,monospace;letter-spacing:.14em}
 .pos{color:var(--pos)}.neg{color:var(--neg)}
+.titre-sec{font:500 9px ui-monospace,monospace;letter-spacing:.2em;
+ color:#3f6b78;margin:16px 0 9px;padding-top:11px;
+ border-top:1px solid #0e2b34}
 """
 
 JS_STRAT = r"""
@@ -1196,6 +1199,97 @@ function sgn(v, suff){
         + (suff||' %') + '</b>';
 }
 
+async function revue(){
+ var tk = ($('rtk').value||'').trim();
+ if(!tk){ $('rres').innerHTML = '<div class="msg err">Donnez un ticker.</div>';
+          return; }
+ var q = 'ticker=' + encodeURIComponent(tk);
+ var e = ($('rent').value||'').trim();
+ if(e) q += '&entree=' + encodeURIComponent(e);
+ $('rres').innerHTML = '<div class="msg">Releve de ' + tk + '...</div>';
+ try{
+  var j = await (await fetch('/api/revue?' + q)).json();
+  if(!j.ok){
+   $('rres').innerHTML = '<div class="msg err">' + (j.erreur||'') + '</div>';
+   return;
+  }
+  $('rres').innerHTML = carte(j.revue);
+ }catch(err){
+  $('rres').innerHTML = '<div class="msg err">Erreur : ' + err + '</div>';
+ }
+}
+
+// Le rendu d'une carte, commun au releve des positions et a l'examen
+// d'un titre quelconque. Les mesures qui dependent d'un prix d'entree
+// sont absentes quand il n'y en a pas : on ne les invente pas.
+function carte(r){
+ if(!r.ok){
+  return '<div class="lig"><h3>' + (r.ticker||'') + '</h3>'
+       + '<div class="msg err">' + (r.erreur||'') + '</div></div>';
+ }
+ var tenu = r.detenu;
+ var h = '<div class="lig"><h3>' + r.ticker + ' <span>'
+   + (tenu ? (r.quantite + ' titres a ' + r.entree.toFixed(2)
+              + ' \u00b7 depuis le ' + r.depuis)
+           : ('non detenu \u00b7 observe sur ' + (r.fenetre_mois||12)
+              + ' mois'))
+   + '</span></h3>';
+ h += '<div class="trajet"><div class="kv2">'
+    + '<span>cours</span><b>' + r.cours.toFixed(2) + '</b>'
+    + '<span>plus haut de la periode (' + r.date_plus_haut + ')</span><b>'
+    + r.plus_haut.toFixed(2) + '</b>';
+ if(tenu){
+  h += '<span>gain latent maximum</span>' + sgn(r.mfe_pct)
+     + "<span>gain latent aujourd'hui</span>" + sgn(r.pnl_pct);
+ }
+ h += '<span>recul depuis le sommet</span>' + sgn(r.recul_depuis_haut_pct);
+ if(tenu){
+  h += '<span>part du gain rendue</span><b>'
+     + r.gain_rendu_pct.toFixed(2) + ' pts</b>';
+ }
+ h += '<span>recul depuis le haut 52 semaines</span>'
+    + sgn(r.recul_52s_pct) + '</div></div>';
+
+ h += '<div class="kv2">';
+ [['EMA 20','ema20'],['SMA 50','sma50'],['SMA 200','sma200']]
+  .forEach(function(p){
+   var e = r[p[1]];
+   if(!e) return;
+   h += '<span>ecart a la ' + p[0] + '</span>' + sgn(e.pct);
+  });
+ if(r.rsi!==null && r.rsi!==undefined)
+   h += '<span>RSI 14</span><b>' + r.rsi + '</b>';
+ if(r.marge_stop_pct!==null && r.marge_stop_pct!==undefined)
+   h += '<span>marge avant le stop</span>' + sgn(r.marge_stop_pct);
+ h += '</div>';
+
+ h += '<div style="margin-top:9px;font:500 9px ui-monospace,monospace;'
+    + 'letter-spacing:.16em;color:#3f6b78">CE QUE DIT VOTRE PLAN &mdash; '
+    + r.n_sorties + ' / 4 ACTIVE(S)</div>';
+ Object.keys(r.sorties).forEach(function(k){
+  var on = r.sorties[k];
+  h += '<div class="sortie' + (on?' on':'') + '"><span>' + k
+     + '</span><span class="et">' + (on?'ACTIVE':'dormante')
+     + '</span></div>';
+ });
+ if(r.resultats && r.resultats.jours !== undefined
+    && r.resultats.jours !== null)
+   h += '<div class="sortie on"><span>resultats dans '
+      + r.resultats.jours + ' seances</span><span class="et">'
+      + (r.resultats.date||'') + '</span></div>';
+ if(r.point_mort)
+   h += "<div class=\"bilan\" style=\"margin-top:9px\">Vendre aujourd'hui : "
+      + 'impot de <b>' + eur(r.point_mort.impot) + '</b>, il resterait <b>'
+      + eur(r.point_mort.net_si_vendu) + '</b> a replacer. Le nouveau '
+      + 'placement partirait avec <b>'
+      + r.point_mort.handicap_pct.toFixed(2) + ' %</b> de retard.</div>';
+ else if(!tenu)
+   h += '<div class="bilan" style="margin-top:9px">Aucune position sur ce '
+      + 'titre : ni gain latent, ni cout fiscal ne sont calcules. '
+      + "Donnez un prix d'entree pour obtenir le trajet complet.</div>";
+ return h + '</div>';
+}
+
 async function lignes(){
  try{
   var j = await (await fetch('/api/lignes')).json();
@@ -1207,63 +1301,12 @@ async function lignes(){
   if(!j.lignes.length){
    $('lres').className = 'msg';
    $('lres').textContent = "Aucune position enregistree. "
-     + "Ajoutez-les depuis la page d'accueil.";
+     + "Ajoutez-les depuis la page d'accueil, ou examinez "
+     + "n'importe quel titre ci-dessus.";
    return;
   }
   var h = '';
-  j.lignes.forEach(function(r){
-   if(!r.ok){
-    h += '<div class="lig"><h3>' + r.ticker + '</h3>'
-       + '<div class="msg err">' + (r.erreur||'') + '</div></div>';
-    return;
-   }
-   h += '<div class="lig"><h3>' + r.ticker
-      + ' <span>' + r.quantite + ' titres a ' + r.entree.toFixed(2)
-      + ' &middot; depuis le ' + r.depuis + '</span></h3>';
-   h += '<div class="trajet"><div class="kv2">'
-      + '<span>cours</span><b>' + r.cours.toFixed(2) + '</b>'
-      + '<span>plus haut atteint (' + r.date_plus_haut + ')</span><b>'
-      + r.plus_haut.toFixed(2) + '</b>'
-      + '<span>gain latent maximum</span>' + sgn(r.mfe_pct)
-      + "<span>gain latent aujourd'hui</span>" + sgn(r.pnl_pct)
-      + '<span>recul depuis le sommet</span>' + sgn(r.recul_depuis_haut_pct)
-      + '<span>part du gain rendue</span><b>'
-      + r.gain_rendu_pct.toFixed(2) + ' pts</b>'
-      + '</div></div>';
-   h += '<div class="kv2">';
-   [['EMA 20','ema20'],['SMA 50','sma50'],['SMA 200','sma200']]
-    .forEach(function(p){
-     var e = r[p[1]];
-     if(!e) return;
-     h += '<span>ecart a la ' + p[0] + '</span>' + sgn(e.pct)
-        + (e.atr===null ? '' : '');
-    });
-   if(r.rsi!==null) h += '<span>RSI 14</span><b>' + r.rsi + '</b>';
-   if(r.marge_stop_pct!==null)
-     h += '<span>marge avant le stop</span>' + sgn(r.marge_stop_pct);
-   h += '</div>';
-   h += '<div style="margin-top:9px;font:500 9px ui-monospace,monospace;'
-      + 'letter-spacing:.16em;color:#3f6b78">CE QUE DIT VOTRE PLAN &mdash; '
-      + r.n_sorties + ' / 4 ACTIVE(S)</div>';
-   Object.keys(r.sorties).forEach(function(k){
-    var on = r.sorties[k];
-    h += '<div class="sortie' + (on?' on':'') + '"><span>' + k
-       + '</span><span class="et">' + (on?'ACTIVE':'dormante')
-       + '</span></div>';
-   });
-   if(r.resultats && r.resultats.jours !== undefined
-      && r.resultats.jours !== null)
-     h += '<div class="sortie on"><span>resultats dans '
-        + r.resultats.jours + ' seances</span><span class="et">'
-        + (r.resultats.date||'') + '</span></div>';
-   if(r.point_mort)
-     h += "<div class=\"bilan\" style=\"margin-top:9px\">Vendre aujourd'hui : "
-        + 'impot de <b>' + eur(r.point_mort.impot) + '</b>, il resterait <b>'
-        + eur(r.point_mort.net_si_vendu) + '</b> a replacer. Le nouveau '
-        + 'placement partirait avec <b>'
-        + r.point_mort.handicap_pct.toFixed(2) + ' %</b> de retard.</div>';
-   h += '</div>';
-  });
+  j.lignes.forEach(function(r){ h += carte(r); });
   h += "<p class=\"ex\" style=\"margin-top:10px\">Les actualites et le "
      + "contexte geopolitique n'entrent dans <b>aucune</b> regle et ne "
      + "sont pas chiffres ici : une information publique est deja dans "
@@ -1494,6 +1537,8 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                 return self._json(_projection(q))
             if u.path == "/api/lignes":
                 return self._json(_revue_lignes())
+            if u.path == "/api/revue":
+                return self._json(_revue_titre(q))
             if u.path == "/api/reglages":
                 return self._json(rg.charge())
             if u.path == "/api/positions":
@@ -2032,6 +2077,78 @@ def _revue_lignes() -> dict:
     return {"ok": True, "lignes": out, "marche_ok": marche}
 
 
+def _revue_titre(q: dict) -> dict:
+    """Revue de N'IMPORTE QUEL titre, detenu ou non.
+
+    Si le titre figure au registre des positions, ses vraies valeurs
+    d'entree servent et le trajet complet s'affiche. Sinon, on rend ce
+    qui ne depend pas d'une position — sans fabriquer un prix d'entree.
+    """
+    from . import cache as ch
+    from . import qualite as ql
+    from . import resolve as rs
+    from . import strategie as sg
+
+    saisie = (q.get("ticker") or "").strip()
+    if not saisie:
+        return {"ok": False, "erreur": "Donnez un ticker."}
+    try:
+        tk, _ = rs.resoudre(saisie, lambda t: ch.charge(t, annees=3),
+                            journal=lambda m: None)
+    except Exception as exc:
+        return {"ok": False, "erreur": f"{type(exc).__name__}: {exc}"}
+    if tk is None:
+        return {"ok": False,
+                "erreur": f"{saisie.upper()} introuvable. Cherchez le bon "
+                          f"ticker depuis l'accueil."}
+
+    try:
+        bench_brut = ch.charge("SPY", annees=3)
+        marche = market_regime_ok(enrich(bench_brut))
+        brut = ch.charge(tk, annees=3)
+    except Exception as exc:
+        return {"ok": False, "erreur": f"donnees indisponibles ({exc})"}
+
+    rap = ql.controle(brut, bench_brut, ticker=tk)
+    if not rap.utilisable:
+        return {"ok": False, "ticker": tk,
+                "erreur": f"donnees refusees : {rap.resume()}"}
+    d = enrich(brut, bench_close=bench_brut["close"])
+
+    # Le registre gagne : si la ligne est detenue, ce sont ses vrais
+    # chiffres qui comptent, pas ceux qu'on retaperait a la main.
+    detenue = next((l for l in ps.charge()
+                    if l["ticker"].upper() == tk.upper()), None)
+    entree = detenue["entree"] if detenue else None
+    qte = detenue["quantite"] if detenue else 0.0
+    depuis = detenue.get("date", "") if detenue else ""
+    if not detenue:
+        try:
+            v = float(q.get("entree") or 0)
+            if v > 0:
+                entree = v
+                qte = float(q.get("qte") or 0)
+        except (TypeError, ValueError):
+            pass
+
+    earn = {}
+    cle = cle_av()
+    if cle:
+        try:
+            cal = nw.earnings_map(cle)
+            if tk in cal:
+                earn = {"date": cal[tk].isoformat(),
+                        "jours": nw.seances_avant(cal[tk])}
+        except Exception:
+            earn = {}
+
+    r = sg.revue_titre(tk, d, marche, entree, qte, depuis, earn=earn)
+    r["point_mort"] = sg.point_mort_fiscal(r)
+    r["alertes"] = rap.alertes
+    r["au_registre"] = bool(detenue)
+    return {"ok": True, "revue": r}
+
+
 def _page_strategie() -> str:
     """La page STRATEGIE. Deux moities de nature differente, et le texte
     le dit : a gauche de l'arithmetique, a droite des faits mesures."""
@@ -2078,6 +2195,15 @@ def _page_strategie() -> str:
           '<p class="ex">Les faits mesurables sur chaque position, et '
           'l\'etat des <b>quatre conditions de sortie de votre '
           'specification</b>. Aucun verdict n\'est calcule ici.</p>'
+          '<div class="row">'
+          '<input id="rtk" placeholder="n\'importe quel titre : NVDA, MC.PA, '
+          'TLX...">'
+          '<input id="rent" type="number" step="0.01" '
+          'title="facultatif : donne le trajet complet de la position" '
+          'placeholder="prix d\'entree" style="max-width:150px">'
+          '<button onclick="revue()">EXAMINER</button></div>'
+          '<div id="rres"></div>'
+          '<div class="titre-sec">MES POSITIONS</div>'
           '<div id="lres" class="msg">Releve en cours...</div>'
           '</div></section>'
           '</div></div>'

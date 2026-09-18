@@ -190,7 +190,8 @@ def table_friction(taux_ref: float = 0.10, impot: float = PFU,
 # 2. REVUE D'UNE LIGNE DETENUE — des faits, pas un verdict
 # =====================================================================
 def revue_ligne(ligne: dict, d: pd.DataFrame, marche_ok: bool,
-                impot: float = PFU, earn: dict | None = None) -> dict:
+                impot: float = PFU, earn: dict | None = None,
+                fenetre_mois: int = 12) -> dict:
     """Tout ce qui est MESURABLE sur une position ouverte.
 
     `ligne` vient du registre des positions : ticker, quantite, entree,
@@ -215,14 +216,21 @@ def revue_ligne(ligne: dict, d: pd.DataFrame, marche_ok: bool,
 
     entree = float(ligne.get("entree") or 0.0)
     qte = float(ligne.get("quantite") or 0.0)
-    if entree <= 0:
-        out["erreur"] = "prix d'entree manquant"
-        return out
+    detenu = entree > 0
 
+    # Sans position, la fenetre de reference est une duree, pas une date
+    # d'entree. On ne fabrique PAS un prix d'entree fictif : les mesures
+    # qui en dependent (P&L, gain maximum, cout fiscal) sont simplement
+    # absentes, et la page le dit.
     cours = float(d["close"].iloc[-1])
     depuis = ligne.get("date") or ""
     idx = d.index
-    debut = pd.Timestamp(depuis) if depuis else idx[0]
+    if detenu:
+        debut = pd.Timestamp(depuis) if depuis else idx[0]
+    else:
+        debut = idx[-1] - pd.DateOffset(months=int(fenetre_mois))
+        if debut < idx[0]:
+            debut = idx[0]
     seg = d[idx >= debut]
     if len(seg) < 2:
         seg = d.tail(2)
@@ -231,12 +239,16 @@ def revue_ligne(ligne: dict, d: pd.DataFrame, marche_ok: bool,
     bas = float(seg["low"].min()) if "low" in seg else float(seg["close"].min())
     date_haut = seg["high"].idxmax() if "high" in seg else seg["close"].idxmax()
 
-    # MFE / MAE : le meilleur et le pire du trajet, en clair.
-    mfe = (haut / entree - 1) * 100
-    mae = (bas / entree - 1) * 100
-    pnl = (cours / entree - 1) * 100
+    # Le recul depuis le sommet ne demande AUCUN prix d'entree : c'est
+    # une mesure du titre, pas de la position. Elle vaut donc aussi pour
+    # un titre qu'on regarde sans le detenir.
     recul = (cours / haut - 1) * 100 if haut > 0 else 0.0
-    rendu = mfe - pnl                      # part du gain maximum rendue
+    # MFE / MAE : le meilleur et le pire du trajet, en clair. Ceux-la
+    # n'ont de sens que si l'on detient la ligne.
+    mfe = (haut / entree - 1) * 100 if detenu else None
+    mae = (bas / entree - 1) * 100 if detenu else None
+    pnl = (cours / entree - 1) * 100 if detenu else None
+    rendu = (mfe - pnl) if detenu else None
 
     r = d.iloc[-1]
     atr = float(r.get("atr14", np.nan))
@@ -256,31 +268,40 @@ def revue_ligne(ligne: dict, d: pd.DataFrame, marche_ok: bool,
     stop = ligne.get("stop")
     marge_stop = (round((cours / float(stop) - 1) * 100, 2)
                   if stop else None)
+    # Recul depuis le plus haut de 52 semaines : un repere qui ne depend
+    # ni de l'entree ni de la fenetre choisie.
+    an = d.tail(252)
+    haut52 = float(an["high"].max()) if "high" in an else float(an["close"].max())
+    recul52 = (cours / haut52 - 1) * 100 if haut52 > 0 else 0.0
 
     sorties = evaluate_exit(d, marche_ok)
     actives = [k for k, v in sorties.items() if v]
 
     # Cout fiscal d'une vente MAINTENANT : un fait, pas un conseil.
-    plus_value = (cours - entree) * qte
+    plus_value = (cours - entree) * qte if detenu else 0.0
     impot_du = max(0.0, plus_value) * impot
     out.update({
         "ok": True,
+        "detenu": detenu,
         "cours": round(cours, 4),
-        "entree": round(entree, 4),
+        "entree": round(entree, 4) if detenu else None,
         "quantite": qte,
-        "valeur": round(cours * qte, 2),
-        "pnl_pct": round(pnl, 2),
-        "pnl_eur": round(plus_value, 2),
+        "valeur": round(cours * qte, 2) if detenu else None,
+        "pnl_pct": round(pnl, 2) if detenu else None,
+        "pnl_eur": round(plus_value, 2) if detenu else None,
         "depuis": str(pd.Timestamp(debut).date()),
         "seances_detenues": int(len(seg)),
         # Le coeur de la question « monte puis redescendu »
         "plus_haut": round(haut, 4),
         "date_plus_haut": str(pd.Timestamp(date_haut).date()),
         "plus_bas": round(bas, 4),
-        "mfe_pct": round(mfe, 2),
-        "mae_pct": round(mae, 2),
+        "mfe_pct": round(mfe, 2) if detenu else None,
+        "mae_pct": round(mae, 2) if detenu else None,
         "recul_depuis_haut_pct": round(recul, 2),
-        "gain_rendu_pct": round(rendu, 2),
+        "gain_rendu_pct": round(rendu, 2) if detenu else None,
+        "plus_haut_52s": round(haut52, 4),
+        "recul_52s_pct": round(recul52, 2),
+        "fenetre_mois": int(fenetre_mois) if not detenu else None,
         # Reperes techniques, en ATR pour etre comparables d'un titre a l'autre
         "atr": round(atr, 4) if np.isfinite(atr) else None,
         "atr_pct": (round(atr / cours * 100, 2)
@@ -299,8 +320,8 @@ def revue_ligne(ligne: dict, d: pd.DataFrame, marche_ok: bool,
         "n_sorties": len(actives),
         "marche_ok": bool(marche_ok),
         # Fiscalite d'une vente immediate
-        "impot_si_vente": round(impot_du, 2),
-        "net_si_vente": round(cours * qte - impot_du, 2),
+        "impot_si_vente": round(impot_du, 2) if detenu else None,
+        "net_si_vente": round(cours * qte - impot_du, 2) if detenu else None,
         "taux_impot": impot,
         "resultats": earn or {},
     })
@@ -317,10 +338,10 @@ def point_mort_fiscal(revue: dict, impot: float = PFU) -> dict | None:
     placement — ce n'est pas une raison de garder un titre que votre
     plan dit de vendre, c'est le prix du billet, et il se calcule.
     """
-    if not revue.get("ok"):
+    if not revue.get("ok") or not revue.get("detenu"):
         return None
-    val = revue["valeur"]
-    net = revue["net_si_vente"]
+    val = revue.get("valeur") or 0.0
+    net = revue.get("net_si_vente") or 0.0
     if val <= 0 or net <= 0:
         return None
     handicap = val / net - 1
@@ -374,25 +395,55 @@ def texte_projection(p: dict) -> str:
     return "\n".join(L)
 
 
+def revue_titre(ticker: str, d: pd.DataFrame, marche_ok: bool,
+                entree: float | None = None, quantite: float = 0.0,
+                depuis: str = "", impot: float = PFU,
+                earn: dict | None = None, fenetre_mois: int = 12) -> dict:
+    """Revue de N'IMPORTE QUEL titre, detenu ou non.
+
+    Avec un prix d'entree, on obtient le trajet complet de la position.
+    Sans, on obtient ce qui ne depend pas d'elle : le plus haut de la
+    periode, le recul depuis ce sommet, les ecarts aux moyennes, et
+    l'etat des conditions de sortie.
+
+    Aucun prix d'entree fictif n'est fabrique pour combler le trou. Les
+    mesures qui en dependent sont simplement absentes, et l'affichage le
+    dit — inventer une entree donnerait un P&L qui n'a jamais existe.
+    """
+    ligne = {"ticker": ticker.upper(),
+             "entree": float(entree) if entree else 0.0,
+             "quantite": float(quantite or 0.0),
+             "date": depuis}
+    return revue_ligne(ligne, d, marche_ok, impot, earn, fenetre_mois)
+
+
 def texte_revue(r: dict) -> str:
     if not r.get("ok"):
         return f"\n  {r.get('ticker')} : {r.get('erreur')}\n"
+    detenu = r.get("detenu", True)
     pm = point_mort_fiscal(r, r.get("taux_impot", PFU))
-    L = ["", f"  {r['ticker']}  —  {r['quantite']:.0f} titres a "
-             f"{r['entree']:.2f}, detenus depuis le {r['depuis']} "
-             f"({r['seances_detenues']} seances)",
-         "",
-         "  LE TRAJET",
-         f"    cours actuel              {r['cours']:>10.2f}",
-         f"    plus haut depuis l'entree {r['plus_haut']:>10.2f}   "
-         f"le {r['date_plus_haut']}",
-         f"    plus bas depuis l'entree  {r['plus_bas']:>10.2f}",
-         f"    gain latent MAXIMUM       {r['mfe_pct']:>+9.2f} %",
-         f"    gain latent AUJOURD'HUI   {r['pnl_pct']:>+9.2f} %",
-         f"    recul depuis le sommet    {r['recul_depuis_haut_pct']:>+9.2f} %",
-         f"    part du gain rendue       {r['gain_rendu_pct']:>9.2f} points",
-         "",
-         "  OU SE TROUVE LE PRIX"]
+    if detenu:
+        entete = (f"  {r['ticker']}  —  {r['quantite']:.0f} titres a "
+                  f"{r['entree']:.2f}, detenus depuis le {r['depuis']} "
+                  f"({r['seances_detenues']} seances)")
+    else:
+        entete = (f"  {r['ticker']}  —  non detenu, observe sur "
+                  f"{r.get('fenetre_mois', 12)} mois "
+                  f"(depuis le {r['depuis']})")
+    L = ["", entete, "", "  LE TRAJET",
+         f"    cours actuel              {r['cours']:>10.2f}"]
+    L.append(f"    plus haut de la periode   {r['plus_haut']:>10.2f}   "
+             f"le {r['date_plus_haut']}")
+    L.append(f"    plus bas de la periode    {r['plus_bas']:>10.2f}")
+    if detenu:
+        L += [f"    gain latent MAXIMUM       {r['mfe_pct']:>+9.2f} %",
+              f"    gain latent AUJOURD'HUI   {r['pnl_pct']:>+9.2f} %"]
+    L.append(f"    recul depuis le sommet    {r['recul_depuis_haut_pct']:>+9.2f} %")
+    if detenu:
+        L.append(f"    part du gain rendue       {r['gain_rendu_pct']:>9.2f} points")
+    L.append(f"    recul depuis le haut 52s  {r['recul_52s_pct']:>+9.2f} %")
+
+    L += ["", "  OU SE TROUVE LE PRIX"]
     for nom, cle in (("EMA 20", "ema20"), ("SMA 50", "sma50"),
                      ("SMA 200", "sma200")):
         e = r.get(cle)
@@ -403,6 +454,7 @@ def texte_revue(r: dict) -> str:
         L.append(f"    RSI 14                    {r['rsi']:>9.1f}")
     if r.get("marge_stop_pct") is not None:
         L.append(f"    marge avant le stop       {r['marge_stop_pct']:>+9.2f} %")
+
     L += ["", "  CE QUE DIT VOTRE PLAN  "
                f"({r['n_sorties']} condition(s) de sortie active(s) sur "
                f"{len(r['sorties'])})"]
@@ -420,6 +472,12 @@ def texte_revue(r: dict) -> str:
               f"de retard.",
               "    Ce n'est pas une raison de garder : c'est le prix du "
               "billet, chiffre."]
+    elif not detenu:
+        L += ["", "  Aucune position enregistree sur ce titre : ni gain "
+                  "latent, ni cout",
+              "  fiscal ne sont calcules. Donnez un prix d'entree pour "
+              "obtenir le trajet",
+              "  complet."]
     L += ["",
           "  Aucun verdict n'est calcule ici. Les conditions de sortie "
           "ci-dessus",

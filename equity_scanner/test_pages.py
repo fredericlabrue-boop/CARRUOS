@@ -321,6 +321,18 @@ def main() -> int:
        "le geopolitique est declare non chiffre")
     _v("recul_depuis_haut_pct" in jss and "gain_rendu_pct" in jss,
        "le recul depuis le sommet et le gain rendu sont affiches")
+    # On doit pouvoir examiner N'IMPORTE QUEL titre, pas seulement ceux
+    # du registre des positions.
+    _v('id="rtk"' in st and "/api/revue" in jss,
+       "un champ permet d'examiner n'importe quel titre")
+    _v("function carte" in jss and jss.count("carte(") >= 3,
+       "le rendu d'une carte est commun au registre et a l'examen")
+    _v("non detenu" in jss,
+       "un titre non detenu est annonce comme tel")
+    _v("r.detenu" in jss,
+       "les mesures qui exigent un prix d'entree sont conditionnees")
+    _v("recul_52s_pct" in jss,
+       "le recul depuis le haut 52 semaines est affiche, meme sans position")
     # `css` vient de l'accueil : le style propre a cette page se lit
     # dans SON bloc <style>, pas dans celui d'une autre.
     css_st = re.search(r"<style>(.*?)</style>", st, re.S).group(1)

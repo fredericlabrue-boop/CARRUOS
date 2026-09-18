@@ -501,10 +501,33 @@ def test_strategie() -> None:
     ok("il dit explicitement qu'aucun verdict n'est calcule",
        "aucun verdict" in texte)
 
-    # Ligne sans prix d'entree : on refuse au lieu de deviner.
-    ok("une ligne sans prix d'entree est refusee proprement",
-       not sg.revue_ligne({"ticker": "X", "quantite": 1, "entree": 0},
-                          d, True)["ok"])
+    # Sans prix d'entree, le titre est simplement NON DETENU : on rend
+    # ce qui ne depend pas d'une position, et rien de plus. Fabriquer une
+    # entree fictive donnerait un P&L qui n'a jamais existe.
+    print("\n— Examiner un titre qu'on ne detient pas —")
+    libre = sg.revue_titre("NVDA", d, marche_ok=True)
+    ok("un titre non detenu est examinable", libre["ok"])
+    ok("il est marque comme non detenu", libre["detenu"] is False)
+    ok("aucun gain latent n'est invente",
+       libre["pnl_pct"] is None and libre["mfe_pct"] is None
+       and libre["gain_rendu_pct"] is None)
+    ok("aucun cout fiscal n'est invente",
+       libre["impot_si_vente"] is None
+       and sg.point_mort_fiscal(libre) is None)
+    ok("le recul depuis le sommet est rendu quand meme",
+       libre["recul_depuis_haut_pct"] <= 0)
+    ok("le recul depuis le haut 52 semaines est rendu",
+       libre["recul_52s_pct"] <= 0)
+    ok("les conditions de sortie sont evaluees sans position",
+       len(libre["sorties"]) == 4)
+    ok("le texte annonce l'absence de position",
+       "non detenu" in sg.texte_revue(libre))
+
+    # Avec un prix d'entree fourni a la main, le trajet complet revient.
+    avec = sg.revue_titre("NVDA", d, True, entree=11.69, quantite=70)
+    ok("un prix d'entree saisi rend le trajet complet",
+       avec["detenu"] and avec["pnl_pct"] is not None
+       and avec["impot_si_vente"] is not None)
 
 
 def test_qualite() -> None:

@@ -126,11 +126,18 @@ rotation doit produire pour seulement **égaler** un capitalisant, une
 fois l'impôt annuel et les frais comptés. Bascule compte-titres (30 %)
 ou PEA de plus de cinq ans (17,2 %).
 
-**À droite, des faits.** Pour chaque ligne détenue : le plus haut
-atteint depuis l'entrée et sa date, le recul depuis ce sommet, la part
-du gain maximum rendue, les écarts aux moyennes en ATR, la marge avant
-le stop, la date de publication des résultats, et ce que coûterait
-fiscalement une vente aujourd'hui.
+**À droite, des faits.** Pour **chaque ligne de votre registre** — pas
+une seule, toutes : le plus haut atteint depuis l'entrée et sa date, le
+recul depuis ce sommet, la part du gain maximum rendue, les écarts aux
+moyennes en ATR, la marge avant le stop, la date de publication des
+résultats, et ce que coûterait fiscalement une vente aujourd'hui.
+
+Le champ du haut examine **n'importe quel titre**, détenu ou non. Sans
+position, vous obtenez ce qui ne dépend pas d'elle : le plus haut de la
+période, le recul depuis ce sommet et depuis le plus haut de 52
+semaines, les écarts aux moyennes, les conditions de sortie. Aucun prix
+d'entrée n'est inventé pour combler le trou — donnez-en un et le trajet
+complet apparaît.
 
 Puis l'état des **quatre conditions de sortie de votre spécification** —
 actives ou dormantes. C'est votre plan qui parle, pas un score.
