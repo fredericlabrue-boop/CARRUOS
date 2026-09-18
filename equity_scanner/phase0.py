@@ -46,34 +46,63 @@ def profit_factor(rs: list[float]) -> float:
 
 
 def z_contre_hasard(trades, series: dict, graine=7,
-                    debut=None, fin=None) -> tuple:
-    """Pour chaque trade reel (titre T, duree D), tire une entree au hasard
-    sur T et detient exactement D barres. On refait l'ensemble 1000 fois pour
-    obtenir la distribution nulle, puis on compare.
+                    debut=None, fin=None, bench=None) -> tuple:
+    """Entrees au hasard, MEMES REGLES DE SORTIE, meme periode, meme univers.
 
-    Ce test neutralise le beta : si le systeme ne fait que capter la hausse
-    du marche, le hasard capte la meme chose et z tombe a zero.
+    C'est mot pour mot ce qu'exige l'etape 6 du protocole. Le z compare le
+    rendement moyen des trades reels a la distribution des rendements
+    moyens obtenus en remplacant le seul CHOIX DU MOMENT par un tirage.
 
-    DEUX CORRECTIONS.
+    TROIS CORRECTIONS.
 
     1. La FENETRE. Les tirages se faisaient sur tout l'historique
        disponible — soit 2006-2026 — alors que les trades compares sont
        ceux du hors echantillon 2022-2026. On comparait donc le systeme
        sur quatre ans a un hasard tire sur vingt ans, dont 2008 et 2020.
        Le z mesurait en partie la difference entre deux PERIODES, pas
-       entre le signal et le hasard. Les tirages sont desormais bornes a
-       la meme fenetre que les trades.
+       entre le signal et le hasard.
 
-    2. LES COUTS. Le hasard payait `COUT_AR` (10 pb) quand les trades
-       reels payaient l'ouverture J+1 plus le spread et le slippage des
-       deux cotes (30 pb). Le systeme partait battu de 20 pb par trade.
-       Les deux camps paient maintenant exactement la meme chose.
+    2. Les COUTS. Le hasard payait COUT_AR (10 pb) quand les trades reels
+       payaient l'ouverture J+1 plus le spread et le slippage des deux
+       cotes (30 pb). Le systeme partait battu de 20 pb par trade. Les
+       deux camps paient maintenant la meme chose, et pour la meme raison :
+       les tirages passent par `simule`, qui facture comme pour un vrai.
+
+    3. Les REGLES DE SORTIE, qui n'etaient pas appliquees du tout.
+
+       L'ancienne version tenait la position un nombre fixe de barres —
+       la duree realisee du trade reel apparie — sans stop, sans sortie de
+       tendance, sans sortie de regime. C'est un temoin apparie sur la
+       DUREE, pas sur les REGLES.
+
+       Le protocole est explicite sur ce point : « on remplace les signaux
+       d'entree par 1 000 tirages aleatoires, on garde exactement les
+       memes regles de sortie, le meme dimensionnement, le meme univers et
+       la meme periode. » Chaque tirage rejoue donc `simule` depuis la
+       barre tiree. Ce qui differe entre les deux camps devient alors le
+       seul choix du moment d'entree, qui est ce qu'on veut mesurer.
+
+       LE SENS DE L'ECART N'EST PAS PREVISIBLE, et il faut le dire. On
+       pourrait croire que le temoin sans stop est desavantage, ses pertes
+       n'etant pas tronquees. Mesure sur cours synthetiques, c'est
+       l'inverse qui s'est produit : le temoin a duree fixe encaissait la
+       derive haussiere sur toute la duree (+0,74 %), la ou le temoin a
+       regles sort tot sur cassure de tendance et paie les frais
+       (-0,01 %) — le z passait de +0,55 a +2,38 sur les memes trades.
+
+       CE QUE CELA IMPLIQUE, ET QUI RESTE A TRANCHER. Le point de
+       calibration du protocole — « cours purement aleatoires, z = +0,93,
+       le seul critere qui rejette » — a ete mesure avec l'ANCIENNE
+       construction. Il ne s'applique plus tel quel. Il doit etre
+       re-mesure sur du bruit pur avec ce temoin-ci AVANT de se fier au
+       seuil de 2. Le rapport de Phase 0 le rappelle en toutes lettres, et
+       affiche les deux z cote a cote pour que l'ecart soit visible.
     """
-    if not trades:
-        return 0.0, 0.0, 0.0
+    if not trades or bench is None:
+        return (float(np.mean([t.rendement for t in trades]))
+                if trades else 0.0), 0.0, 0.0
     rng = np.random.default_rng(graine)
     reel = float(np.mean([t.rendement for t in trades]))
-    cout = 2 * (bt.COUT_PAR_COTE + bt.SLIPPAGE) if bt.EXECUTION_J1 else bt.COUT_AR
 
     # Fenetre de tirage : celle des trades compares, a defaut celle
     # demandee. Sans borne, on tirerait sur des regimes de marche que le
@@ -81,6 +110,65 @@ def z_contre_hasard(trades, series: dict, graine=7,
     d0 = pd.Timestamp(debut) if debut else min(t.entree_d for t in trades)
     d1 = pd.Timestamp(fin) if fin else max(t.sortie_d for t in trades)
 
+    # Les colonnes ne sont extraites qu'une fois par titre : sans ca,
+    # 1000 tirages x N trades reconstruisent les memes tableaux numpy des
+    # centaines de milliers de fois.
+    plan, cols = [], {}
+    for t in trades:
+        d = series.get(t.ticker)
+        if d is None or len(d) < 260:
+            continue
+        pos = np.flatnonzero((d.index >= d0) & (d.index <= d1))
+        lo = max(220, int(pos[0])) if len(pos) else 220
+        hi = (int(pos[-1]) if len(pos) else len(d) - 1) - bt.MAX_BARRES - 2
+        if hi <= lo:
+            continue
+        if t.ticker not in cols:
+            cols[t.ticker] = bt.colonnes_numpy(d, bench)
+        plan.append((t.ticker, d, lo, hi))
+    if len(plan) < 20:
+        return reel, 0.0, 0.0
+
+    debuts = np.empty((TIRAGES, len(plan)), dtype=np.int64)
+    for m, (_tk, _d, lo, hi) in enumerate(plan):
+        debuts[:, m] = rng.integers(lo, hi, TIRAGES)
+
+    moyennes = np.empty(TIRAGES)
+    for k in range(TIRAGES):
+        somme, n = 0.0, 0
+        for m, (tk, d, _lo, _hi) in enumerate(plan):
+            tir = bt.simule(d, int(debuts[k, m]), tk, bench, cols[tk])
+            if tir is not None:
+                somme += tir.rendement
+                n += 1
+        moyennes[k] = somme / n if n else np.nan
+    moyennes = moyennes[np.isfinite(moyennes)]
+    if len(moyennes) < 2:
+        return reel, 0.0, 0.0
+    mu, sd = float(moyennes.mean()), float(moyennes.std(ddof=1))
+    z = 0.0 if sd == 0 else (reel - mu) / sd
+    return reel, mu, z
+
+
+def z_duree_appariee(trades, series: dict, graine=7,
+                     debut=None, fin=None) -> float:
+    """L'ANCIEN temoin : meme duree que le trade reel, aucune regle de sortie.
+
+    Conserve, et affiche a cote de l'autre, pour une seule raison : c'est
+    avec lui qu'a ete mesure le point de calibration du protocole. Tant
+    que ce point n'a pas ete refait, supprimer ce chiffre reviendrait a
+    perdre le seul repere chiffre dont on dispose.
+
+    Il ne decide de rien. Le critere 4 se prononce sur le temoin a regles,
+    celui que la specification decrit.
+    """
+    if not trades:
+        return 0.0
+    rng = np.random.default_rng(graine)
+    reel = float(np.mean([t.rendement for t in trades]))
+    cout = 2 * (bt.COUT_PAR_COTE + bt.SLIPPAGE) if bt.EXECUTION_J1 else bt.COUT_AR
+    d0 = pd.Timestamp(debut) if debut else min(t.entree_d for t in trades)
+    d1 = pd.Timestamp(fin) if fin else max(t.sortie_d for t in trades)
     plan = []
     for t in trades:
         d = series.get(t.ticker)
@@ -93,25 +181,20 @@ def z_contre_hasard(trades, series: dict, graine=7,
             continue
         plan.append((d["close"].to_numpy(), t.barres, lo, hi))
     if len(plan) < 20:
-        return reel, 0.0, 0.0
-
-    # Entierement vectorise : une passe numpy par titre, au lieu de
-    # 1000 x len(plan) iterations Python. Les tirages sont les memes
-    # (meme graine, meme ordre), donc le z rendu est identique.
+        return 0.0
     debuts = np.empty((TIRAGES, len(plan)), dtype=np.int64)
     for m, (_px, _dur, lo, hi) in enumerate(plan):
         debuts[:, m] = rng.integers(lo, hi, TIRAGES)
-    rendements = np.empty((TIRAGES, len(plan)))
+    rend = np.empty((TIRAGES, len(plan)))
     for m, (px, dur, _lo, _hi) in enumerate(plan):
-        d0 = debuts[:, m]
-        rendements[:, m] = px[d0 + dur] / px[d0] - 1.0 - cout
-    moyennes = rendements.mean(axis=1)
-    mu, sd = float(moyennes.mean()), float(moyennes.std(ddof=1))
-    z = 0.0 if sd == 0 else (reel - mu) / sd
-    return reel, mu, z
+        a = debuts[:, m]
+        rend[:, m] = px[a + dur] / px[a] - 1.0 - cout
+    moy = rend.mean(axis=1)
+    sd = float(moy.std(ddof=1))
+    return 0.0 if sd == 0 else (reel - float(moy.mean())) / sd
 
 
-def mesures(trades, series, debut=None, fin=None) -> dict:
+def mesures(trades, series, debut=None, fin=None, bench=None) -> dict:
     rs = [t.R for t in trades]
     rends = [t.rendement for t in trades]
     pf = profit_factor(rs)
@@ -121,7 +204,9 @@ def mesures(trades, series, debut=None, fin=None) -> dict:
     # MAX_WEIGHT etait respecte par le scan du jour et ignore par le
     # backtest : deux dimensionnements differents pour le meme systeme.
     pt = bt.portefeuille(trades, series=series, max_poids=R.MAX_WEIGHT)
-    reel, nul, z = z_contre_hasard(trades, series, debut=debut, fin=fin)
+    reel, nul, z = z_contre_hasard(trades, series, debut=debut, fin=fin,
+                                   bench=bench)
+    z_duree = z_duree_appariee(trades, series, debut=debut, fin=fin)
     motifs = pd.Series([t.motif for t in trades]).value_counts().to_dict() if trades else {}
     return {
         "n": len(trades), "pf": pf,
@@ -134,15 +219,46 @@ def mesures(trades, series, debut=None, fin=None) -> dict:
         "pris": pt["pris"], "ecartes": pt["ecartes"],
         "rognees": pt.get("lignes_rognees", 0),
         "poids_max": pt.get("poids_max", 0.0) * 100,
-        "z": z, "reel": reel * 100, "hasard": nul * 100, "motifs": motifs,
+        "z": z, "z_duree": z_duree,
+        "reel": reel * 100, "hasard": nul * 100, "motifs": motifs,
     }
 
 
+def z_retenu(m: dict) -> float:
+    """Le z qui decide : LE PLUS DEFAVORABLE des deux temoins.
+
+    Deux temoins existent, et ils ne disent pas la meme chose.
+
+      - Le temoin a DUREE appariee, celui qui a servi a etablir le point
+        de calibration du protocole (bruit pur, z = +0,93).
+      - Le temoin a REGLES DE SORTIE, celui que l'etape 6 du protocole
+        decrit mot pour mot.
+
+    Sur les memes trades, l'ecart entre les deux va de quelques dixiemes
+    a pres de deux points de z. Lequel est le mieux centre sur du bruit
+    n'est pas tranche : `equity_scanner.calibration` le mesure, et a une
+    dizaine d'univers la reponse change d'une serie a l'autre — l'ecart-
+    type du z y est de l'ordre de 1 a 2. Choisir l'un des deux maintenant
+    reviendrait a choisir le seuil apres avoir vu le chiffre.
+
+    On retient donc le minimum. C'est une regle ecrite ici, avant le
+    prochain test, et elle ne peut pas etre jouee dans le sens du
+    resultat : elle ne peut que rejeter plus souvent. Le rapport affiche
+    les deux, pour que l'ecart reste visible.
+    """
+    zs = [m.get("z", 0.0)]
+    if "z_duree" in m:
+        zs.append(m["z_duree"])
+    return min(zs)
+
+
 def verdict(m: dict) -> tuple:
+    zr = z_retenu(m)
     c = [("trades OOS >= 200", m["n"] >= 200, f"{m['n']}"),
          ("profit factor >= 1,15", m["pf"] >= 1.15, f"{m['pf']:.2f}"),
          ("esperance > 0 apres couts", m["ev_R"] > 0, f"{m['ev_R']:+.3f} R"),
-         ("z >= 2 contre le hasard", m["z"] >= 2.0, f"{m['z']:+.2f}"),
+         ("z >= 2 contre le hasard", zr >= 2.0,
+          f"{zr:+.2f}  (le plus defavorable des deux temoins)"),
          ("drawdown < 20 %", m["dd"] < 20.0, f"{m['dd']:.1f} %")]
     return all(x[1] for x in c), c
 
@@ -248,7 +364,10 @@ def tableau(titre, m, journal=print):
     journal(f"    duree moyenne       {m['duree']:.0f} seances")
     journal(f"    rendement moyen     {m['reel']:+.2f} %  "
             f"contre {m['hasard']:+.2f} % au hasard")
-    journal(f"    z                   {m['z']:+.2f}")
+    journal(f"    z                   {m['z']:+.2f}  "
+            f"(temoin : memes regles de sortie, protocole etape 6)")
+    journal(f"    z duree appariee    {m.get('z_duree', 0):+.2f}  "
+            f"(ancien temoin, ne decide de rien)")
     journal(f"    drawdown max        {m['dd']:.1f} %  "
             f"(valorisation {m.get('dd_source', '?')}, "
             f"realise seul {m.get('dd_realise', 0):.1f} %)")
@@ -317,8 +436,8 @@ def lance(tickers, csv=None, journal=print, univers: str = ""):
         tr_in += bt.trades_ticker(d, tk, bench, IN_DEBUT, IN_FIN)
         tr_oos += bt.trades_ticker(d, tk, bench, OOS_DEBUT, OOS_FIN)
 
-    m_in = mesures(tr_in, series, IN_DEBUT, IN_FIN)
-    m_oos = mesures(tr_oos, series, OOS_DEBUT, OOS_FIN)
+    m_in = mesures(tr_in, series, IN_DEBUT, IN_FIN, bench=bench)
+    m_oos = mesures(tr_oos, series, OOS_DEBUT, OOS_FIN, bench=bench)
     tableau("IN-SAMPLE (calibration, ne decide de rien)", m_in, journal)
     tableau("HORS ECHANTILLON (c'est lui qui decide)", m_oos, journal)
 
@@ -326,6 +445,27 @@ def lance(tickers, csv=None, journal=print, univers: str = ""):
     journal("\n  CRITERES GO/NO-GO")
     for nom, passe, val in crit:
         journal(f"    {'PASSE ' if passe else 'ECHOUE'}  {nom:<28} {val}")
+
+    # Le protocole appelle le critere 4 « le seul qui compte vraiment ».
+    # Son temoin a change : taire ce fait reviendrait a presenter un
+    # chiffre comme comparable a un repere qui ne le mesure plus.
+    if abs(m_oos.get("z", 0) - m_oos.get("z_duree", 0)) > 0.5:
+        journal("")
+        journal("    A LIRE AVANT DE SE FIER AU CRITERE 4")
+        journal("    Deux temoins, et ils ne disent pas la meme chose.")
+        journal(f"      temoin a REGLES (etape 6 du protocole)  "
+                f"z = {m_oos.get('z', 0):+.2f}")
+        journal(f"      temoin a DUREE appariee (l'ancien)      "
+                f"z = {m_oos.get('z_duree', 0):+.2f}")
+        journal("    Le second est celui avec lequel a ete etabli le point de")
+        journal("    calibration du protocole (bruit pur, z = +0,93). Le")
+        journal("    premier est conforme au texte de l'etape 6. Lequel est")
+        journal("    le mieux centre sur du bruit n'est PAS tranche :")
+        journal("    py -m equity_scanner.calibration le mesure.")
+        journal("    Le critere 4 retient le PLUS DEFAVORABLE des deux tant")
+        journal("    que le temoin a regles n'a pas ete calibre sur au moins")
+        journal("    200 trades. C'est une regle ecrite avant le test, et qui")
+        journal("    ne peut que rejeter davantage.")
 
     if ok:
         journal("\n  Robustesse (+-20 % sur chaque parametre)...")

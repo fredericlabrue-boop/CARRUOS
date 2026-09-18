@@ -108,6 +108,7 @@ jeu de paramètres qui ne l'a pas produit.
 | `qualite.py` | refus de signal sur données douteuses |
 | `audit.py` | journal des signaux, empreinte des paramètres |
 | `robuste.py` | stabilité, Monte Carlo, bootstrap par blocs |
+| `calibration.py` | met le critère 4 à l'épreuve sur du bruit pur |
 | `strategie.py` | projection de réinvestissement, revue de ligne |
 | `reglages.py` | 4 thèmes, 13 effets visuels débrayables |
 
@@ -142,7 +143,30 @@ jeu de paramètres qui ne l'a pas produit.
    séance et le rapporte ; il ne corrige rien. Écrire la règle de
    réduction demande une nouvelle spécification, avant le prochain test.
 
-6. **Corporate actions** au-delà des splits : changements de ticker,
+6. **Le témoin du critère 4** — *mesuré, pas tranché.* L'étape 6 du
+   protocole dit : « on remplace les signaux d'entrée par 1 000 tirages
+   aléatoires, on garde **exactement les mêmes règles de sortie** ». Le
+   code ne le faisait pas : il tenait la position une durée fixe, sans
+   stop ni sortie de tendance. Les deux témoins existent désormais
+   (`z_contre_hasard` pour celui du texte, `z_duree_appariee` pour
+   l'ancien) et le rapport affiche les deux.
+
+   Ils ne donnent pas le même z — l'écart va de quelques dixièmes à près
+   de deux points, et le témoin conforme au texte est **le plus facile à
+   battre** dans presque tous les univers mesurés. Lequel est le mieux
+   centré sur du bruit n'est pas tranché : à une dizaine d'univers,
+   l'écart-type du z est de 1 à 2, donc aucune moyenne n'est fiable.
+
+   En attendant, `phase0.z_retenu()` retient le **plus défavorable** des
+   deux. C'est une règle écrite avant le prochain test et qui ne peut que
+   rejeter davantage — donc impossible à jouer dans le bon sens.
+   `py -m equity_scanner.calibration` refait la mesure à la demande.
+
+   Le point de calibration du protocole — « cours purement aléatoires,
+   z = +0,93 » — a été établi avec l'ancien témoin. **Trancher demande
+   une nouvelle spécification**, pas un choix après coup.
+
+7. **Corporate actions** au-delà des splits : changements de ticker,
    fusions, retraits de cote. `qualite.py` **détecte** une division non
    ajustée et une interruption de cotation, et refuse le signal ; il ne
    sait pas encore recoller un historique après un changement de ticker.

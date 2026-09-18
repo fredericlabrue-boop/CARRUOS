@@ -35,6 +35,7 @@ affichée dans une fenêtre Windows.
 | **F** | figer la composition d'un univers |
 | **C** | état du cache des cours |
 | **R** | épreuves de robustesse sur un rapport déjà calculé |
+| **Z** | calibrer le critère 4 sur des cours aléatoires |
 | **7 / 8 / G** | portefeuille IBKR, **lecture seule** |
 | **9** | les trois tests |
 

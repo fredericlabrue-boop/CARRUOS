@@ -408,16 +408,65 @@ def test_phase0() -> None:
 
     # Les tirages au hasard doivent rester dans la fenetre des trades.
     _reel, _mu, z1 = phase0.z_contre_hasard(
-        trades, {"X": d}, debut="2022-01-01", fin="2026-12-31")
-    _r2, _m2, z2 = phase0.z_contre_hasard(trades, {"X": d})
+        trades, {"X": d}, debut="2022-01-01", fin="2026-12-31", bench=bench)
+    _r2, _m2, z2 = phase0.z_contre_hasard(trades, {"X": d}, bench=bench)
     ok("z_contre_hasard accepte une fenetre explicite",
        np.isfinite(z1) and np.isfinite(z2))
 
-    # Memes couts des deux cotes.
+    # Le temoin rejoue le MOTEUR, donc il paie exactement ce que paie un
+    # vrai trade. Verifier le nom des constantes ne prouvait rien : c'est
+    # le passage par simule() qui garantit l'egalite des couts.
     import inspect
     src = inspect.getsource(phase0.z_contre_hasard)
-    ok("le hasard paie les memes couts que le systeme (J+1 + slippage)",
-       "COUT_PAR_COTE" in src and "SLIPPAGE" in src)
+    ok("le temoin applique les memes regles de sortie (etape 6 du protocole)",
+       "bt.simule(" in src)
+    col = bt.colonnes_numpy(d, bench)
+    i = 400
+    tir = bt.simule(d, i, "X", bench, col)
+    ok("un tirage paie le spread et le slippage a l'entree, comme un vrai",
+       tir is None or tir.entree > float(d["open"].iloc[i + 1]))
+    ok("un tirage sort par une regle, jamais sur une duree imposee",
+       tir is None or tir.motif in ("stop", "regime", "sma50", "ema20",
+                                    "duree"))
+
+    # Les DEUX temoins, et le plus defavorable qui decide.
+    zd = phase0.z_duree_appariee(trades, {"X": d},
+                                 debut="2022-01-01", fin="2026-12-31")
+    ok("le temoin a duree appariee reste disponible", np.isfinite(zd))
+    ok("le critere 4 retient le plus defavorable des deux",
+       phase0.z_retenu({"z": 3.0, "z_duree": 1.0}) == 1.0
+       and phase0.z_retenu({"z": 1.0, "z_duree": 3.0}) == 1.0)
+    ok("un seul temoin disponible : c'est lui qui sert",
+       phase0.z_retenu({"z": 2.5}) == 2.5)
+    _o, cr = phase0.verdict({"n": 300, "pf": 1.5, "ev_R": 0.2, "dd": 5.0,
+                             "z": 4.0, "z_duree": 1.2})
+    ok("un z flatteur ne suffit pas si l'autre temoin rejette",
+       not _o and any("z >=" in x[0] and not x[1] for x in cr))
+
+    print("\n— Calibration du critere 4 sur du bruit —")
+    from . import calibration as cal
+    ok("la graine d'un ticker est stable d'un lancement a l'autre",
+       cal._graine("AAPL") == cal._graine("AAPL")
+       and cal._graine("AAPL") != cal._graine("MSFT"))
+    cours, tickers, btk = cal.univers_bruit(3, rep=0, seances=600)
+    a = cours("Z00N00")
+    b = cours("Z00N00")
+    ok("le meme ticker rend exactement la meme serie",
+       float((a["close"] - b["close"]).abs().max()) == 0.0)
+    ok("deux titres differents ne rendent pas la meme serie",
+       float((cours("Z00N01")["close"] - a["close"]).abs().max()) > 0)
+    cours1, _t1, _b1 = cal.univers_bruit(3, rep=1, seances=600)
+    ok("deux univers differents ne rendent pas la meme serie",
+       float((cours1("Z01N00")["close"] - a["close"]).abs().max()) > 0)
+    # Derive nulle : sur 600 seances, la moyenne des variations doit etre
+    # indiscernable de zero. Sinon il y aurait quelque chose a trouver.
+    var = a["close"].pct_change().dropna()
+    ok("la derive est nulle : il n'y a rien a trouver dans ce bruit",
+       abs(float(var.mean())) < 3 * float(var.std()) / len(var) ** 0.5 + 1e-4)
+    ok("les colonnes attendues par le moteur sont toutes la",
+       set(["open", "high", "low", "close", "volume"]) <= set(a.columns))
+    ok("high >= close et low <= close, sinon le moteur lit n'importe quoi",
+       bool((a["high"] >= a["close"]).all() and (a["low"] <= a["close"]).all()))
 
     # Une chaine a la place d'une liste doit etre refusee.
     leve = False

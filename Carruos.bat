@@ -42,6 +42,7 @@ echo      J.  Journal d'audit des signaux
 echo      F.  Figer la composition d'un univers  (chaque trimestre)
 echo      C.  Etat du cache des cours
 echo      R.  Epreuves de robustesse sur un rapport CSV
+echo      Z.  Calibrer le critere 4 sur des cours aleatoires
 echo.
 echo      --- COMPTE IBKR (lecture seule) ---
 echo      7.  Portefeuille - TWS papier        (7497)
@@ -72,6 +73,7 @@ if /i "%CHOIX%"=="J" goto audit
 if /i "%CHOIX%"=="F" goto figer
 if /i "%CHOIX%"=="C" goto cachetat
 if /i "%CHOIX%"=="R" goto robuste
+if /i "%CHOIX%"=="Z" goto calib
 if "%CHOIX%"=="9" goto tests
 if "%CHOIX%"=="0" exit /b 0
 goto menu
@@ -185,6 +187,19 @@ set RC=
 set /p RC=   Nom du fichier CSV :
 if "%RC%"=="" goto menu
 %PY% -m equity_scanner.robuste --csv "%RC%"
+echo. & pause & goto menu
+
+:calib
+echo.
+echo   Le critere 4 est, dit le protocole, le seul qui compte vraiment.
+echo   Ceci le met a l'epreuve sur des cours PUREMENT ALEATOIRES, ou il
+echo   n'y a rien a trouver. Un temoin honnete doit rendre un z centre
+echo   sur zero. Compte plusieurs minutes.
+echo.
+set NU=
+set /p NU=   Combien d'univers ? (12 par defaut) :
+if "%NU%"=="" set NU=12
+%PY% -m equity_scanner.calibration --univers %NU%
 echo. & pause & goto menu
 
 :pfpapier
