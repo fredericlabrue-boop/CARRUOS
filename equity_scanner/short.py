@@ -292,7 +292,7 @@ def _pf(rs):
 def mesures(trades, series: dict | None = None) -> dict:
     rs = [t.R for t in trades]
     pt = bt.portefeuille(trades, risque=RISQUE, max_pos=MAX_POS,
-                         series=series)
+                         series=series, max_poids=MAX_POIDS)
     return {"n": len(trades), "pf": _pf(rs),
             "ev": (sum(rs) / len(rs)) if rs else 0.0,
             "reussite": (sum(1 for x in rs if x > 0) / len(rs)) if rs else 0.0,
@@ -301,7 +301,11 @@ def mesures(trades, series: dict | None = None) -> dict:
                                        for t in trades])) * 100
                         if trades else 0.0),
             "dd": pt["dd"], "dd_source": pt["dd_source"],
-            "pris": pt["pris"], "courbe": pt["courbe"]}
+            "pris": pt["pris"], "courbe": pt["courbe"],
+            "rognees": pt.get("lignes_rognees", 0),
+            "poids_max": pt.get("poids_max", 0.0),
+            "seances_au_dessus": pt.get("seances_au_dessus", 0),
+            "lignes_au_dessus": pt.get("lignes_au_dessus", [])}
 
 
 def lance(tickers, csv=None, journal=print, univers: str = "") -> dict:
@@ -385,6 +389,26 @@ def lance(tickers, csv=None, journal=print, univers: str = "") -> dict:
     journal(f"    {'rendement reel':<28}{reel:+.3%}")
     journal(f"    {'annonces neutres':<28}{mu:+.3%}")
     journal(f"    {'score z':<28}{z:+.2f}")
+
+    journal("\n  PLAFOND DE POIDS PAR LIGNE")
+    journal(f"    plafond de la specification : {MAX_POIDS:.0%} du sleeve")
+    journal(f"    lignes reduites a l'entree  : {m['rognees']}")
+    journal(f"    poids le plus eleve atteint : {m['poids_max']:.1%}")
+    if m["seances_au_dessus"]:
+        journal(f"    seances au-dessus du plafond : "
+                f"{m['seances_au_dessus']} "
+                f"({', '.join(m['lignes_au_dessus'][:6])}"
+                + (" ..." if len(m["lignes_au_dessus"]) > 6 else "") + ")")
+        journal("")
+        journal("    La specification demande une verification EN CONTINU :")
+        journal("    une vente a decouvert perdante grossit toute seule. Elle")
+        journal("    n'ecrit pas quel ordre passer quand le plafond est")
+        journal("    franchi. Ce chiffre est donc MESURE, pas corrige : la")
+        journal("    regle de reduction doit etre ecrite dans une nouvelle")
+        journal("    specification AVANT le prochain test, pas apres avoir vu")
+        journal("    ce resultat.")
+    else:
+        journal("    aucune seance au-dessus du plafond")
 
     crit = [("trades >= 200", m["n"] >= 200, m["n"]),
             ("profit factor >= 1,15", m["pf"] >= 1.15, f"{m['pf']:.2f}"),

@@ -66,6 +66,13 @@ Le programme refuse par construction d'afficher :
 - une ligne de prédiction de prix. Le cône de dispersion a sa dérive
   fixée à zéro : il donne l'amplitude, jamais le sens.
 
+**Le plafond de poids par ligne est appliqué au backtest**, pas seulement
+au scan du jour. Il ne l'était pas : le backtest dimensionnait au seul
+risque, si bien qu'un stop très serré produisait une position à 200 % du
+capital. Sur données d'essai, un quart des lignes dépassaient le plafond
+de 25 %. Le rapport dit désormais combien de lignes ont été réduites et
+quel poids a réellement été atteint.
+
 **Les paramètres de stratégie sont gelés**, et la règle est exécutable.
 Chaque hypothèse a sa propre empreinte SHA256 — trois empreintes
 séparées, pour qu'on sache **laquelle** a bougé — et `test_moteur` tombe

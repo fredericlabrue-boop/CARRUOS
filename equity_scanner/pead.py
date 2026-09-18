@@ -39,6 +39,7 @@ AVANT_ANNONCE = 1         # S3 : sortie la veille de la publication suivante
 
 RISQUE = 0.01
 MAX_POS = 10              # effet de portefeuille, pas de titre
+MAX_POIDS = 0.25          # 25 % du sleeve par ligne, etape 2 du document
 
 CACHE = Path(".bruce_cache") / "annonces"
 
@@ -261,13 +262,16 @@ def _pf(rs):
 
 def mesures(trades, series: dict | None = None) -> dict:
     rs = [t.R for t in trades]
-    pt = bt.portefeuille(trades, risque=RISQUE, max_pos=MAX_POS, series=series)
+    pt = bt.portefeuille(trades, risque=RISQUE, max_pos=MAX_POS,
+                         series=series, max_poids=MAX_POIDS)
     return {"n": len(trades), "pf": _pf(rs),
             "ev": (sum(rs) / len(rs)) if rs else 0.0,
             "reussite": (sum(1 for x in rs if x > 0) / len(rs)) if rs else 0.0,
             "duree": float(np.mean([t.barres for t in trades])) if trades else 0.0,
             "dd": pt["dd"], "dd_source": pt["dd_source"],
-            "pris": pt["pris"], "courbe": pt["courbe"]}
+            "pris": pt["pris"], "courbe": pt["courbe"],
+            "rognees": pt.get("lignes_rognees", 0),
+            "poids_max": pt.get("poids_max", 0.0)}
 
 
 def lance(tickers, csv=None, journal=print) -> dict:
@@ -339,6 +343,9 @@ def lance(tickers, csv=None, journal=print) -> dict:
     journal(f"    {'esperance par trade':<26}{m['ev']:+.3f} R")
     journal(f"    {'taux de reussite':<26}{m['reussite']:.0%}")
     journal(f"    {'duree moyenne':<26}{m['duree']:.0f} seances")
+    journal(f"    {'plafond de poids':<26}{MAX_POIDS:.0%} par ligne  "
+            f"({m.get('rognees', 0)} reduite(s) a l'entree, "
+            f"max atteint {m.get('poids_max', 0):.1%})")
     journal(f"    {'drawdown':<26}{m['dd']:.1%}  "
             f"(valorisation {m.get('dd_source', '?')})")
     journal(f"    {'rendement reel':<26}{reel:+.3%}")

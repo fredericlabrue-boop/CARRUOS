@@ -95,7 +95,7 @@ jeu de paramètres qui ne l'a pas produit.
 | `hud.py` | éléments visuels : cerf, cadrans, rails, radar |
 | `indicators.py` | indicateurs — **PERIODES gelées** |
 | `rules.py` | les 13 blocs d'entrée et les 4 sorties |
-| `backtest.py` | moteur de simulation, exécution J+1, coûts |
+| `backtest.py` | moteur de simulation, exécution J+1, coûts, **plafond de poids** |
 | `phase0.py` | les 5 critères go/no-go |
 | `pead.py` | stratégie 2 — **constantes gelées** |
 | `short.py` | stratégie 3, vente à découvert — **constantes gelées** |
@@ -127,7 +127,22 @@ jeu de paramètres qui ne l'a pas produit.
 3. **Journal d'audit** — *fait.* `audit.py`, une ligne par signal évalué.
 4. **Walk-forward et Monte Carlo** — *fait.* `robuste.py`, joint
    automatiquement au rapport de Phase 0.
-5. **Corporate actions** au-delà des splits : changements de ticker,
+5. **Plafond de poids par ligne** — *fait.* Il était écrit dans les trois
+   spécifications (25 % à l'achat, 20 % à la vente) et appliqué par
+   `rules.size_position()` pour le scan du jour, mais le backtest
+   dimensionnait au seul risque : sur données d'essai, **un quart des
+   lignes dépassaient le plafond**, et un stop très serré produisait une
+   position à 200 % du capital. `backtest.portefeuille(max_poids=…)`
+   l'applique maintenant à l'entrée, et le rapport dit combien de lignes
+   ont été réduites.
+
+   Pour la vente à découvert, la spécification demande une vérification
+   **en continu** sans écrire quel ordre passer au franchissement.
+   `backtest.poids_observes()` **mesure** donc le poids atteint séance par
+   séance et le rapporte ; il ne corrige rien. Écrire la règle de
+   réduction demande une nouvelle spécification, avant le prochain test.
+
+6. **Corporate actions** au-delà des splits : changements de ticker,
    fusions, retraits de cote. `qualite.py` **détecte** une division non
    ajustée et une interruption de cotation, et refuse le signal ; il ne
    sait pas encore recoller un historique après un changement de ticker.

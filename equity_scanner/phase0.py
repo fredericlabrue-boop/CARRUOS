@@ -30,6 +30,7 @@ import pandas as pd
 
 from . import backtest as bt
 from . import data as dl
+from . import rules as R
 from .indicators import enrich
 
 IN_DEBUT, IN_FIN = "2010-01-01", "2021-12-31"
@@ -117,7 +118,9 @@ def mesures(trades, series, debut=None, fin=None) -> dict:
     gagnants = [r for r in rs if r > 0]
     # `series` donne au portefeuille de quoi valoriser les lignes ouvertes
     # chaque seance : le drawdown cesse d'ignorer les pertes latentes.
-    pt = bt.portefeuille(trades, series=series)
+    # MAX_WEIGHT etait respecte par le scan du jour et ignore par le
+    # backtest : deux dimensionnements differents pour le meme systeme.
+    pt = bt.portefeuille(trades, series=series, max_poids=R.MAX_WEIGHT)
     reel, nul, z = z_contre_hasard(trades, series, debut=debut, fin=fin)
     motifs = pd.Series([t.motif for t in trades]).value_counts().to_dict() if trades else {}
     return {
@@ -129,6 +132,8 @@ def mesures(trades, series, debut=None, fin=None) -> dict:
         "dd": pt["dd"] * 100, "dd_source": pt["dd_source"],
         "dd_realise": pt["dd_realise"] * 100, "final": pt["final"],
         "pris": pt["pris"], "ecartes": pt["ecartes"],
+        "rognees": pt.get("lignes_rognees", 0),
+        "poids_max": pt.get("poids_max", 0.0) * 100,
         "z": z, "reel": reel * 100, "hasard": nul * 100, "motifs": motifs,
     }
 
@@ -156,7 +161,6 @@ def robustesse(tickers, bench, series) -> list:
     du stop, et la ligne « fenetre de repli +-20 % » du rapport ne testait
     donc pas ce qu'elle annoncait.
     """
-    from . import rules as R
     tests = [("RSI plancher", "RSI_FLOOR", R.RSI_FLOOR),
              ("RVOL minimum", "RVOL_MIN", R.RVOL_MIN),
              ("fenetre de repli", "PULLBACK_WINDOW", R.PULLBACK_WINDOW),
@@ -250,6 +254,9 @@ def tableau(titre, m, journal=print):
             f"realise seul {m.get('dd_realise', 0):.1f} %)")
     journal(f"    portefeuille        {m['pris']} pris, {m['ecartes']} ecartes "
             f"(5 positions max)")
+    journal(f"    plafond de poids    {R.MAX_WEIGHT:.0%} par ligne  "
+            f"({m.get('rognees', 0)} ligne(s) reduite(s) a l'entree, "
+            f"poids max atteint {m.get('poids_max', 0):.1f} %)")
     if m["motifs"]:
         journal(f"    sorties             " +
                 ", ".join(f"{k} {v}" for k, v in m["motifs"].items()))
@@ -363,7 +370,8 @@ def lance(tickers, csv=None, journal=print, univers: str = ""):
         journal("  Etape suivante : le comparatif contre SMH, net d'impot.")
         try:
             from . import comparatif as cp
-            courbe = bt.portefeuille(tr_oos, series=series)["courbe"]
+            courbe = bt.portefeuille(tr_oos, series=series,
+                                     max_poids=R.MAX_WEIGHT)["courbe"]
             ref = dl.load_yf("SMH", years=20)["close"]
             ref = ref[(ref.index >= courbe.index[0])
                       & (ref.index <= courbe.index[-1])]

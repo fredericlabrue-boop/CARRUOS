@@ -49,7 +49,15 @@ class Trade:
 
     @property
     def risque(self) -> float:
-        return self.entree - self.stop0
+        """Distance entre l'entree et le stop, toujours positive.
+
+        A l'achat le stop est SOUS l'entree, a la vente il est AU-DESSUS :
+        `sens` remet la difference dans le bon ordre. Sans lui, un Trade
+        construit avec sens=-1 rendait un risque negatif, donc un R de
+        zero, sans rien signaler — le pire des echecs, celui qui ressemble
+        a un resultat.
+        """
+        return (self.entree - self.stop0) * self.sens
 
     @property
     def R(self) -> float:
@@ -57,7 +65,7 @@ class Trade:
         donc comparable d'un titre a l'autre quel que soit le prix."""
         if self.risque <= 0:
             return 0.0
-        brut = self.sortie - self.entree
+        brut = (self.sortie - self.entree) * self.sens
         cout = self.entree * COUT_AR
         return (brut - cout) / self.risque
 
@@ -296,7 +304,8 @@ def trades_ticker(d: pd.DataFrame, ticker: str, bench: pd.DataFrame,
 
 
 def portefeuille(trades: list[Trade], risque=0.01, max_pos=5,
-                 capital=10_000.0, series: dict | None = None) -> dict:
+                 capital=10_000.0, series: dict | None = None,
+                 max_poids: float = 0.0) -> dict:
     """Reconstitue la courbe de capital en respectant les contraintes reelles :
     1 % de risque par trade, 5 positions simultanees au maximum.
 
@@ -321,6 +330,19 @@ def portefeuille(trades: list[Trade], risque=0.01, max_pos=5,
        valorisee CHAQUE SEANCE, positions ouvertes comprises : c'est le
        drawdown reellement vecu. Sans `series`, on retombe sur le
        drawdown realise et `dd_source` le dit franchement.
+
+    3. Le PLAFOND DE POIDS par ligne, qui n'etait applique nulle part.
+
+       Les trois specifications le fixent — 25 % du sleeve a l'achat,
+       20 % pour la vente a decouvert — et `rules.size_position()` le
+       respecte pour le scan du jour. Le backtest, lui, dimensionnait
+       uniquement au risque. Un stop tres serre produit alors une ligne
+       enorme : 1 % de risque sur un stop a 0,5 % de l'entree, c'est
+       200 % du capital sur un seul titre. Le systeme teste n'etait pas
+       celui qu'on tradrait, et il l'etait dans le sens flatteur.
+
+       `max_poids` a 0 laisse l'ancien comportement, pour les appelants
+       qui n'ont pas de plafond a faire respecter.
     """
     vide = {"courbe": pd.Series(dtype=float), "dd": 0.0, "dd_source": "aucune",
             "dd_realise": 0.0, "pris": 0, "ecartes": 0, "final": capital}
@@ -351,9 +373,22 @@ def portefeuille(trades: list[Trade], risque=0.01, max_pos=5,
     evts.sort()
 
     cap, engage, points = capital, {}, []
+    rogne = 0
     for date, genre, k in evts:
         if genre == 0:
-            engage[k] = cap * risque
+            e = cap * risque
+            # Valeur nominale de la ligne : nombre de titres x prix d'entree,
+            # le nombre de titres etant la somme risquee divisee par le
+            # risque unitaire. Au-dessus du plafond, on reduit la ligne —
+            # ce qui reduit AUSSI son gain, dans les deux sens.
+            t = retenus[k]
+            if max_poids > 0 and getattr(t, "risque", 0) > 0:
+                nominal = e / t.risque * t.entree
+                plafond = max_poids * cap
+                if nominal > plafond > 0:
+                    e *= plafond / nominal
+                    rogne += 1
+            engage[k] = e
         else:
             cap += engage.get(k, cap * risque) * retenus[k].R
             points.append((date, cap))
@@ -374,9 +409,56 @@ def portefeuille(trades: list[Trade], risque=0.01, max_pos=5,
         if q is not None and len(q) > 1:
             courbe, dd, source = q, _drawdown(q), "quotidienne"
 
-    return {"courbe": courbe, "dd": dd, "dd_source": source,
-            "dd_realise": dd_realise, "pris": len(retenus),
-            "ecartes": ecartes, "final": float(cap)}
+    out = {"courbe": courbe, "dd": dd, "dd_source": source,
+           "dd_realise": dd_realise, "pris": len(retenus),
+           "ecartes": ecartes, "final": float(cap),
+           "max_poids": max_poids, "lignes_rognees": rogne}
+    if series:
+        out.update(poids_observes(retenus, engage, courbe, series, max_poids))
+    return out
+
+
+def poids_observes(retenus, engage: dict, courbe: pd.Series, series: dict,
+                   max_poids: float) -> dict:
+    """Poids reellement atteint par les lignes, seance par seance.
+
+    C'est une MESURE, pas une regle. La specification de la vente a
+    decouvert demande que le plafond soit verifie « en continu », parce
+    qu'une position perdante grossit toute seule ; elle n'ecrit pas quel
+    ordre passer quand le plafond est franchi. Inventer ici une regle de
+    reduction reviendrait a ajouter une regle apres coup — exactement ce
+    que le protocole interdit.
+
+    On mesure donc, et on le dit : voila combien de seances ont depasse
+    le plafond, et de combien. Au lecteur de decider si la specification
+    doit etre completee AVANT le prochain test.
+    """
+    vide = {"poids_max": 0.0, "seances_au_dessus": 0, "lignes_au_dessus": []}
+    if not max_poids or courbe is None or len(courbe) < 2:
+        return vide
+    pire, seances, noms = 0.0, 0, set()
+    for k, t in enumerate(retenus):
+        if t.ticker not in series or getattr(t, "risque", 0) <= 0:
+            continue
+        c = series[t.ticker]["close"]
+        a = int(c.index.searchsorted(t.entree_d, side="left"))
+        b = int(c.index.searchsorted(t.sortie_d, side="right"))
+        if b <= a:
+            continue
+        titres = engage.get(k, 0.0) / t.risque
+        seg = c.iloc[a:b]
+        capi = courbe.reindex(seg.index).ffill()
+        poids = (titres * seg / capi).replace(
+            [np.inf, -np.inf], np.nan).dropna()
+        if poids.empty:
+            continue
+        pire = max(pire, float(poids.max()))
+        n = int((poids > max_poids).sum())
+        if n:
+            seances += n
+            noms.add(t.ticker)
+    return {"poids_max": pire, "seances_au_dessus": seances,
+            "lignes_au_dessus": sorted(noms)}
 
 
 def _drawdown(courbe: pd.Series) -> float:

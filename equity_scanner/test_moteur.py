@@ -651,6 +651,63 @@ def test_short() -> None:
     ok("la perte latente d'une vente perdante est visible",
        ph["dd"] > 0.01)
 
+    print("\n— Plafond de poids par ligne —")
+    # 1 % de risque sur un stop a 0,5 % de l'entree, c'est 200 % du
+    # capital sur un seul titre. Le backtest le faisait sans rien dire.
+    serre = bt.Trade("S", pd.Timestamp("2024-01-02"),
+                     pd.Timestamp("2024-02-01"), 100.0, 104.0, 99.5,
+                     1.0, 20, "ema20")
+    libre = bt.portefeuille([serre], risque=0.01, capital=10_000.0)
+    borne = bt.portefeuille([serre], risque=0.01, capital=10_000.0,
+                            max_poids=0.25)
+    ok("sans plafond, un stop serre dimensionne au-dela du capital",
+       (0.01 * 10_000 / serre.risque) * serre.entree > 10_000)
+    ok("le plafond ramene la ligne a 25 % du capital",
+       abs(borne["final"] - (10_000 + 25.0 * serre.risque * serre.R)) < 1e-6)
+    ok("le plafond reduit le resultat, il ne l'augmente pas",
+       borne["final"] < libre["final"])
+    ok("la ligne rognee est comptee", borne["lignes_rognees"] == 1)
+    large = bt.Trade("L", pd.Timestamp("2024-01-02"),
+                     pd.Timestamp("2024-02-01"), 100.0, 110.0, 90.0,
+                     5.0, 20, "ema20")
+    ok("une ligne deja sous le plafond n'est pas touchee",
+       abs(bt.portefeuille([large], risque=0.01)["final"]
+           - bt.portefeuille([large], risque=0.01,
+                             max_poids=0.25)["final"]) < 1e-9)
+    ok("les trois strategies passent desormais leur plafond au portefeuille",
+       "max_poids=MAX_POIDS" in (Path(__file__).resolve().parent
+                                 / "short.py").read_text(encoding="utf-8")
+       and "max_poids=MAX_POIDS" in (Path(__file__).resolve().parent
+                                     / "pead.py").read_text(encoding="utf-8")
+       and "max_poids=R.MAX_WEIGHT" in (Path(__file__).resolve().parent
+                                        / "phase0.py").read_text(encoding="utf-8"))
+
+    print("\n— Le poids atteint est MESURE, pas corrige en douce —")
+    jm = pd.bdate_range("2024-01-02", periods=40)
+    monte = np.linspace(100.0, 150.0, 40)
+    tm = sh.TradeCourt("M", jm[0], jm[-1], 100.0, 150.0, 110.0, 5.0, 39,
+                       "stop")
+    rm = bt.portefeuille([tm], risque=0.01, max_pos=10, capital=10_000.0,
+                         series={"M": pd.DataFrame({"close": monte},
+                                                   index=jm)},
+                         max_poids=0.20)
+    ok("une vente perdante voit son poids grossir toute seule",
+       rm["poids_max"] > 0.10)
+    ok("le poids atteint est rapporte, pas efface",
+       "poids_max" in rm and "seances_au_dessus" in rm)
+    ok("aucune reduction en cours de route n'est inventee",
+       rm["lignes_rognees"] == 0 and rm["final"] < 10_000)
+
+    print("\n— Un Trade vendu a decouvert n'est plus muet —")
+    mv = bt.Trade("V", pd.Timestamp("2024-01-02"), pd.Timestamp("2024-02-01"),
+                  100.0, 90.0, 110.0, 5.0, 20, "stop", sens=-1)
+    ma = bt.Trade("A", pd.Timestamp("2024-01-02"), pd.Timestamp("2024-02-01"),
+                  100.0, 110.0, 90.0, 5.0, 20, "ema20")
+    ok("son risque est positif, comme celui d'un achat", mv.risque == 10.0)
+    ok("son R n'est plus zero par accident", mv.R > 0)
+    ok("le miroir exact rend exactement le meme R",
+       abs(mv.R - ma.R) < 1e-12)
+
     print("\n— Le signal part quand il doit, et pas autrement —")
     n = 400
     jours = pd.bdate_range("2024-01-02", periods=n)
