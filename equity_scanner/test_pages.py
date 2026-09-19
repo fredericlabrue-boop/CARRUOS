@@ -97,6 +97,21 @@ def _fonctions_appelees(html: str, js: str) -> list[str]:
     return sorted(appelees - definies - connues)
 
 
+def _contenus_css(css: str) -> list[str]:
+    """Les valeurs de `content:` qui ne sont pas du pur ASCII.
+
+    Une sequence d'echappement CSS (\\25B8) s'est deja affichee en
+    charabia a l'ecran : l'escape voyage mal entre la source Python, le
+    fichier et le navigateur, et un caractere hors ASCII depend en plus
+    de la fonte. Le test refuse les deux.
+    """
+    mauvais = []
+    for v in re.findall(r'content\s*:\s*"([^"]*)"', css):
+        if any(ord(c) > 126 for c in v) or "\\" in v:
+            mauvais.append(v)
+    return mauvais
+
+
 def _chaine_brute_preservee() -> bool:
     """JS_POS doit rester une chaine brute : c'est la protection de fond."""
     from . import app
@@ -348,8 +363,24 @@ def main() -> int:
     # La regle absolue du projet : aucun verdict directionnel, aucun
     # score composite. La page doit montrer les conditions de sortie
     # ECRITES, pas en inventer une synthese.
-    _v("CE QUE DIT VOTRE PLAN" in jss,
+    _v("LES CONDITIONS DE SORTIE, UNE PAR UNE" in jss
+       and "CE QUE DIT VOTRE" in jss,
        "les conditions de sortie sont presentees comme celles du plan")
+    # L'etat en gros ne doit pas devenir un verdict deguise : il compte
+    # les conditions et renvoie la decision a son proprietaire.
+    _v("CONDITION" in jss and "premiere" in jss,
+       "l'etat en gros cite la regle — fermeture a la PREMIERE condition")
+    _v("la prend pas a votre place" in jss,
+       "il dit explicitement que le programme ne decide pas")
+    mauvais = _contenus_css(css)
+    _v(not mauvais,
+       "aucun content: CSS en echappement ou hors ASCII")
+    if mauvais:
+        print(f"          -> {mauvais}")
+    _v(".manque span" in css,
+       "les blocs manquants sont styles hors du panneau de detail aussi")
+    _v("NO-GO en Phase 0" in jss,
+       "un declenchement d'entree rappelle que l'hypothese est NO-GO")
     interdits = [m for m in ("HAUSSIER", "BAISSIER", "ACHETER", "SIGNAL ACHAT",
                              "confiance", "score global", "recommandation")
                  if m.lower() in st.lower()]

@@ -55,7 +55,12 @@ jeu de paramètres qui ne l'a pas produit.
 
 - Un pourcentage unique de « chances de gagner ». Toujours l'intervalle
   de confiance de Wilson avec le nombre de trades.
-- Un avis « garder / vendre » sur une ligne détenue. `strategie.py`
+- Un avis « garder / vendre » sur une ligne détenue. **La carte de la
+  page STRATEGIE affiche l'état en gros** — « 3 conditions sur 4 sont
+  actives » — et rappelle que la spécification ferme à la **première**
+  condition atteinte. Citer sa propre règle n'est pas un verdict ; ajouter
+  le mot « vends » en serait un. De même, « renforcer la ligne ? » est
+  répondu par le compte des 13 blocs d'entrée, jamais par un conseil. `strategie.py`
   donne les **faits** (plus haut atteint, recul depuis ce sommet, part
   du gain rendue, écarts aux moyennes, coût fiscal d'une vente) et
   l'état des **quatre conditions de sortie de la spécification**. La
@@ -68,6 +73,17 @@ jeu de paramètres qui ne l'a pas produit.
 - Un verdict directionnel (HAUSSIER / ACHAT) dérivé d'un tel score.
 - Une ligne de prédiction de prix. Le cône de dispersion existe : dérive
   fixée à zéro, il donne l'amplitude, jamais le sens.
+- Un take-profit **actif**. Les spécifications 2 et 3 disent « aucun
+  take-profit », et le motif est mesuré : zéro TP touché, 97 % de sorties
+  par autre chose. `horizon.py` mesure ce qu'un objectif **aurait** donné
+  sur le titre — fréquence d'atteinte, délai médian, part rendue ensuite.
+  Il n'en active aucun. Choisir un niveau parce qu'il sort le mieux sur le
+  passé est la pêche que le protocole interdit ; l'activer demande une
+  nouvelle spécification, une nouvelle empreinte, une période vierge.
+- Un gain espéré en euros tant qu'aucune hypothèse n'a passé sa Phase 0.
+  `horizon.gain_espere()` refuse de chiffrer et dit pourquoi : sans
+  avantage démontré, le gain espéré vaut zéro, pas un petit nombre
+  optimiste.
 - Un résultat de `short.py` sans le rappel du dividende non modélisé.
   Une espérance de 0,3 point par trade y ressemble à un avantage ; elle
   est en réalité négative une fois le dividende payé au prêteur.
@@ -110,6 +126,7 @@ jeu de paramètres qui ne l'a pas produit.
 | `audit.py` | journal des signaux, empreinte des paramètres |
 | `robuste.py` | stabilité, Monte Carlo, bootstrap par blocs |
 | `calibration.py` | met le critère 4 à l'épreuve sur du bruit pur |
+| `horizon.py` | amplitude par horizon, objectif atteignable, entrée en euros |
 | `strategie.py` | projection de réinvestissement, revue de ligne |
 | `reglages.py` | 4 thèmes, 13 effets visuels débrayables |
 

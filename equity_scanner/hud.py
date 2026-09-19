@@ -90,7 +90,7 @@ CSS = """
  padding-top:11px;font:400 10px ui-monospace,Consolas,monospace;letter-spacing:.12em}
 .bandeau .cliq{cursor:pointer}
 .bandeau .cliq:hover .v{color:var(--acc)}
-.bandeau .cliq .n::after{content:" \\2197";opacity:.6}
+.bandeau .cliq .n::after{content:" >";opacity:.6}
 .bandeau div{flex:1;min-width:104px;padding:0 9px;border-left:1px solid #0e2b34}
 .bandeau div:first-child{border-left:0;padding-left:0}
 .bandeau .n{color:#3f6b78;font-size:8.5px;letter-spacing:.2em}

@@ -172,6 +172,55 @@ CSS_FICHE = """
 .sortie.on{color:var(--neg)}
 .sortie .et{font:500 9px ui-monospace,monospace;letter-spacing:.14em}
 .pos{color:var(--pos)}.neg{color:var(--neg)}
+
+/* --- L'ETAT, EN GRAND -------------------------------------------------
+   Le reproche etait juste : tout etait en 11 px et se ressemblait. Ce
+   qui decide se lit maintenant de loin, le detail reste sous les yeux
+   pour qui veut verifier. Aucune de ces classes ne porte d'animation de
+   mise en page : uniquement des couleurs et des bordures. */
+.etat{margin:10px 0 12px;padding:13px 15px;border:1px solid #123c47;
+ background:rgba(8,20,26,.55)}
+.etat.chaud{border-color:#7d2530;background:rgba(40,10,14,.42)}
+.etat.tiede{border-color:#7a5b1e;background:rgba(38,28,8,.38)}
+.etat .gros{font:600 25px ui-monospace,monospace;letter-spacing:.04em;
+ color:#cbe9f2;line-height:1.25}
+.etat.chaud .gros{color:var(--neg)}
+.etat .sous{margin-top:7px;font-size:12px;line-height:1.7;color:#8fb3c1}
+.etat .sous b{color:#cbe9f2}
+.chiffres{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));
+ gap:9px;margin:11px 0}
+.chiffres .c{padding:8px 10px;border:1px solid #0e2b34;
+ background:rgba(8,20,26,.42)}
+.chiffres .c .e{font:500 8.5px ui-monospace,monospace;letter-spacing:.15em;
+ color:#3f6b78;display:block;margin-bottom:4px}
+.chiffres .c .v{font:600 17px ui-monospace,monospace;color:#cbe9f2;white-space:nowrap;overflow-wrap:normal}
+.chiffres .c .v.pos{color:var(--pos)}
+.chiffres .c .v.neg{color:var(--neg)}
+.sortie.gr{font-size:12.5px;padding:6px 9px;margin-bottom:3px;
+ border:1px solid #0e2b34;background:rgba(8,20,26,.35)}
+.sortie.gr.on{border-color:#7d2530;background:rgba(40,10,14,.4)}
+.sortie.gr .et{font-size:10px;letter-spacing:.16em}
+/* Les etiquettes des blocs manquants et des vetos. Sans cette regle, les
+   `span` restent en ligne, sans ecart, et se lisent comme un seul mot. */
+.manque{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+.manque span{font:400 10px ui-monospace,monospace;padding:3px 7px;
+ border:1px solid #7d2530;color:#f87171;white-space:nowrap}
+.manque span.ok{border-color:#10705a;color:var(--pos)}
+.thz{width:100%;border-collapse:collapse;margin-top:8px;
+ font:400 11px ui-monospace,monospace}
+.thz th{text-align:right;padding:4px 5px;font-weight:500;font-size:8.5px;
+ letter-spacing:.13em;color:#3f6b78;border-bottom:1px solid #0e2b34}
+.thz th:first-child,.thz td:first-child{text-align:left}
+.thz td{text-align:right;padding:3px 5px;border-bottom:1px solid #0b2028;
+ color:#8fb3c1}
+.thz td:first-child{color:#cbe9f2}
+.repli{margin-top:11px}
+.repli>summary{cursor:pointer;font:500 9px ui-monospace,monospace;
+ letter-spacing:.17em;color:#3f6b78;padding:5px 0;list-style:none}
+.repli>summary::-webkit-details-marker{display:none}
+.repli>summary:before{content:"[ + ]  "}
+.repli[open]>summary:before{content:"[ - ]  "}
+.repli>summary:hover{color:var(--acc)}
 """
 
 
@@ -1364,27 +1413,218 @@ function carte(r){
  var tenu = r.detenu;
  var h = '<div class="lig"><h3>' + r.ticker + ' <span>'
    + (tenu ? (r.quantite + ' titres a ' + r.entree.toFixed(2)
-              + ' \u00b7 depuis le ' + r.depuis)
-           : ('non detenu \u00b7 observe sur ' + (r.fenetre_mois||12)
+              + ' · depuis le ' + r.depuis)
+           : ('non detenu · observe sur ' + (r.fenetre_mois||12)
               + ' mois'))
    + '</span></h3>';
- h += '<div class="trajet"><div class="kv2">'
-    + '<span>cours</span><b>' + r.cours.toFixed(2) + '</b>'
-    + '<span>plus haut de la periode (' + r.date_plus_haut + ')</span><b>'
-    + r.plus_haut.toFixed(2) + '</b>';
- if(tenu){
-  h += '<span>gain latent maximum</span>' + sgn(r.mfe_pct)
-     + "<span>gain latent aujourd'hui</span>" + sgn(r.pnl_pct);
- }
- h += '<span>recul depuis le sommet</span>' + sgn(r.recul_depuis_haut_pct);
- if(tenu){
-  h += '<span>part du gain rendue</span><b>'
-     + r.gain_rendu_pct.toFixed(2) + ' pts</b>';
- }
- h += '<span>recul depuis le haut 52 semaines</span>'
-    + sgn(r.recul_52s_pct) + '</div></div>';
 
- h += '<div class="kv2">';
+ h += etatSortie(r) + chiffresCles(r, tenu) + blocsSortie(r);
+ h += blocEntree(r.entree_regle, r.ticker);
+ h += blocHorizons(r.horizons);
+ h += blocObjectifs(r.objectifs);
+ h += detailTechnique(r, tenu);
+
+ if(r.point_mort)
+   h += "<div class=\"bilan\">Vendre aujourd'hui : impot de <b>"
+      + eur(r.point_mort.impot) + '</b>, il resterait <b>'
+      + eur(r.point_mort.net_si_vendu) + '</b> a replacer. Le nouveau '
+      + 'placement partirait avec <b>'
+      + r.point_mort.handicap_pct.toFixed(2) + ' %</b> de retard.</div>';
+ else if(!tenu)
+   h += '<div class="bilan">Aucune position sur ce titre : ni gain '
+      + 'latent, ni cout fiscal ne sont calcules. Donnez un prix '
+      + "d'entree pour obtenir le trajet complet.</div>";
+ return h + '</div>';
+}
+
+// Ce que dit VOTRE specification, lu tel quel. Elle ferme a la PREMIERE
+// condition atteinte : ce n'est pas une opinion sur le titre, c'est la
+// regle que vous avez ecrite, relue a voix haute.
+function etatSortie(r){
+ var n = r.n_sorties, tot = Object.keys(r.sorties||{}).length || 4;
+ var cls = n >= 1 ? ' chaud' : '';
+ var gros, sous;
+ if(n === 0){
+  gros = 'AUCUNE CONDITION DE SORTIE ACTIVE';
+  sous = 'Votre specification ferme la position a la <b>premiere</b> '
+       + 'condition atteinte. Aucune ne l\'est. Elle ne demande rien '
+       + 'aujourd\'hui.';
+ }else{
+  gros = n + ' CONDITION' + (n>1?'S':'') + ' SUR ' + tot + ' ACTIVE'
+       + (n>1?'S':'');
+  sous = 'Votre specification ferme la position a la <b>premiere</b> '
+       + 'condition atteinte. Il y en a <b>' + n + '</b>. '
+       + 'Ce que vous en faites reste votre decision : le programme ne '
+       + 'la prend pas a votre place.';
+ }
+ if(r.marge_stop_pct !== null && r.marge_stop_pct !== undefined
+    && r.marge_stop_pct <= 0){
+  gros = 'STOP DEPASSE';
+  sous = 'Le cours est <b>' + Math.abs(r.marge_stop_pct).toFixed(2)
+       + ' %</b> sous le stop que vous avez note. ' + sous;
+ }
+ return '<div class="etat' + cls + '"><div class="gros">' + gros
+      + '</div><div class="sous">' + sous + '</div></div>';
+}
+
+function chiffresCles(r, tenu){
+ var h = '<div class="chiffres">';
+ h += cel('COURS', r.cours.toFixed(2), 0);
+ if(tenu){
+  h += cel('GAIN LATENT', sgnTxt(r.pnl_pct), r.pnl_pct);
+  h += cel('AU MIEUX', sgnTxt(r.mfe_pct), r.mfe_pct);
+  h += cel('RENDU DEPUIS', r.gain_rendu_pct.toFixed(1) + ' pts',
+           -Math.abs(r.gain_rendu_pct));
+ }
+ h += cel('DEPUIS LE SOMMET', sgnTxt(r.recul_depuis_haut_pct),
+          r.recul_depuis_haut_pct);
+ if(r.marge_stop_pct !== null && r.marge_stop_pct !== undefined)
+   h += cel('MARGE AU STOP', sgnTxt(r.marge_stop_pct), r.marge_stop_pct);
+ if(tenu && r.valeur !== null && r.valeur !== undefined)
+   h += cel('VALEUR', eur(r.valeur), 0);
+ return h + '</div>';
+}
+
+function cel(etiquette, valeur, signe){
+ var c = signe > 0 ? ' pos' : (signe < 0 ? ' neg' : '');
+ return '<div class="c"><span class="e">' + etiquette + '</span>'
+      + '<span class="v' + c + '">' + valeur + '</span></div>';
+}
+
+function sgnTxt(v){
+ if(v === null || v === undefined) return '—';
+ return (v > 0 ? '+' : '') + v.toFixed(2) + ' %';
+}
+
+function blocsSortie(r){
+ var h = '<div class="titre-sec" style="margin-top:12px">'
+       + 'LES CONDITIONS DE SORTIE, UNE PAR UNE</div>';
+ Object.keys(r.sorties||{}).forEach(function(k){
+  var on = r.sorties[k];
+  h += '<div class="sortie gr' + (on?' on':'') + '"><span>' + k
+     + '</span><span class="et">' + (on?'ACTIVE':'dormante')
+     + '</span></div>';
+ });
+ if(r.resultats && r.resultats.jours !== undefined
+    && r.resultats.jours !== null)
+   h += '<div class="sortie gr on"><span>resultats dans '
+      + r.resultats.jours + ' seances</span><span class="et">'
+      + (r.resultats.date||'') + '</span></div>';
+ return h;
+}
+
+// « Est-ce que je renforce ? » a une reponse ecrite : les treize blocs
+// d'entree. Soit ils declenchent, soit ils disent lesquels manquent.
+// Le titre de ce bloc evite deliberement le verbe qui en ferait un
+// conseil : il annonce une REGLE consultee, pas une action suggeree.
+function blocEntree(e, tk){
+ if(!e || e.erreur) return '';
+ var h = '<div class="titre-sec">RENFORCER LA LIGNE ? CE QUE DIT VOTRE '
+       + 'SPECIFICATION D\'ENTREE</div>';
+ if(e.declenche){
+  h += '<div class="etat"><div class="gros">LES ' + e.n_blocs
+     + ' BLOCS SONT REMPLIS</div><div class="sous">'
+     + 'Votre specification declencherait une entree. Elle est pourtant '
+     + '<b>NO-GO en Phase 0</b> : elle n\'a pas demontre d\'avantage '
+     + 'sur le hasard. Un declenchement ne vaut donc pas '
+     + 'demonstration.</div></div>';
+ }else{
+  h += '<div class="etat tiede"><div class="gros">' + e.n_remplis
+     + ' BLOCS SUR ' + e.n_blocs + '</div><div class="sous">'
+     + 'Votre specification <b>ne declencherait pas</b> d\'entree sur '
+     + tk + ' aujourd\'hui.</div></div>';
+  if(e.manquants && e.manquants.length){
+   h += '<div class="manque">';
+   e.manquants.forEach(function(m){ h += '<span>' + m + '</span>'; });
+   h += '</div>';
+  }
+ }
+ if(e.vetos && e.vetos.length){
+  h += '<div class="manque" style="margin-top:6px">';
+  e.vetos.forEach(function(v){ h += '<span>' + v + '</span>'; });
+  h += '</div>';
+ }
+ if(e.titres > 0){
+  h += '<div class="bilan" style="margin-top:10px">'
+     + 'Si vous preniez la ligne quand meme, au prix et au stop de la '
+     + 'regle : <b>' + e.titres + (e.titres > 1 ? ' titres' : ' titre')
+     + '</b> pour <b>'
+     + eur(e.montant) + '</b>, soit <b>' + eur(e.risque_eur)
+     + '</b> de perte si le stop saute'
+     + (e.plafonne ? ' (taille reduite par le plafond de poids)' : '')
+     + '. Arithmetique, pas un conseil.</div>';
+ }
+ return h;
+}
+
+function blocHorizons(hz){
+ if(!hz || !hz.length) return '';
+ var h = '<details class="repli"><summary>AMPLITUDE PAR HORIZON &mdash; '
+       + 'CE QUE CE TITRE BOUGE, SANS DIRECTION</summary>'
+       + '<table class="thz"><tr><th>horizon</th><th>typique</th>'
+       + '<th>2 sur 3 entre</th><th>fenetres indep.</th></tr>';
+ hz.forEach(function(x){
+  h += '<tr><td>' + x.nom + '</td><td>' + x.typique.toFixed(1)
+     + ' %</td><td>' + x.bas68.toFixed(1) + ' %  a  +'
+     + x.haut68.toFixed(1) + ' %</td><td>' + x.independantes
+     + '</td></tr>';
+ });
+ h += '</table><div class="bilan" style="margin-top:8px">'
+    + '<b>Aucune direction ici.</b> « typique » est la variation '
+    + 'absolue mediane des fenetres passees. « fenetres indep. » est la '
+    + 'vraie taille de l\'echantillon : des fenetres qui se recouvrent '
+    + 'ne sont pas des observations independantes.</div></details>';
+ return h;
+}
+
+function blocObjectifs(o){
+ if(!o || o.erreur || !o.cibles || !o.cibles.length) return '';
+ var h = '<details class="repli"><summary>QUEL TAKE-PROFIT SERAIT '
+       + 'ENVISAGEABLE SUR CE TITRE</summary>';
+ ['1 semaine','1 mois','3 mois'].forEach(function(per){
+  var l = o[per];
+  if(!l || !l.length) return;
+  h += '<div class="titre-sec" style="margin:10px 0 4px;border:0;'
+     + 'padding:0">HORIZON ' + per.toUpperCase() + '</div>'
+     + '<table class="thz"><tr><th>objectif</th><th>touche</th>'
+     + '<th>en (median)</th><th>puis rendu</th></tr>';
+  l.forEach(function(x){
+   var part = x.seances_medianes === null ? 'jamais'
+            : (x.part < 0.005 ? '&lt;1 %'
+                              : (x.part*100).toFixed(0) + ' %');
+   var q = x.seances_medianes === null ? '—'
+         : x.seances_medianes.toFixed(0) + ' j';
+   var rd = x.part_rendue === null ? '—'
+          : (x.part_rendue*100).toFixed(0) + ' %';
+   h += '<tr><td>+' + x.cible.toFixed(1) + ' %</td><td>' + part
+      + '</td><td>' + q + '</td><td>' + rd + '</td></tr>';
+  });
+  h += '</table>';
+ });
+ h += '<div class="bilan" style="margin-top:9px">'
+    + '<b>« puis rendu »</b> est le chiffre qui repond a la question : '
+    + 'parmi les fenetres qui ont touche l\'objectif, la part qui a fini '
+    + '<b>sous</b> lui. C\'est ce qu\'un take-profit evite &mdash; et '
+    + 'c\'est aussi la hausse qu\'il coupe quand elle continue.<br><br>'
+    + 'Ces chiffres partent de <b>n\'importe quelle seance</b>, pas d\'un '
+    + 'signal : c\'est une propriete du titre, pas d\'une strategie. Et '
+    + 'une frequence passee n\'est pas une probabilite future. '
+    + 'Les objectifs sont deduits de l\'ATR du titre, pour qu\'ils '
+    + 'veuillent dire la meme chose sur un titre calme et sur un nerveux.'
+    + '</div></details>';
+ return h;
+}
+
+function detailTechnique(r, tenu){
+ var h = '<details class="repli"><summary>LE DETAIL, POUR VERIFIER'
+       + '</summary><div class="trajet"><div class="kv2">'
+   + '<span>plus haut de la periode (' + r.date_plus_haut + ')</span><b>'
+   + r.plus_haut.toFixed(2) + '</b>'
+   + '<span>plus bas de la periode</span><b>' + r.plus_bas.toFixed(2)
+   + '</b>';
+ if(tenu) h += '<span>pire moment du trajet</span>' + sgn(r.mae_pct);
+ h += '<span>recul depuis le haut 52 semaines</span>'
+    + sgn(r.recul_52s_pct) + '</div></div><div class="kv2">';
  [['EMA 20','ema20'],['SMA 50','sma50'],['SMA 200','sma200']]
   .forEach(function(p){
    var e = r[p[1]];
@@ -1393,35 +1633,14 @@ function carte(r){
   });
  if(r.rsi!==null && r.rsi!==undefined)
    h += '<span>RSI 14</span><b>' + r.rsi + '</b>';
- if(r.marge_stop_pct!==null && r.marge_stop_pct!==undefined)
-   h += '<span>marge avant le stop</span>' + sgn(r.marge_stop_pct);
- h += '</div>';
-
- h += '<div style="margin-top:9px;font:500 9px ui-monospace,monospace;'
-    + 'letter-spacing:.16em;color:#3f6b78">CE QUE DIT VOTRE PLAN &mdash; '
-    + r.n_sorties + ' / 4 ACTIVE(S)</div>';
- Object.keys(r.sorties).forEach(function(k){
-  var on = r.sorties[k];
-  h += '<div class="sortie' + (on?' on':'') + '"><span>' + k
-     + '</span><span class="et">' + (on?'ACTIVE':'dormante')
-     + '</span></div>';
- });
- if(r.resultats && r.resultats.jours !== undefined
-    && r.resultats.jours !== null)
-   h += '<div class="sortie on"><span>resultats dans '
-      + r.resultats.jours + ' seances</span><span class="et">'
-      + (r.resultats.date||'') + '</span></div>';
- if(r.point_mort)
-   h += "<div class=\"bilan\" style=\"margin-top:9px\">Vendre aujourd'hui : "
-      + 'impot de <b>' + eur(r.point_mort.impot) + '</b>, il resterait <b>'
-      + eur(r.point_mort.net_si_vendu) + '</b> a replacer. Le nouveau '
-      + 'placement partirait avec <b>'
-      + r.point_mort.handicap_pct.toFixed(2) + ' %</b> de retard.</div>';
- else if(!tenu)
-   h += '<div class="bilan" style="margin-top:9px">Aucune position sur ce '
-      + 'titre : ni gain latent, ni cout fiscal ne sont calcules. '
-      + "Donnez un prix d'entree pour obtenir le trajet complet.</div>";
- return h + '</div>';
+ if(r.rvol!==null && r.rvol!==undefined)
+   h += '<span>volume relatif</span><b>' + r.rvol + '</b>';
+ if(r.atr_pct!==null && r.atr_pct!==undefined)
+   h += '<span>ATR 14 (bruit quotidien)</span><b>' + r.atr_pct
+      + ' %</b>';
+ if(r.stop!==null && r.stop!==undefined)
+   h += '<span>stop note</span><b>' + r.stop.toFixed(2) + '</b>';
+ return h + '</div></details>';
 }
 
 """
@@ -2399,6 +2618,18 @@ def _rapports() -> dict:
     }
 
 
+def _fini(v) -> float | None:
+    """Un NaN traverse le JSON en `NaN`, que JSON.parse refuse. On rend
+    None : la page sait afficher une valeur absente, pas une erreur de
+    parsing."""
+    try:
+        x = float(v)
+    except (TypeError, ValueError):
+        return None
+    return round(x, 4) if x == x and x not in (float("inf"),
+                                               float("-inf")) else None
+
+
 def _revue_titre(q: dict) -> dict:
     """Revue de N'IMPORTE QUEL titre, detenu ou non.
 
@@ -2468,6 +2699,49 @@ def _revue_titre(q: dict) -> dict:
     r["point_mort"] = sg.point_mort_fiscal(r)
     r["alertes"] = rap.alertes
     r["au_registre"] = bool(detenue)
+
+    # « Dois-je en racheter ? » se lit dans la specification d'entree,
+    # pas dans une opinion. Les treize blocs sont evalues sur la derniere
+    # barre : soit ils declenchent, soit ils disent lesquels manquent.
+    try:
+        from . import rules as R
+        jours = earn.get("jours") if earn else None
+        sig = R.evaluate(d, tk, marche, days_to_earnings=jours)
+        taille = R.position_size(sig, float(REGLAGES.get("sleeve") or 0))
+        r["entree_regle"] = {
+            "declenche": bool(sig.fired),
+            "blocs": {k: bool(v) for k, v in sig.blocks.items()},
+            "manquants": list(sig.failed_blocks),
+            "vetos": list(sig.vetos),
+            "n_blocs": len(sig.blocks),
+            "n_remplis": sum(1 for v in sig.blocks.values() if v),
+            "prix": _fini(sig.entry),
+            "stop": _fini(sig.stop),
+            "titres": taille.get("shares", 0),
+            "montant": taille.get("notional", 0.0),
+            "risque_eur": taille.get("risk_eur", 0.0),
+            "plafonne": bool(taille.get("capped")),
+            "sleeve": float(REGLAGES.get("sleeve") or 0),
+        }
+    except Exception as exc:
+        r["entree_regle"] = {"erreur": f"{type(exc).__name__}: {exc}"}
+
+    # Amplitude par horizon et objectifs atteignables : des proprietes du
+    # TITRE, mesurees, sans direction et sans rapport avec une strategie.
+    try:
+        from . import horizon as hz
+        dl_ = enrich(ch.charge(tk, annees=10))
+        r["horizons"] = hz.amplitude(dl_)
+        cib = hz.cibles_du_titre(dl_)
+        r["objectifs"] = {
+            "cibles": list(cib),
+            "1 semaine": hz.atteinte(dl_, cib, 5),
+            "1 mois": hz.atteinte(dl_, cib, 21),
+            "3 mois": hz.atteinte(dl_, cib, 63),
+        }
+    except Exception as exc:
+        r["horizons"], r["objectifs"] = [], {"erreur": str(exc)}
+
     return {"ok": True, "revue": r}
 
 

@@ -43,6 +43,7 @@ echo      F.  Figer la composition d'un univers  (chaque trimestre)
 echo      C.  Etat du cache des cours
 echo      R.  Epreuves de robustesse sur un rapport CSV
 echo      Z.  Calibrer le critere 4 sur des cours aleatoires
+echo      H.  Amplitude par horizon et take-profit envisageable
 echo.
 echo      --- COMPTE IBKR (lecture seule) ---
 echo      7.  Portefeuille - TWS papier        (7497)
@@ -74,6 +75,7 @@ if /i "%CHOIX%"=="F" goto figer
 if /i "%CHOIX%"=="C" goto cachetat
 if /i "%CHOIX%"=="R" goto robuste
 if /i "%CHOIX%"=="Z" goto calib
+if /i "%CHOIX%"=="H" goto horizon
 if "%CHOIX%"=="9" goto tests
 if "%CHOIX%"=="0" exit /b 0
 goto menu
@@ -200,6 +202,21 @@ set NU=
 set /p NU=   Combien d'univers ? (12 par defaut) :
 if "%NU%"=="" set NU=12
 %PY% -m equity_scanner.calibration --univers %NU%
+echo. & pause & goto menu
+
+:horizon
+echo.
+echo   Ce que le titre bouge a chaque horizon - 1 jour, 1 semaine, 1 mois,
+echo   3 mois, 6 mois, 1 an - et quel objectif de prise de profit il a
+echo   reellement atteint dans le passe, en combien de seances, et
+echo   combien de fois il a tout rendu ensuite.
+echo.
+echo   AUCUNE DIRECTION. C'est une propriete du titre, pas un signal.
+echo.
+set HT=
+set /p HT=   Ticker (NVDA, MC.PA, TLX...) :
+if "%HT%"=="" goto menu
+%PY% -m equity_scanner.horizon %HT%
 echo. & pause & goto menu
 
 :pfpapier
