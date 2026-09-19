@@ -636,12 +636,19 @@ def test_cle_av() -> None:
             for k in ("CARRUOS_AV_KEY", "ALPHAVANTAGE_KEY")}
     ici = os.getcwd()
     try:
-        faux = tempfile.mkdtemp()
+        bac0 = Path(tempfile.mkdtemp())
+        faux = str(bac0 / "home")
+        (bac0 / "home").mkdir()
         os.environ["HOME"] = faux
         for k in envs:
             os.environ.pop(k, None)
-        v1 = tempfile.mkdtemp()
+        # Un arbre a soi : sans cela, la fouille de recuperation trouve
+        # les restes des autres essais poses dans /tmp, et le test
+        # echoue pour une raison qui n'a rien a voir avec lui.
+        v1 = str(bac0 / "Bureau" / "v1")
+        Path(v1).mkdir(parents=True)
         os.chdir(v1)
+        app._FOUILLE.update({"faite": False, "trouvee": "", "ou": ""})
         ok("aucune cle dans un dossier vierge", app.cle_av() == "")
         app.pose_cle("CLE_DE_TEST_0001")
         ok("la cle enregistree est relue", app.cle_av() == "CLE_DE_TEST_0001")
@@ -650,7 +657,8 @@ def test_cle_av() -> None:
         ok("elle est posee aussi dans le dossier personnel",
            (Path(faux) / ".carruos" / "cle-alphavantage.txt").exists())
 
-        v2 = tempfile.mkdtemp()          # la mise a jour : dossier neuf
+        v2 = str(bac0 / "Bureau" / "v2")   # la mise a jour : dossier neuf
+        Path(v2).mkdir(parents=True)
         os.chdir(v2)
         ok("nouvelle version : rien a cote du programme",
            not (Path(v2) / ".bruce_cache" / "cle-alphavantage.txt").exists())
@@ -661,10 +669,59 @@ def test_cle_av() -> None:
 
         app.pose_cle("")
         ok("l'effacer l'efface des deux endroits", app.cle_av() == "")
-        ok("elle ne ressuscite pas au lancement suivant", app.cle_av() == "")
+        # Et la fouille ne doit pas la ramener : le dossier personnel
+        # existe, donc le programme a deja ete regle ici.
+        app._FOUILLE.update({"faite": False, "trouvee": "", "ou": ""})
+        ok("effacee volontairement, elle ne ressuscite pas",
+           app.cle_av() == "")
         os.environ["CARRUOS_AV_KEY"] = "PAR_VARIABLE"
         ok("une variable d'environnement reste un recours",
            app.cle_av() == "PAR_VARIABLE")
+
+        # --- Recuperation d'une cle laissee par une installation
+        #     precedente. C'est le cas reel : la cle vit dans
+        #     .bruce_cache, qui n'est pas livre dans l'archive.
+        os.environ.pop("CARRUOS_AV_KEY", None)
+        bac = Path(tempfile.mkdtemp())
+        os.environ["HOME"] = str(bac / "home")
+        (bac / "home").mkdir()
+        bureau = bac / "Bureau"
+        vieille = bureau / "CARRUOS"
+        (vieille / ".bruce_cache").mkdir(parents=True)
+        (vieille / ".bruce_cache" / "cle-alphavantage.txt").write_text(
+            "CLE_ANCIENNE_INSTALL", encoding="utf-8")
+        neuve = bureau / "CARRUOS-neuf"
+        neuve.mkdir()
+        os.chdir(neuve)
+        app._FOUILLE.update({"faite": False, "trouvee": "", "ou": ""})
+        ok("une cle laissee par une installation voisine est retrouvee",
+           app.retrouve_cle() == "CLE_ANCIENNE_INSTALL")
+        ok("et recopiee a cote de la nouvelle version",
+           (neuve / ".bruce_cache" / "cle-alphavantage.txt").exists())
+        ok("la fouille n'a lieu qu'une fois par lancement",
+           app._FOUILLE["faite"] is True)
+
+        # Installation seule : elle ne doit PAS se prendre elle-meme pour
+        # une ancienne. Le premier controle comparait le grand-parent, ce
+        # qui laissait passer certains chemins.
+        bac2 = Path(tempfile.mkdtemp())
+        os.environ["HOME"] = str(bac2 / "home")
+        (bac2 / "home").mkdir()
+        seule = bac2 / "Bureau" / "SOLO"
+        (seule / ".bruce_cache").mkdir(parents=True)
+        (seule / ".bruce_cache" / "cle-alphavantage.txt").write_text(
+            "SA_PROPRE_CLE", encoding="utf-8")
+        os.chdir(seule)
+        app._FOUILLE.update({"faite": False, "trouvee": "", "ou": ""})
+        ok("seule installation : elle ne se trouve pas elle-meme",
+           app.retrouve_cle() == "")
+
+        # La fouille ne remonte QU'UN niveau : deux revenaient a balayer
+        # tout C:\\Users.
+        ici = Path(seule).resolve()
+        cands = app._candidats()
+        ok("la fouille ne remonte qu'un niveau au-dessus du programme",
+           ici.parent.parent not in cands)
     finally:
         os.chdir(ici)
         if maison is not None:

@@ -121,6 +121,8 @@ jeu de paramètres qui ne l'a pas produit.
 | `positions.py` | registre manuel des positions |
 | `news.py` | Alpha Vantage — quota 25/jour, caches obligatoires |
 | | la clé est rangée **deux fois** : `.bruce_cache` à côté du programme, et `~/.carruos/` — cette seconde copie est la seule qui survive à une mise à jour, `.bruce_cache` n'étant pas livré dans l'archive |
+| | `app.retrouve_cle()` va la chercher dans une installation **voisine** si les deux manquent. Portée volontairement étroite : un seul niveau au-dessus du programme plus quelques dossiers usuels, deux niveaux de profondeur, plafond de 400 dossiers, un seul nom de fichier lu. Elle ne tourne **jamais** si `~/.carruos/` existe déjà — sinon effacer volontairement la clé la ferait ressusciter au lancement suivant |
+| | **aucune clé ne doit entrer dans le dépôt.** `.bruce_cache/` est ignoré et `test_pages` refuse tout jeton de 16 majuscules dans un fichier suivi par git |
 | `data.py` | chargement yfinance, 8 univers, compositions figées |
 | `cache.py` | cache disque et téléchargements parallèles |
 | `qualite.py` | refus de signal sur données douteuses |

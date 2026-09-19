@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import re
 import sys
+from pathlib import Path
 
 ECHECS: list[str] = []
 
@@ -411,6 +412,41 @@ def main() -> int:
        "la page a son propre gabarit de rangees")
     _v('class="app strat-page"' in st,
        "le corps de la page porte bien cette classe")
+
+    print("\n  AUCUN SECRET DANS LE DEPOT")
+    import subprocess
+    racine = str(Path(__file__).resolve().parent.parent)
+    suivis = subprocess.run(["git", "ls-files"], cwd=racine,
+                            capture_output=True, text=True).stdout.split()
+    # Une cle Alpha Vantage est une chaine de 16 caracteres majuscules et
+    # chiffres. Aucune ne doit se trouver dans un fichier SUIVI par git :
+    # la pousser reviendrait a la publier.
+    motif = re.compile(r"\b[A-Z0-9]{16}\b")
+    fautifs = []
+    for rel in suivis:
+        f = Path(racine) / rel
+        if f.suffix.lower() in (".png", ".ico", ".zip") or not f.is_file():
+            continue
+        try:
+            txt = f.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        for m in motif.findall(txt):
+            # Les empreintes SHA256 sont en minuscules, les constantes en
+            # snake_case : seul un jeton tout en majuscules alarme.
+            if m.isdigit() or m.isalpha() and m.islower():
+                continue
+            if any(m in ligne and ("cle" in ligne.lower()
+                                   or "apikey" in ligne.lower()
+                                   or "alphavantage" in ligne.lower())
+                   for ligne in txt.splitlines()):
+                fautifs.append(f"{rel}: {m}")
+    _v(not fautifs, "aucune cle d'API dans un fichier suivi par git")
+    if fautifs:
+        print(f"          -> {fautifs[:5]}")
+    gi = (Path(racine) / ".gitignore").read_text(encoding="utf-8")
+    _v(".bruce_cache/" in gi,
+       ".bruce_cache est ignore : la cle ne peut pas etre commitee")
 
     print("\n  GRAPHIQUE SANS RESEAU")
     from . import chart as _ch

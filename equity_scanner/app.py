@@ -90,8 +90,124 @@ def cle_av() -> str:
         except Exception:
             pass
         return v
-    return (os.environ.get("CARRUOS_AV_KEY")
-            or os.environ.get("ALPHAVANTAGE_KEY") or "").strip()
+    v = (os.environ.get("CARRUOS_AV_KEY")
+         or os.environ.get("ALPHAVANTAGE_KEY") or "").strip()
+    if v:
+        return v
+    # Dernier recours : aller la chercher dans une ancienne installation.
+    return retrouve_cle()
+
+
+# Une seule fouille par lancement. Sans ce verrou, chaque requete de la
+# page relancerait la recherche et le disque serait sollicite en boucle.
+_FOUILLE = {"faite": False, "trouvee": "", "ou": ""}
+
+# Noms de dossiers ou une copie precedente de CARRUOS a des chances de
+# se trouver. On ne balaie PAS le disque : on regarde une poignee
+# d'endroits, a deux niveaux de profondeur, et on s'arrete.
+_LIEUX = ("Desktop", "Bureau", "Downloads", "Telechargements",
+          "Téléchargements", "Documents", "OneDrive", "OneDrive/Bureau",
+          "OneDrive/Documents")
+_PLAFOND = 400          # dossiers examines au maximum
+
+
+def _candidats() -> list:
+    """Les dossiers ou chercher une ancienne cle, du plus probable au
+    moins probable."""
+    out = []
+    try:
+        # UN SEUL niveau au-dessus : les dossiers freres de
+        # l'installation. Remonter de deux revenait a fouiller tout
+        # C:\Users — beaucoup trop large, et lent.
+        out.append(Path.cwd().resolve().parent)
+    except OSError:
+        pass
+    try:
+        maison = Path.home()
+        out.append(maison)
+        out += [maison / n for n in _LIEUX]
+    except (OSError, RuntimeError):
+        pass
+    vus, propres = set(), []
+    for d in out:
+        try:
+            r = d.resolve()
+        except OSError:
+            continue
+        if r in vus:
+            continue
+        vus.add(r)
+        propres.append(r)
+    return propres
+
+
+def retrouve_cle() -> str:
+    """Cherche une cle laissee par une installation precedente.
+
+    POURQUOI CETTE FONCTION EXISTE. La cle vit dans `.bruce_cache`, cree
+    a cote du programme et absent de l'archive. Installer une nouvelle
+    version dans un dossier neuf la laissait derriere, et les actualites
+    tombaient en panne sans explication. La copie durable dans le profil
+    regle le cas a partir du moment ou la cle a ete saisie une fois dans
+    une version qui la connait — mais pas pour les cles plus anciennes.
+
+    On regarde donc, une seule fois par lancement, dans une poignee de
+    dossiers probables. Ce n'est PAS un balayage du disque : deux
+    niveaux de profondeur, un plafond de dossiers examines, et un seul
+    nom de fichier recherche. Rien d'autre n'est lu.
+    """
+    if _FOUILLE["faite"]:
+        return _FOUILLE["trouvee"]
+    _FOUILLE["faite"] = True
+    # Le dossier personnel existe des qu'une cle a ete saisie OU effacee
+    # ici. Sa presence signifie donc : « ce programme a deja ete regle
+    # sur cette machine ». On ne devine plus rien apres ca — sinon
+    # effacer volontairement la cle la ferait ressusciter au lancement
+    # suivant, ce qui ressemblerait a un bug.
+    try:
+        if _cle_durable().parent.exists():
+            return ""
+    except OSError:
+        return ""
+    ici = None
+    try:
+        ici = Path.cwd().resolve()
+    except OSError:
+        pass
+    examines = 0
+    for base in _candidats():
+        for motif in ("*/.bruce_cache/cle-alphavantage.txt",
+                      "*/*/.bruce_cache/cle-alphavantage.txt"):
+            try:
+                trouves = base.glob(motif)
+            except OSError:
+                continue
+            for f in trouves:
+                examines += 1
+                if examines > _PLAFOND:
+                    return ""
+                # Ne pas se retrouver soi-meme. Comparer le dossier
+                # grand-parent ne suffisait pas : selon l'endroit d'ou
+                # part le glob, le fichier courant remontait sous une
+                # autre forme. On ecarte TOUT ce qui se trouve dans le
+                # dossier d'execution, a n'importe quelle profondeur.
+                try:
+                    r = f.resolve()
+                    if ici is not None and (r.parent.parent == ici
+                                            or ici in r.parents):
+                        continue
+                except OSError:
+                    continue
+                v = _lit(f)
+                if v:
+                    _FOUILLE["trouvee"] = v
+                    _FOUILLE["ou"] = str(f)
+                    # On la recopie aux deux endroits : la prochaine fois,
+                    # aucune fouille ne sera necessaire.
+                    pose_cle(v)
+                    print(f"  cle Alpha Vantage recuperee depuis {f}")
+                    return v
+    return ""
 
 
 def pose_cle(v: str) -> bool:
