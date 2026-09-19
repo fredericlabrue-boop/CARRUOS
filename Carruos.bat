@@ -44,6 +44,7 @@ echo      C.  Etat du cache des cours
 echo      R.  Epreuves de robustesse sur un rapport CSV
 echo      Z.  Calibrer le critere 4 sur des cours aleatoires
 echo      H.  Amplitude par horizon et take-profit envisageable
+echo      O.  Horaires des places europeennes et americaines
 echo.
 echo      --- COMPTE IBKR (lecture seule) ---
 echo      7.  Portefeuille - TWS papier        (7497)
@@ -76,6 +77,7 @@ if /i "%CHOIX%"=="C" goto cachetat
 if /i "%CHOIX%"=="R" goto robuste
 if /i "%CHOIX%"=="Z" goto calib
 if /i "%CHOIX%"=="H" goto horizon
+if /i "%CHOIX%"=="O" goto places
 if "%CHOIX%"=="9" goto tests
 if "%CHOIX%"=="0" exit /b 0
 goto menu
@@ -217,6 +219,15 @@ set HT=
 set /p HT=   Ticker (NVDA, MC.PA, TLX...) :
 if "%HT%"=="" goto menu
 %PY% -m equity_scanner.horizon %HT%
+echo. & pause & goto menu
+
+:places
+echo.
+echo   Les neuf places, en heure de Paris, heure d'ete comprise.
+echo   Plus ce que le programme peut et ne peut PAS dire sur l'heure
+echo   a laquelle passer un ordre.
+echo.
+%PY% -m equity_scanner.seance
 echo. & pause & goto menu
 
 :pfpapier

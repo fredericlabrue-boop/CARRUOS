@@ -67,6 +67,14 @@ jeu de paramètres qui ne l'a pas produit.
   différence entre « trois conditions sur quatre sont actives » et
   « vends » n'est pas une nuance de style : la première est vérifiable,
   la seconde est une opinion déguisée.
+- Une « meilleure heure pour acheter ou vendre ». `seance.py` donne les
+  horaires — ce sont des faits — et deux propriétés structurelles qui ne
+  demandent aucune mesure : les écarts sont les plus larges à l'ouverture,
+  le plus gros volume passe au fixing de clôture. Tout le reste
+  demanderait des données **intraday** que le programme n'a pas : une
+  bougie journalière ne contient aucune heure intermédiaire. La
+  spécification, elle, exécute à l'ouverture de la séance suivante, et
+  c'est ce que le backtest mesure.
 - Un chiffrage du risque géopolitique. Les actualités sont du contexte
   pour la vérification avant l'ordre, elles n'entrent dans aucune règle.
 - Un score composite construit sur des poids non testés.
@@ -130,6 +138,7 @@ jeu de paramètres qui ne l'a pas produit.
 | `robuste.py` | stabilité, Monte Carlo, bootstrap par blocs |
 | `calibration.py` | met le critère 4 à l'épreuve sur du bruit pur |
 | `horizon.py` | amplitude par horizon, objectif atteignable, entrée en euros |
+| `seance.py` | horaires des 9 places, fériés **calculés**, heure d'été suivie |
 | `strategie.py` | projection de réinvestissement, revue de ligne |
 | `reglages.py` | **13 thèmes**, 13 effets visuels débrayables |
 | | un thème porte une `forme` : biseau, arrondi, équerres, densité, matière, typographie. Les valeurs par défaut **sont** l'apparence d'origine, donc un thème qui n'en redéfinit aucune ne change rien |

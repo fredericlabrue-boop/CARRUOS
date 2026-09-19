@@ -521,6 +521,89 @@ def test_marqueurs() -> None:
            for x in m))
 
 
+def test_seance() -> None:
+    """Horaires des places. Verifies sur des dates dont on connait la
+    reponse : l'heure d'ete et les jours feries sont exactement la ou
+    l'on se trompe."""
+    import datetime as _d
+    from zoneinfo import ZoneInfo
+
+    from . import seance as sn
+
+    print("\n— Paques, qui place le Vendredi saint et le lundi de Paques —")
+    for an, att in ((2024, (3, 31)), (2025, (4, 20)),
+                    (2026, (4, 5)), (2027, (3, 28))):
+        p = sn.paques(an)
+        ok(f"Paques {an} tombe le {p}", (p.month, p.day) == att)
+
+    print("\n— Jours feries —")
+    us = sn.feries("us", 2026)
+    ok("MLK est le 3e lundi de janvier", _d.date(2026, 1, 19) in us)
+    ok("Thanksgiving est le 4e jeudi de novembre",
+       _d.date(2026, 11, 26) in us)
+    ok("le 4 juillet 2026 tombe un samedi : chome le vendredi 3",
+       _d.date(2026, 7, 3) in us and _d.date(2026, 7, 4) not in us)
+    eu = sn.feries("euronext", 2026)
+    ok("Euronext ferme le Vendredi saint et le lundi de Paques",
+       _d.date(2026, 4, 3) in eu and _d.date(2026, 4, 6) in eu)
+    ok("Euronext ferme le 1er mai, pas les Etats-Unis",
+       _d.date(2026, 5, 1) in eu and _d.date(2026, 5, 1) not in us)
+
+    print("\n— L'heure d'ete decale la seance americaine —")
+
+    def ouv(iso):
+        return sn.etat("newyork", _d.datetime.fromisoformat(iso))["ouv_paris"]
+
+    ok("en janvier, New York ouvre a 15h30 Paris",
+       ouv("2026-01-15T12:00:00+00:00") == "15:30")
+    ok("en juin aussi", ouv("2026-06-15T12:00:00+00:00") == "15:30")
+    # Entre les deux bascules, l'ecart tombe a cinq heures.
+    ok("mi-mars, quand les Etats-Unis sont passes a l'ete et pas "
+       "l'Europe, elle ouvre a 14h30",
+       ouv("2026-03-15T12:00:00+00:00") == "14:30")
+
+    print("\n— Etat des places a un instant donne —")
+    t = _d.datetime(2026, 2, 10, 10, 0, tzinfo=ZoneInfo("Europe/Paris"))
+    e = {x["cle"]: x for x in sn.toutes(t)}
+    ok("a 10h, Paris et Londres sont ouvertes",
+       e["paris"]["code"] == "OUVERTE" and e["londres"]["code"] == "OUVERTE")
+    ok("a 10h, New York n'a pas encore ouvert",
+       e["newyork"]["code"] == "AVANT OUVERTURE")
+    t2 = _d.datetime(2026, 2, 10, 17, 32, tzinfo=ZoneInfo("Europe/Paris"))
+    ok("a 17h32, Paris est au fixing de cloture",
+       sn.etat("paris", t2)["code"] == "FIXING DE CLOTURE")
+    ok("et New York est encore ouverte",
+       sn.etat("newyork", t2)["code"] == "OUVERTE")
+    t3 = _d.datetime(2026, 2, 14, 11, 0, tzinfo=ZoneInfo("Europe/Paris"))
+    ok("le samedi, les neuf places sont en week-end",
+       all(x["code"] == "WEEK-END" for x in sn.toutes(t3)))
+    t4 = _d.datetime(2026, 5, 1, 16, 0, tzinfo=ZoneInfo("Europe/Paris"))
+    ok("le 1er mai, Paris est ferie et New York ouverte",
+       sn.etat("paris", t4)["code"] == "FERIE"
+       and sn.etat("newyork", t4)["code"] == "OUVERTE")
+
+    print("\n— Le prochain evenement saute week-ends et feries —")
+    t5 = _d.datetime(2026, 4, 2, 19, 0, tzinfo=ZoneInfo("Europe/Paris"))
+    pr = sn.etat("paris", t5)["prochain"]
+    ok("jeudi 2 avril au soir, la prochaine ouverture est le mardi 7 "
+       f"(obtenu {pr['jour']})", pr["jour"] == "2026-04-07")
+
+    print("\n— Aucune « meilleure heure » n'est affirmee —")
+    q = sn.pourquoi_pas_de_meilleure_heure()
+    ok("les quatre reponses sont la", len(q) == 4)
+    tout = " ".join(q.values()).lower()
+    ok("il dit que la specification execute a l'ouverture",
+       "ouverture" in tout)
+    ok("il dit que l'intraday n'est pas mesurable avec ces donnees",
+       "journali" in tout)
+    ok("aucune heure n'est recommandee",
+       not any(m in tout for m in ("achetez a ", "vendez a ",
+                                   "meilleure heure est",
+                                   "l'heure ideale")))
+    ok("la date est en francais, quelle que soit la machine",
+       sn.date_fr(t) == "mardi 10 fevrier 2026, 10:00")
+
+
 def test_horizon() -> None:
     """Amplitude par horizon et objectifs atteignables.
 
@@ -1455,6 +1538,7 @@ def main() -> int:
     test_veto_resultats()
     test_univers_figes()
     test_marqueurs()
+    test_seance()
     test_horizon()
     test_cle_av()
 

@@ -1511,6 +1511,58 @@ async function lignesATraiter(){
  }
 }
 
+// Les horaires sont des FAITS. « La meilleure heure pour acheter » n'en
+// est pas un : le panneau dit les uns et explique pourquoi il se tait
+// sur l'autre.
+async function lesPlaces(){
+ ouvreDetail('LES PLACES', '<div class="msg">Releve...</div>');
+ try{
+  var j = await (await fetch('/api/places')).json();
+  var h = '<div class="pourquoi">Toutes les heures sont donnees a '
+        + '<b>PARIS</b>. Chaque place suit son propre fuseau : l\'Europe '
+        + 'et les Etats-Unis ne changent pas d\'heure le meme week-end, '
+        + 'donc la seance americaine se decale d\'une heure deux fois '
+        + 'par an, pendant une quinzaine de jours.<br>' + j.heure + '</div>';
+  h += '<table class="thz"><tr><th>place</th><th>etat</th>'
+     + '<th>ouverture</th><th>fin continu</th><th>fixing clot.</th>'
+     + '<th>prochain</th></tr>';
+  j.places.forEach(function(p){
+   var cl = p.ouverte ? 'pos' : (p.ferie || p.weekend ? '' : 'neg');
+   var pr = p.prochain;
+   var q = pr.jour === "aujourd'hui"
+         ? pr.quoi + ' a ' + pr.quand_paris
+         : 'ouverture le ' + pr.jour;
+   h += '<tr><td>' + p.nom + '</td>'
+      + '<td class="' + cl + '">' + p.code + '</td>'
+      + '<td>' + p.ouv_paris + '</td><td>' + p.clo_paris + '</td>'
+      + '<td>' + (p.fixing_a_la_cloture ? 'a la cloture' : p.fix_paris)
+      + '</td><td>' + q + '</td></tr>';
+   if(p.avant_paris){
+    h += '<tr><td></td><td colspan="5" style="color:var(--txt-faible)">'
+       + 'pre-marche ' + p.avant_paris + ', seance prolongee jusqu\'a '
+       + p.apres_paris + " — liquidite faible, ecarts larges</td></tr>";
+   }
+  });
+  h += '</table>';
+  var q = j.horaire;
+  h += '<div class="titre-sec">A QUELLE HEURE ACHETER OU VENDRE ?</div>';
+  [['Ce que dit votre specification','ce_que_dit_la_specification'],
+   ['Ce qui est structurel, sans mesure','ce_qui_est_structurel'],
+   ['Ce qui ne peut PAS etre mesure avec vos donnees',
+    'ce_qui_ne_peut_pas_etre_mesure_ici'],
+   ['En pratique','ce_qu_il_faut_en_faire']].forEach(function(x){
+   h += '<div class="rap"><div class="n">' + x[0] + '</div>'
+      + '<div class="d">' + q[x[1]] + '</div></div>';
+  });
+  h += '<div class="actions">'
+     + '<button class="sec" onclick="fermeDetail()">FERMER</button></div>';
+  ouvreDetail('LES PLACES', h);
+ }catch(e){
+  ouvreDetail('LES PLACES',
+              '<div class="msg err">Erreur : ' + e + '</div>');
+ }
+}
+
 document.addEventListener('keydown', function(e){
  if(e.key === 'Escape') fermeDetail();
 });
@@ -2162,6 +2214,12 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                 return self._json(_revue_lignes())
             if u.path == "/api/revue":
                 return self._json(_revue_titre(q))
+            if u.path == "/api/places":
+                from . import seance as sn
+                return self._json({
+                    "ok": True, "places": sn.toutes(),
+                    "heure": sn.date_fr(_dt.datetime.now(sn.PARIS)),
+                    "horaire": sn.pourquoi_pas_de_meilleure_heure()})
             if u.path == "/api/rapports":
                 return self._json(_rapports())
             if u.path == "/api/reglages":
@@ -2419,11 +2477,23 @@ def _etat():
         except Exception:
             surv = 0
 
-    ny = _dt.datetime.now(ZoneInfo("America/New_York"))
-    ouvert = (ny.weekday() < 5
-              and (9, 30) <= (ny.hour, ny.minute) < (16, 0))
-    seance = "OUVERTE" if ouvert else ("WEEK-END" if ny.weekday() >= 5
-                                       else "FERMEE")
+    # L'etat des neuf places, europeennes comprises. L'ancien calcul ne
+    # regardait que New York, avec des horaires ecrits en dur — donc faux
+    # pendant les quinze jours ou l'Europe et les Etats-Unis ne sont pas
+    # encore passes a l'heure d'ete ensemble.
+    from . import seance as sn
+    places = sn.toutes()
+    ouvertes = [x for x in places if x["ouverte"]]
+    ouvert = any(x["cle"] == "newyork" and x["ouverte"] for x in places)
+    seance = next((x["code"] for x in places if x["cle"] == "newyork"), "--")
+    if ouvertes:
+        places_resume = f"{len(ouvertes)} OUVERTE(S)"
+    else:
+        pr = min(places, key=lambda x: x["prochain"]["dans_minutes"])
+        places_resume = f"TOUTES FERMEES"
+    # La fenetre d'execution suit la place, elle n'est plus ecrite en dur.
+    ny_etat = next(x for x in places if x["cle"] == "newyork")
+    execution = f"NY {ny_etat['ouv_paris']} - {ny_etat['clo_paris']}"
 
     csv = sorted(Path(".").glob("phase0-*.csv"))
     phase0 = "NON LANCEE" if not csv else f"{len(csv)} RAPPORT(S)"
@@ -2442,6 +2512,8 @@ def _etat():
     return {"ok": True, **hd.console_etat({
         "us": us, "eu": eu, "n_lignes": n, "max_lignes": 5,
         "n_surveiller": surv, "seance": seance, "ouvert": ouvert,
+        "places_resume": places_resume, "execution": execution,
+        "places_ouvertes": bool(ouvertes),
         "phase0": phase0, "phase0_ok": bool(csv), "verdict": verdict})}
 
 

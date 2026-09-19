@@ -410,9 +410,11 @@ def console_etat(e: dict) -> dict:
              + '</div>')
 
     band = bandeau([
-        ("SEANCE US", e.get("seance", "--"),
-         "pos" if e.get("ouvert") else ""),
-        ("EXECUTION", "21H40 - 21H55", "or"),
+        # Le libelle disait « SEANCE US » et ne parlait que de New York.
+        # La case ouvre maintenant les neuf places, europeennes comprises.
+        ("LES PLACES", e.get("places_resume", e.get("seance", "--")),
+         "pos" if e.get("places_ouvertes") else "", "lesPlaces()"),
+        ("EXECUTION", e.get("execution", "--"), "or", "lesPlaces()"),
         ("POSITIONS", f"{n}/{nmax}", "" if n < nmax else "neg"),
         ("PHASE 0", e.get("phase0", "NON LANCEE"),
          "pos" if e.get("phase0_ok") else "neg", "rapports()"),
