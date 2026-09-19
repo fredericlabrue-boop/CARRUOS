@@ -433,7 +433,8 @@ def main() -> int:
     print("\n  THEMES")
     from . import reglages as _rg
     ATTENDUS = {"carruos", "jarvis", "ultron", "reacteur", "monolithe",
-                "orbite", "nocturne", "cristal", "terminal", "papier"}
+                "orbite", "nocturne", "cristal", "terminal",
+                "matrix", "saiyan", "avengers", "olympe"}
     _v(set(_rg.THEMES) == ATTENDUS,
        f"{len(ATTENDUS)} themes : " + ", ".join(
            _rg.THEMES[k]["nom"] for k in sorted(_rg.THEMES)))
@@ -460,12 +461,21 @@ def main() -> int:
     # Un theme qui change la FORME, pas seulement la couleur : c'est la
     # demande, et sans controle elle se perd au premier ajout.
     avec_forme = [k for k in _rg.THEMES if _rg.THEMES[k].get("forme")]
-    _v(len(avec_forme) >= 6,
+    _v(len(avec_forme) >= 9,
        f"{len(avec_forme)} themes changent la geometrie, pas que la teinte")
     distinctes = {_rg.forme(k)["coin"] + "|" + _rg.forme(k)["rayon"]
                   + "|" + _rg.forme(k)["pad"] for k in _rg.THEMES}
-    _v(len(distinctes) >= 6,
+    _v(len(distinctes) >= 9,
        f"{len(distinctes)} geometries de panneau reellement differentes")
+    # Chaque theme de caractere doit avoir son CSS, pas seulement sa
+    # palette : sans lui, il ne se distingue que par la couleur.
+    sans_css = [k for k in _rg.THEMES
+                if k != "carruos" and f"body.theme-{k}" not in _rg.CSS_THEMES]
+    _v(not sans_css, "chaque theme a son propre CSS de fond et d'hologramme")
+    if sans_css:
+        print(f"          -> sans CSS : {sans_css}")
+    _v("papier" not in _rg.THEMES and "theme-papier" not in _rg.CSS_THEMES,
+       "aucun theme clair : ce n'est pas au gout du proprietaire")
     # Les variables de forme doivent TOUTES sortir dans :root, sinon une
     # regle de base tomberait sur sa valeur de repli sans qu'on le voie.
     racine = _rg.variables(_rg.DEFAUTS)

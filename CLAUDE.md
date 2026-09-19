@@ -129,7 +129,9 @@ jeu de paramètres qui ne l'a pas produit.
 | `calibration.py` | met le critère 4 à l'épreuve sur du bruit pur |
 | `horizon.py` | amplitude par horizon, objectif atteignable, entrée en euros |
 | `strategie.py` | projection de réinvestissement, revue de ligne |
-| `reglages.py` | 4 thèmes, 13 effets visuels débrayables |
+| `reglages.py` | **13 thèmes**, 13 effets visuels débrayables |
+| | un thème porte une `forme` : biseau, arrondi, équerres, densité, matière, typographie. Les valeurs par défaut **sont** l'apparence d'origine, donc un thème qui n'en redéfinit aucune ne change rien |
+| | **aucun thème clair** : ce n'est pas au goût du propriétaire, et `test_pages` le vérifie |
 
 ## Chantiers
 

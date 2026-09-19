@@ -170,26 +170,102 @@ THEMES = {
         },
     },
 
-    # Le seul theme CLAIR. Fond ivoire, texte sombre, filets fins : pour
-    # travailler en plein jour sans se bruler les yeux. C'est le test le
-    # plus severe du systeme de variables — si celui-ci tient, tous
-    # tiennent.
-    "papier": {
-        "nom": "PAPIER",
-        "resume": "clair, ivoire et encre, pour le plein jour",
-        "accent": "#0f6e7a", "marque": "#8a6a3c", "fond": "#f4f1ea",
-        "pos": "#1c7a4f", "neg": "#b03a3a", "holo": "15,110,122",
+    # ------------------------------------------------------------------
+    # Les quatre themes de caractere. Meme exigence que les precedents :
+    # la silhouette change, pas seulement la palette. En noir et blanc,
+    # on doit encore les reconnaitre.
+    # ------------------------------------------------------------------
+
+    # Vert phosphore sur noir absolu, pluie de code en fond. TERMINAL est
+    # utilitaire et serre ; celui-ci est cinematographique — grandes
+    # lettres, halo, colonnes de caracteres. Deux verts, deux intentions.
+    "matrix": {
+        "nom": "MATRIX",
+        "resume": "vert phosphore, pluie de code, lettres larges",
+        "accent": "#00ff62", "marque": "#7dffb0", "fond": "#000300",
+        "pos": "#00ff62", "neg": "#ff3860", "holo": "0,255,98",
         "forme": {
-            "coin": "0px", "rayon": "3px", "equerre": "0",
-            "pad": "18px 20px 15px", "gap": "12px",
-            "bord": "#d6d0c4", "bord_fort": "#b3aa99",
-            "pan_fond": "rgba(255,253,248,.92)",
-            "pan_ombre": "0 1px 3px rgba(60,50,35,.1)",
-            "txt": "#4a453d", "txt_fort": "#171512",
-            "txt_doux": "#3a3630", "txt_mi": "#6a6459",
-            "txt_faible": "#8a8376",
-            "titre_espace": ".26em", "titre_casse": "uppercase",
-            "champ_fond": "#fffdf8",
+            "coin": "0px", "rayon": "0px", "equerre": "0",
+            "pad": "16px 18px 13px", "gap": "8px",
+            "bord": "#0a3b1c", "bord_fort": "#128a44",
+            "pan_fond": "rgba(0,8,3,.86)",
+            "pan_ombre": ("inset 0 0 44px rgba(0,255,98,.07),"
+                          "0 0 18px rgba(0,255,98,.1)"),
+            "txt": "#4fcf84", "txt_fort": "#b6ffd2",
+            "txt_doux": "#77e2a4", "txt_mi": "#43b874",
+            "txt_faible": "#2b7a4c",
+            "titre_espace": ".46em", "titre_casse": "uppercase",
+            "corps_police": "ui-monospace,Consolas,monospace",
+            "champ_fond": "#021208",
+        },
+    },
+
+    # Aura de Super Saiyan : or incandescent sur bleu nuit, eclairs bleus.
+    # Silhouette en pointe — le panneau est entaille en chevron, comme une
+    # decharge. C'est le theme le plus charge des treize, et c'est voulu.
+    "saiyan": {
+        "nom": "SAIYAN",
+        "resume": "aura doree, eclairs bleus, panneaux en chevron",
+        "accent": "#ffd24a", "marque": "#4fb8ff", "fond": "#05070f",
+        "pos": "#5ce8a0", "neg": "#ff5a3c", "holo": "255,210,74",
+        "forme": {
+            "coin": "26px", "rayon": "0px", "equerre": "0",
+            "pad": "20px 22px 16px", "gap": "11px",
+            "bord": "#3d2f0c", "bord_fort": "#a87d1a",
+            "pan_fond": "rgba(10,9,4,.8)",
+            "pan_ombre": ("inset 0 0 54px rgba(255,210,74,.09),"
+                          "0 0 26px rgba(255,210,74,.14)"),
+            "txt": "#c7b482", "txt_fort": "#fff3cf",
+            "txt_doux": "#e4cf94", "txt_mi": "#b39a5e",
+            "txt_faible": "#7d6a3a",
+            "titre_espace": ".3em", "titre_casse": "uppercase",
+            "champ_fond": "#120e04",
+        },
+    },
+
+    # Bleu nuit, rouge et argent. Pas l'atelier de Stark — JARVIS l'occupe
+    # deja — mais l'equipe : industriel, franc, une barre rouge a gauche
+    # de chaque panneau en guise d'insigne.
+    "avengers": {
+        "nom": "AVENGERS",
+        "resume": "bleu nuit et rouge, barre d'insigne a gauche",
+        "accent": "#e23b3b", "marque": "#c8d2e0", "fond": "#060a12",
+        "pos": "#3fd67e", "neg": "#e23b3b", "holo": "226,59,59",
+        "forme": {
+            "coin": "0px", "rayon": "2px", "equerre": "0",
+            "pad": "17px 19px 14px 24px", "gap": "10px",
+            "bord": "#1a2740", "bord_fort": "#31507e",
+            "pan_fond": "rgba(9,14,24,.84)",
+            "pan_ombre": "0 4px 20px rgba(0,0,0,.55)",
+            "txt": "#93a3ba", "txt_fort": "#e8eef7",
+            "txt_doux": "#b4c2d4", "txt_mi": "#8494aa",
+            "txt_faible": "#5d6d85",
+            "titre_espace": ".28em", "titre_casse": "uppercase",
+            "champ_fond": "#0b1220",
+        },
+    },
+
+    # Marbre sombre, bronze et ivoire. Filets doubles comme une frise,
+    # titres en capitales serif, sommets de panneaux arrondis en arc.
+    # Le plus calme des treize.
+    "olympe": {
+        "nom": "OLYMPE",
+        "resume": "marbre sombre et bronze, arcs et frises",
+        "accent": "#c8a35a", "marque": "#e8e2d4", "fond": "#0a0b0d",
+        "pos": "#7fae86", "neg": "#c0685e", "holo": "200,163,90",
+        "forme": {
+            "coin": "0px", "rayon": "16px 16px 2px 2px", "equerre": "0",
+            "pad": "21px 23px 17px", "gap": "13px",
+            "bord": "#2a2822", "bord_fort": "#5d5340",
+            "pan_fond": "rgba(18,18,20,.82)",
+            "pan_ombre": ("inset 0 0 0 1px rgba(200,163,90,.1),"
+                          "0 5px 22px rgba(0,0,0,.5)"),
+            "txt": "#9c968a", "txt_fort": "#efe9db",
+            "txt_doux": "#c5bdab", "txt_mi": "#8e8778",
+            "txt_faible": "#655f53",
+            "titre_police": "Georgia,'Times New Roman',serif",
+            "titre_espace": ".3em", "titre_casse": "uppercase",
+            "champ_fond": "#141412",
         },
     },
 }
@@ -550,43 +626,6 @@ body.theme-terminal .fond-rayon,body.theme-terminal .fond-sol{display:none}
 body.theme-terminal .fond-scan{background:repeating-linear-gradient(180deg,
  transparent 0 2px,rgba(74,222,128,.035) 2px 3px)}
 
-/* --------- PAPIER : le seul theme clair -------------------------- */
-body.theme-papier{background:
- radial-gradient(ellipse 140% 90% at 50% 120%,rgba(15,110,122,.05),
- transparent 66%),var(--fond)}
-body.theme-papier #splash{background:var(--fond)}
-body.theme-papier .hud{background:rgba(255,253,248,.9);
- border-color:var(--bord);clip-path:none;border-radius:3px}
-body.theme-papier .bar{border-color:var(--bord)}
-body.theme-papier .bar h1{color:#3d2f18}
-body.theme-papier .pan h2::after{background:var(--bord)}
-body.theme-papier .majp,body.theme-papier #tiroir{
- background:rgba(255,253,248,.99);border-color:var(--bord)}
-body.theme-papier .majr{color:#171512}
-body.theme-papier .maj{background:rgba(255,253,248,.95);
- border-color:var(--bord-fort);box-shadow:0 2px 8px rgba(60,50,35,.18)}
-body.theme-papier .raf,body.theme-papier button{clip-path:none;
- border-radius:3px;background:#eae5da;border-color:#b3aa99;color:#1f4d54}
-body.theme-papier button:hover,body.theme-papier .raf:hover{
- background:#ded8ca}
-body.theme-papier input{background:var(--champ-fond);
- border-color:var(--bord-fort);color:#171512}
-body.theme-papier th{color:#6a6459}
-body.theme-papier td{border-color:var(--bord);color:#2b2822}
-body.theme-papier .lig{clip-path:none;border-radius:3px;
- background:rgba(255,253,248,.7)}
-body.theme-papier .rail{background:#e7e2d6}
-body.theme-papier .rail .t{background:#cdc6b6}
-body.theme-papier .trajet{background:rgba(15,110,122,.05)}
-body.theme-papier .etat{background:rgba(15,110,122,.05)}
-body.theme-papier .chiffres .c{background:rgba(15,110,122,.04)}
-body.theme-papier .sortie.gr{background:rgba(15,110,122,.04)}
-/* Sur fond clair, un hologramme lumineux ne se voit pas : on l'eteint
-   plutot que de laisser des taches pales sans signification. */
-body.theme-papier .fond-cone,body.theme-papier .fond-socle,
-body.theme-papier .fond-lueur,body.theme-papier .fond-scan,
-body.theme-papier .fond-rayon,body.theme-papier .fond-sol{display:none}
-body.theme-papier .fond-cerf{opacity:.07;filter:invert(1)}
 
 /* ================= JARVIS =========================================
    Projection bleu clair et or. Panneaux plus translucides, traits fins,
@@ -733,14 +772,156 @@ body.theme-reacteur .bandeau{border-color:#0a4f77}
 .themes{display:flex;flex-direction:column;gap:6px}
 .themes button{text-align:left;padding:9px 11px;background:#121a24;
  border:1px solid #223044;color:var(--txt);border-radius:7px;cursor:pointer;
- font-size:12px;line-height:1.45}
+ font-size:12px;line-height:1.45;width:100%;min-width:0;
+ overflow:hidden}
 .themes button .n{display:block;font:500 11px ui-monospace,monospace;
  letter-spacing:.16em;color:#cbd5e1}
-.themes button .r{display:block;font-size:10.5px;color:var(--txt-mi);margin-top:2px}
+/* Le resume debordait du bouton et se coupait en plein mot : « tout en
+   courbes, bleu profond, lettr ». Il passe a la ligne au lieu d'etre
+   tronque — treize themes valent treize descriptions lisibles. */
+.themes button .r{display:block;font-size:10.5px;color:var(--txt-mi);
+ margin-top:2px;white-space:normal;overflow-wrap:anywhere;line-height:1.4}
 .themes button.sel{border-color:var(--acc)}
 .themes button.sel .n{color:var(--acc)}
 .themes button i{display:inline-block;width:9px;height:9px;border-radius:50%;
  margin-right:7px;vertical-align:baseline}
+
+/* ===================================================================
+   LES QUATRE THEMES DE CARACTERE
+   =================================================================== */
+
+/* --------- MATRIX : pluie de code, vert phosphore ----------------- */
+/* La pluie est FIXE, pas animee : un theme n'ajoute jamais d'animation
+   (test_pages le verifie). Des colonnes de densites differentes suffisent
+   a donner l'idee sans faire ramer la page. */
+body.theme-matrix{background:
+ repeating-linear-gradient(90deg,
+  rgba(0,255,98,.045) 0 1px,transparent 1px 3px,
+  rgba(0,255,98,.02) 3px 4px,transparent 4px 11px),
+ linear-gradient(180deg,rgba(0,255,98,.06),transparent 42%),
+ radial-gradient(ellipse 120% 80% at 50% 118%,rgba(0,255,98,.1),
+  transparent 62%),var(--fond)}
+body.theme-matrix .hud{background:rgba(0,8,3,.9);border-color:var(--bord);
+ clip-path:none;border-radius:0}
+body.theme-matrix .bar{border-color:var(--bord)}
+body.theme-matrix .bar h1{letter-spacing:.5em;color:var(--acc);
+ text-shadow:0 0 12px rgba(0,255,98,.5)}
+body.theme-matrix .hud-id .tk{text-shadow:0 0 18px rgba(0,255,98,.45)}
+body.theme-matrix .pan h2::after{background:linear-gradient(90deg,
+ rgba(0,255,98,.5),transparent)}
+body.theme-matrix .majp,body.theme-matrix #tiroir{
+ background:rgba(0,5,2,.99);border-color:var(--bord)}
+body.theme-matrix .raf,body.theme-matrix button{clip-path:none;
+ border-radius:0;background:#021a0c;border-color:#128a44}
+body.theme-matrix .lig{clip-path:none;border-radius:0}
+body.theme-matrix .rail{background:#021208}
+body.theme-matrix .fond-cone{background:linear-gradient(0deg,
+ rgba(0,255,98,.26),rgba(0,255,98,0) 82%)}
+body.theme-matrix .fond-socle{background:radial-gradient(ellipse at center,
+ rgba(182,255,210,.8) 0%,rgba(0,255,98,.3) 36%,transparent 68%)}
+body.theme-matrix .fond-scan{background:repeating-linear-gradient(180deg,
+ transparent 0 2px,rgba(0,255,98,.06) 2px 3px)}
+body.theme-matrix .fond-cerf{opacity:.5}
+
+/* --------- SAIYAN : aura doree, panneaux en chevron --------------- */
+/* Le chevron ne peut pas venir d'une variable : la variable donne la
+   TAILLE de l'entaille, le polygone en donne la forme. */
+body.theme-saiyan{background:
+ radial-gradient(ellipse 110% 70% at 50% 116%,rgba(255,210,74,.2),
+  transparent 58%),
+ radial-gradient(ellipse 80% 55% at 50% -8%,rgba(79,184,255,.1),
+  transparent 60%),var(--fond)}
+body.theme-saiyan .pan,body.theme-saiyan .hud{
+ clip-path:polygon(0 0,calc(100% - var(--coin)) 0,100% var(--coin),
+ 100% 100%,var(--coin) 100%,0 calc(100% - var(--coin)))}
+body.theme-saiyan .hud{background:rgba(10,9,4,.82);border-color:var(--bord)}
+body.theme-saiyan .bar{border-color:var(--bord)}
+body.theme-saiyan .bar h1{color:var(--acc);
+ text-shadow:0 0 16px rgba(255,210,74,.55)}
+body.theme-saiyan .hud-id .tk{text-shadow:0 0 22px rgba(255,210,74,.5)}
+body.theme-saiyan .pan h2{color:#d8b45e}
+body.theme-saiyan .pan h2::after{background:linear-gradient(90deg,
+ rgba(255,210,74,.55),rgba(79,184,255,.25),transparent)}
+body.theme-saiyan .majp,body.theme-saiyan #tiroir{
+ background:rgba(8,7,3,.98);border-color:var(--bord)}
+body.theme-saiyan .raf,body.theme-saiyan button{background:#1c1505;
+ border-color:#a87d1a;
+ clip-path:polygon(0 0,calc(100% - 9px) 0,100% 9px,100% 100%,9px 100%,
+ 0 calc(100% - 9px))}
+body.theme-saiyan .lig{clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,
+ 100% 100%,14px 100%,0 calc(100% - 14px))}
+body.theme-saiyan .rail{background:#120e04}
+body.theme-saiyan .rail .t i{box-shadow:0 0 8px rgba(255,210,74,.6)}
+body.theme-saiyan .fond-cone{background:linear-gradient(0deg,
+ rgba(255,210,74,.32),rgba(79,184,255,.08) 38%,rgba(255,210,74,0) 82%)}
+body.theme-saiyan .fond-socle{background:radial-gradient(ellipse at center,
+ rgba(255,246,210,.95) 0%,rgba(255,210,74,.42) 34%,transparent 68%)}
+body.theme-saiyan .fond-lueur{background:radial-gradient(circle,
+ rgba(255,210,74,.2) 0%,rgba(79,184,255,.06) 40%,transparent 66%)}
+body.theme-saiyan .fond-scan{display:none}
+body.theme-saiyan .fond-cerf{opacity:.78}
+
+/* --------- AVENGERS : l'insigne rouge a gauche -------------------- */
+body.theme-avengers{background:
+ radial-gradient(ellipse 125% 82% at 50% 118%,rgba(226,59,59,.1),
+  transparent 60%),
+ radial-gradient(ellipse 85% 55% at 50% 0%,rgba(49,80,126,.12),
+  transparent 62%),var(--fond)}
+/* La barre d'insigne : c'est la signature du theme, et elle tient dans
+   une bordure gauche epaisse — d'ou le padding gauche plus large. */
+body.theme-avengers .pan{border-left:4px solid var(--acc);clip-path:none}
+body.theme-avengers .hud{background:rgba(9,14,24,.86);
+ border-color:var(--bord);border-left:4px solid var(--acc);
+ clip-path:none;border-radius:2px}
+body.theme-avengers .bar{border-color:var(--bord)}
+body.theme-avengers .bar h1{color:var(--marque);letter-spacing:.34em}
+body.theme-avengers .pan h2{color:#8ea3c0}
+body.theme-avengers .pan h2::after{background:linear-gradient(90deg,
+ rgba(226,59,59,.5),transparent)}
+body.theme-avengers .majp,body.theme-avengers #tiroir{
+ background:rgba(6,10,18,.98);border-color:var(--bord)}
+body.theme-avengers .raf,body.theme-avengers button{clip-path:none;
+ border-radius:2px;background:#14203a;border-color:#31507e}
+body.theme-avengers .lig{clip-path:none;border-radius:2px;
+ border-left:3px solid rgba(226,59,59,.5)}
+body.theme-avengers .rail{background:#0b1220}
+body.theme-avengers .fond-cone{background:linear-gradient(0deg,
+ rgba(226,59,59,.2),rgba(49,80,126,.08) 40%,rgba(226,59,59,0) 82%)}
+body.theme-avengers .fond-socle{background:radial-gradient(ellipse at center,
+ rgba(232,238,247,.85) 0%,rgba(226,59,59,.3) 36%,transparent 68%)}
+body.theme-avengers .fond-scan{display:none}
+body.theme-avengers .fond-cerf{opacity:.55}
+
+/* --------- OLYMPE : arcs, frises, bronze -------------------------- */
+body.theme-olympe{background:
+ radial-gradient(ellipse 130% 88% at 50% 120%,rgba(200,163,90,.09),
+  transparent 62%),
+ repeating-linear-gradient(90deg,transparent 0 118px,
+  rgba(200,163,90,.022) 118px 120px),var(--fond)}
+body.theme-olympe .hud{background:rgba(18,18,20,.84);
+ border-color:var(--bord);clip-path:none;border-radius:16px 16px 2px 2px}
+body.theme-olympe .bar{border-color:var(--bord)}
+body.theme-olympe .bar h1{font-family:Georgia,'Times New Roman',serif;
+ letter-spacing:.36em;color:var(--marque)}
+body.theme-olympe .hud-id .tk{font-family:Georgia,'Times New Roman',serif}
+/* Frise : un double filet sous chaque titre, au lieu du degrade. */
+body.theme-olympe .pan h2::after{background:none;
+ border-top:1px solid rgba(200,163,90,.34);
+ border-bottom:1px solid rgba(200,163,90,.16);height:3px}
+body.theme-olympe .majp,body.theme-olympe #tiroir{
+ background:rgba(13,13,15,.99);border-color:var(--bord);
+ border-radius:14px 14px 2px 2px}
+body.theme-olympe .raf,body.theme-olympe button{clip-path:none;
+ border-radius:9px 9px 2px 2px;background:#1e1c16;border-color:#5d5340}
+body.theme-olympe input{border-radius:9px 9px 2px 2px}
+body.theme-olympe .lig{clip-path:none;border-radius:12px 12px 2px 2px}
+body.theme-olympe .rail{background:#141412;border-radius:2px}
+body.theme-olympe .fond-cone{background:linear-gradient(0deg,
+ rgba(200,163,90,.17),rgba(200,163,90,0) 80%)}
+body.theme-olympe .fond-socle{background:radial-gradient(ellipse at center,
+ rgba(239,233,219,.72) 0%,rgba(200,163,90,.24) 36%,transparent 70%)}
+body.theme-olympe .fond-scan{display:none}
+body.theme-olympe .fond-cerf{opacity:.42}
 """
 
 
