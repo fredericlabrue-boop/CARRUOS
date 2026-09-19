@@ -115,7 +115,9 @@ jeu de paramètres qui ne l'a pas produit.
 | Fichier | Rôle |
 |---|---|
 | `app.py` | serveur HTTP local, page d'accueil, routes API, majordome |
-| `chart.py` | page graphique, 4 colonnes, cône de dispersion |
+| `chart.py` | page graphique, 4 colonnes, cône de dispersion, **6 unités de temps** dont 5 ANS |
+| | une unité est identifiée par sa **clé**, jamais par sa règle de rééchantillonnage : 5 ANS et 1 SEMAINE partagent la taille de bougie, et la déduire de la règle donnait à la seconde les longueurs de la première |
+| | la fenêtre affichée sous chaque onglet est **calculée sur les vraies dates** : une constante mentirait dès que l'historique du titre est plus court |
 | | `chart.source_trace()` choisit **côté serveur** où prendre la bibliothèque de tracé : la copie locale (`equity_scanner/statique/lightweight-charts.js`) si elle existe, sinon le CDN. **Une seule balise, bloquante.** Jamais de repli `onerror` : il ajouterait le script de façon asynchrone, le code de la page tournerait avant, et la bibliothèque serait toujours absente |
 | `hud.py` | éléments visuels : cerf, cadrans, rails, radar |
 | `indicators.py` | indicateurs — **PERIODES gelées** |
@@ -141,6 +143,7 @@ jeu de paramètres qui ne l'a pas produit.
 | `horizon.py` | amplitude par horizon, objectif atteignable, entrée en euros |
 | `seance.py` | horaires des 9 places, fériés **calculés**, heure d'été suivie |
 | `strategie.py` | projection de réinvestissement, revue de ligne |
+| | la projection sépare **ce que vous versez** de **ce que le fonds capitalise tout seul**, année par année, et donne l'année où le second dépasse le premier |
 | `reglages.py` | **13 thèmes**, 13 effets visuels débrayables |
 | | un thème porte une `forme` : biseau, arrondi, équerres, densité, matière, typographie. Les valeurs par défaut **sont** l'apparence d'origine, donc un thème qui n'en redéfinit aucune ne change rien |
 | | **aucun thème clair** : ce n'est pas au goût du propriétaire, et `test_pages` le vérifie |

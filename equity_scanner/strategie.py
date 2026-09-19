@@ -115,6 +115,13 @@ def projette(capital: float, taux_annuel: float, annees: int = 15,
             "verse": round(verse, 2),
             "capitalisant_brut": round(cap_a, 2),
             "capitalisant_net": round(net_a, 2),
+            # Ce que le fonds a produit TOUT SEUL : le capital moins ce
+            # qui est sorti de la poche. C'est la seule facon de voir la
+            # capitalisation faire son travail — le capital final tout nu
+            # melange l'effort d'epargne et le rendement.
+            "genere": round(net_a - verse, 2),
+            "part_generee": (round((net_a - verse) / net_a * 100, 2)
+                             if net_a > 0 else 0.0),
             "rotation_net": round(cap_b, 2),
             "retire_capital": round(cap_c, 2),
             "retire_cumule": round(retire_cumule, 2),
@@ -135,6 +142,12 @@ def projette(capital: float, taux_annuel: float, annees: int = 15,
         "lignes": lignes,
         "verse_total": fin["verse"],
         "capitalisant_net": fin["capitalisant_net"],
+        "genere_total": fin["genere"],
+        "part_generee": fin["part_generee"],
+        # L'annee ou la capitalisation depasse l'epargne : le moment ou
+        # le fonds rapporte plus que ce que vous y mettez.
+        "an_bascule": next((l["an"] for l in lignes
+                            if l["genere"] >= l["verse"]), None),
         "rotation_net": fin["rotation_net"],
         "retire_total": fin["retire_total"],
         "ecart_capitalisant_rotation": round(ecart, 2),

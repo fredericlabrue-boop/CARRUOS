@@ -60,11 +60,42 @@ def source_trace() -> str:
     return CDN
 CDN = "https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"
 
+# (cle, libelle, regle de reechantillonnage, nombre de barres affichees)
+#
+# Le libelle dit la TAILLE DE LA BOUGIE, pas la fenetre — sauf 5 ANS, qui
+# dit la fenetre. C'est la lecture naturelle, et elle manquait : « 1 AN »
+# se lit spontanement comme « un an d'historique » alors que ce sont des
+# bougies annuelles. `FENETRE` donne la couverture reelle de chaque
+# onglet, affichee a cote du libelle pour lever l'ambiguite.
 UNITES = [("jour", "1 JOUR", None, 420),
           ("semaine", "1 SEMAINE", "W-FRI", 300),
+          ("cinq_ans", "5 ANS", "W-FRI", 261),
           ("mois", "1 MOIS", "ME", 180),
           ("trimestre", "1 TRIMESTRE", "QE", 80),
           ("an", "1 AN", "YE", 30)]
+
+def fenetre_reelle(bloc) -> str:
+    """La periode REELLEMENT couverte par un onglet, calculee sur ses
+    propres dates.
+
+    Une constante aurait menti des que l'historique du titre est plus
+    court que la fenetre visee : « 30 ans » sous un onglet qui n'en
+    montre que dix-neuf, ou sous un ETF cree en 2019.
+    """
+    if not bloc or "ohlc" not in bloc or len(bloc["ohlc"]) < 2:
+        return ""
+    o = bloc["ohlc"]
+    try:
+        deb = pd.Timestamp(o[0]["time"])
+        fin = pd.Timestamp(o[-1]["time"])
+    except Exception:
+        return ""
+    jours = (fin - deb).days
+    if jours < 62:
+        return f"{max(1, jours // 7)} sem."
+    if jours < 400:
+        return f"{round(jours / 30.44)} mois"
+    return f"{jours / 365.25:.0f} ans"
 
 AGG = {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}
 
@@ -86,7 +117,7 @@ AGG = {"open": "first", "high": "max", "low": "min", "close": "last", "volume": 
 # plutot que traces a tort.
 # ---------------------------------------------------------------------
 
-BARRES_PAR_UNITE = {"jour": 1, "semaine": 5, "mois": 21,
+BARRES_PAR_UNITE = {"jour": 1, "semaine": 5, "cinq_ans": 5, "mois": 21,
                     "trimestre": 63, "an": 252}
 PLANCHER = 5
 
@@ -376,7 +407,8 @@ def _jauges(d, bench):
     }
 
 
-def _analyse(brut, bench_brut, regle, nb, ticker, sleeve, ccy, pre=None):
+def _analyse(brut, bench_brut, regle, nb, ticker, sleeve, ccy, pre=None,
+             cle=None):
     """Une unite de temps.
 
     `pre` permet de fournir le couple (titre, indice) deja enrichi. La
@@ -385,8 +417,13 @@ def _analyse(brut, bench_brut, regle, nb, ticker, sleeve, ccy, pre=None):
     Sur douze appels a `enrich` par page, deux etaient des doublons
     exacts.
     """
-    # cle de l'unite : elle donne les longueurs converties
-    _cle = next((k for k, _, r, _ in UNITES if r == regle), "jour")
+    # La cle est passee par l'appelant. La deduire de `regle` marchait
+    # tant qu'une regle de reechantillonnage n'appartenait qu'a une seule
+    # unite ; des que deux unites partagent la meme taille de bougie —
+    # 5 ANS et 1 SEMAINE sont toutes deux hebdomadaires — la recherche
+    # rendait toujours la premiere, et la seconde heritait des mauvaises
+    # longueurs.
+    _cle = cle or next((k for k, _, r, _ in UNITES if r == regle), "jour")
     _pe = periodes_unite(_cle)
     if pre is not None:
         d, b = pre
@@ -581,8 +618,12 @@ body{background:var(--fond);color:var(--txt);
 .hd .mt{font-size:12.5px;color:#576a83}
 .tabs{display:flex;gap:4px;background:#0d1219;border:1px solid #1a2330;
  border-radius:11px;padding:4px;margin-left:auto;margin-right:46px}
-.tabs button{background:none;border:0;color:#64748b;font:500 12.5px inherit;letter-spacing:.12em;padding:9px 20px;border-radius:8px;cursor:pointer;
+.tabs button{background:none;border:0;color:#64748b;font:500 12.5px inherit;
+ letter-spacing:.12em;padding:7px 16px 5px;border-radius:8px;cursor:pointer;
+ display:flex;flex-direction:column;align-items:center;gap:1px;
  transition:background-color .13s,color .13s}
+.tabs button i{font:400 8.5px ui-monospace,monospace;letter-spacing:.1em;
+ font-style:normal;opacity:.6}
 .tabs button:hover{color:#cbd5e1}
 .tabs button.on{background:#1b2635;color:#f1f5f9}
 .grid{display:grid;grid-template-columns:1fr 344px;gap:14px;align-items:start}
@@ -1029,7 +1070,7 @@ def build_html(brut, ticker, bench_brut, sleeve=8000.0, ccy="",
             # arguments : on la repasse au lieu de la recalculer.
             deja = (dj, bj) if regle is None else None
             data[cle] = _analyse(brut, bench_brut, regle, nb, ticker,
-                                 sleeve, ccy, pre=deja)
+                                 sleeve, ccy, pre=deja, cle=cle)
         except Exception:
             data[cle] = None
 
@@ -1038,7 +1079,13 @@ def build_html(brut, ticker, bench_brut, sleeve=8000.0, ccy="",
     morceaux = []
     for k, lab, _r, _n in UNITES:
         actif = ' class="on"' if k == "jour" else ""
-        morceaux.append(f'<button data-u="{k}"{actif}>{e(lab)}</button>')
+        # La fenetre couverte, en petit sous le libelle : « 1 AN » se lit
+        # spontanement comme « un an d'historique » alors que ce sont des
+        # bougies annuelles sur trente ans.
+        fen = fenetre_reelle(data.get(k))
+        morceaux.append(f'<button data-u="{k}"{actif} '
+                        f'title="couvre {fen}">'
+                        f'{e(lab)}<i>{e(fen)}</i></button>')
     if jauges:
         vj = (data.get("jour") or {}).get("verdict", {})
         n_ko = len([b for b in (data.get("jour") or {}).get("blocs", [])

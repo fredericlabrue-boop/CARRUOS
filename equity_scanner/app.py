@@ -1909,12 +1909,32 @@ async function proj(){
    return;
   }
   var h = j.hypothese, jal = [1,3,5,10,15,20];
-  var t = '<table class="tproj"><tr><th>AN</th><th>VERSE</th>'
-        + '<th>CAPITALISANT</th><th>ROTATION</th><th>GAINS RETIRES</th></tr>';
+  // Ce que VOUS versez et ce que le fonds produit TOUT SEUL, en deux
+  // colonnes separees : le capital final tout nu melange l'effort
+  // d'epargne et le rendement, et on ne voit pas la capitalisation
+  // prendre le relais.
+  var t = '<div class="etat"><div class="gros">'
+        + eur(j.genere_total) + '</div><div class="sous">'
+        + 'C\'est ce que le fonds capitalise <b>tout seul</b> en '
+        + h.annees + ' ans, en plus des <b>' + eur(j.verse_total)
+        + '</b> sortis de votre poche. Soit <b>'
+        + j.part_generee.toFixed(0) + ' %</b> du capital final.'
+        + (j.an_bascule
+           ? '<br>A partir de l\'annee <b>' + j.an_bascule + '</b>, le '
+             + 'fonds a genere plus que ce que vous y avez mis.'
+           : '<br>Sur cet horizon, vos versements restent superieurs a '
+             + 'ce que le fonds genere.')
+        + '</div></div>';
+  t += '<table class="tproj"><tr><th>AN</th><th>VERSE</th>'
+     + '<th>GENERE SEUL</th><th>CAPITALISANT</th><th>ROTATION</th>'
+     + '<th>GAINS RETIRES</th></tr>';
   j.lignes.forEach(function(x){
    if(jal.indexOf(x.an) < 0 && x.an !== h.annees) return;
    t += '<tr' + (x.an===h.annees ? ' class="fort"' : '') + '><td>' + x.an
-      + '</td><td>' + eur(x.verse) + '</td><td>' + eur(x.capitalisant_net)
+      + '</td><td>' + eur(x.verse) + '</td><td class="pos">'
+      + eur(x.genere) + ' <span style="opacity:.55">('
+      + x.part_generee.toFixed(0) + ' %)</span></td><td>'
+      + eur(x.capitalisant_net)
       + '</td><td>' + eur(x.rotation_net) + '</td><td>'
       + eur(x.retire_total) + '</td></tr>';
   });

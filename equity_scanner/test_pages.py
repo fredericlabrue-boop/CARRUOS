@@ -463,6 +463,41 @@ def main() -> int:
     _v(".bruce_cache/" in gi,
        ".bruce_cache est ignore : la cle ne peut pas etre commitee")
 
+    print("\n  ONGLET 5 ANS ET FENETRES HONNETES")
+    from . import chart as _ch2
+    cles = [u[0] for u in _ch2.UNITES]
+    _v("cinq_ans" in cles, "l'onglet 5 ANS existe")
+    _v(len(set(cles)) == len(cles), "aucune cle d'unite en double")
+    # Deux unites partagent la meme regle de reechantillonnage : la cle
+    # doit etre passee explicitement, sinon la seconde herite des
+    # longueurs de la premiere.
+    regles = [u[2] for u in _ch2.UNITES]
+    _v(regles.count("W-FRI") == 2,
+       "5 ANS et 1 SEMAINE partagent la taille de bougie")
+    import inspect as _i
+    src = _i.getsource(_ch2._analyse)
+    _v("cle or next(" in src,
+       "l'unite est identifiee par sa CLE, pas par sa regle")
+    _v("cle=cle" in _i.getsource(_ch2.build_html),
+       "et la cle est bien transmise a chaque appel")
+    g2 = pages["graphique"]
+    _v(g2.count('data-u="') == len(cles),
+       f"les {len(cles)} onglets sont dans la page")
+    _v("5 ANS" in g2, "le libelle 5 ANS est affiche")
+    # La fenetre couverte est CALCULEE : une constante mentirait des que
+    # l'historique du titre est plus court.
+    _v("def fenetre_reelle" in _i.getsource(_ch2),
+       "la fenetre affichee est calculee sur les vraies dates")
+
+    print("\n  VERSEMENTS CONTRE CAPITALISATION")
+    jstrat = _scripts(pages["strategie"])
+    _v("GENERE SEUL" in jstrat,
+       "la colonne separe l'epargne du rendement")
+    _v("tout seul" in jstrat and "sortis de votre poche" in jstrat,
+       "le montant genere par le fonds est annonce en clair")
+    _v("an_bascule" in jstrat,
+       "l'annee ou le fonds depasse l'epargne est affichee")
+
     print("\n  DEVISE ET COHERENCE DU PRIX D'ENTREE")
     _v("function mt(" in ja and "SYMBOLE" in ja,
        "les montants portent la devise du titre, pas l'euro par defaut")

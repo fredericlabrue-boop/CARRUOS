@@ -521,6 +521,59 @@ def test_marqueurs() -> None:
            for x in m))
 
 
+def test_projection_capitalisation() -> None:
+    """Ce que l'epargne apporte, et ce que la capitalisation ajoute.
+
+    Le capital final tout nu melange les deux : on ne voit pas le fonds
+    prendre le relais. La separation est de l'arithmetique exacte, donc
+    elle se verifie exactement.
+    """
+    from . import strategie as sg
+
+    print("\n— Versements contre capitalisation —")
+    p = sg.projette(capital=1000, taux_annuel=0.07, annees=25,
+                    versement_mensuel=200)
+    ok("verse = capital de depart + 25 ans x 12 x 200",
+       abs(p["verse_total"] - (1000 + 25 * 12 * 200)) < 0.01)
+    ok("genere = capital final - verse, exactement",
+       abs(p["genere_total"]
+           - (p["capitalisant_net"] - p["verse_total"])) < 0.01)
+    ok("la part generee est coherente avec les deux montants",
+       abs(p["part_generee"]
+           - p["genere_total"] / p["capitalisant_net"] * 100) < 0.01)
+    ok("chaque ligne porte sa propre separation",
+       all(abs(l["genere"] - (l["capitalisant_net"] - l["verse"])) < 0.01
+           for l in p["lignes"]))
+    ok("la part generee croit avec le temps",
+       p["lignes"][-1]["part_generee"] > p["lignes"][0]["part_generee"])
+    ok(f"l'annee de bascule est reelle ({p['an_bascule']})",
+       p["an_bascule"] is not None
+       and p["lignes"][p["an_bascule"] - 1]["genere"]
+       >= p["lignes"][p["an_bascule"] - 1]["verse"])
+    ok("et c'est la PREMIERE annee ou la bascule a lieu",
+       all(l["genere"] < l["verse"]
+           for l in p["lignes"][:p["an_bascule"] - 1]))
+
+    # Sans rendement, rien n'est genere : la separation doit le dire.
+    z = sg.projette(capital=1000, taux_annuel=0.0, annees=10,
+                    versement_mensuel=100)
+    ok("a rendement nul, le fonds ne genere rien",
+       abs(z["genere_total"]) < 0.01 and z["an_bascule"] is None)
+
+    # Sans versement, tout ce qui depasse le capital est genere.
+    n = sg.projette(capital=10000, taux_annuel=0.06, annees=10)
+    ok("sans versement, verse reste le capital de depart",
+       abs(n["verse_total"] - 10000) < 0.01)
+    # A 6 % net d'impot, doubler prend seize ans : sur dix ans la
+    # bascule n'a PAS lieu, et pretendre le contraire serait une
+    # attente fausse — c'est ce que ce test disait au depart.
+    ok("a 6 % sur dix ans, les gains ne depassent pas encore la mise",
+       n["an_bascule"] is None and n["genere_total"] < n["verse_total"])
+    long = sg.projette(capital=10000, taux_annuel=0.06, annees=30)
+    ok(f"sur trente ans, la bascule a lieu (annee {long['an_bascule']})",
+       long["an_bascule"] == 16)
+
+
 def test_seance() -> None:
     """Horaires des places. Verifies sur des dates dont on connait la
     reponse : l'heure d'ete et les jours feries sont exactement la ou
@@ -1538,6 +1591,7 @@ def main() -> int:
     test_veto_resultats()
     test_univers_figes()
     test_marqueurs()
+    test_projection_capitalisation()
     test_seance()
     test_horizon()
     test_cle_av()
