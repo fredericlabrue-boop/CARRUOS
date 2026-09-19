@@ -478,6 +478,102 @@ def test_phase0() -> None:
        leve)
 
 
+def test_horizon() -> None:
+    """Amplitude par horizon et objectifs atteignables.
+
+    Verifie sur des series FABRIQUEES dont la reponse est connue d'avance :
+    une hausse reguliere, une dent de scie, une serie plate. Un module qui
+    rend des pourcentages plausibles sur du bruit peut etre faux ; sur ces
+    trois-la, il ne peut pas l'etre sans que ca se voie.
+    """
+    from . import horizon as hz
+
+    print("\n— Amplitude par horizon —")
+    n = 400
+    px = 100.0 * 1.01 ** np.arange(n)          # +1 % par seance, sans bruit
+    d = pd.DataFrame({"close": px},
+                     index=pd.bdate_range("2020-01-02", periods=n))
+    a = {x["nom"]: x for x in hz.amplitude(d)}
+    ok("+1 %/seance : l'amplitude a 1 jour vaut 1,000 %",
+       abs(a["1 jour"]["typique"] - 1.0) < 1e-6)
+    ok("a 1 semaine elle vaut 1,01^5 - 1 = 5,101 %",
+       abs(a["1 semaine"]["typique"] - (1.01 ** 5 - 1) * 100) < 1e-6)
+    ok("a 1 mois elle vaut 1,01^21 - 1 = 23,239 %",
+       abs(a["1 mois"]["typique"] - (1.01 ** 21 - 1) * 100) < 1e-6)
+    ok("les fenetres independantes sont les fenetres divisees par l'horizon",
+       a["1 mois"]["independantes"] == a["1 mois"]["fenetres"] // 21)
+    ok("une fenetre qui se chevauche ne compte pas pour une observation",
+       a["1 mois"]["independantes"] < a["1 mois"]["fenetres"] / 10)
+
+    plat = pd.DataFrame({"close": np.full(400, 50.0)},
+                        index=pd.bdate_range("2020-01-02", periods=400))
+    ap = {x["nom"]: x for x in hz.amplitude(plat)}
+    ok("une serie plate a une amplitude nulle, pas un petit chiffre",
+       ap["1 mois"]["typique"] == 0.0)
+
+    court = pd.DataFrame({"close": np.arange(50, dtype=float) + 100},
+                         index=pd.bdate_range("2020-01-02", periods=50))
+    ok("un historique trop court ne rend rien plutot qu'un chiffre",
+       hz.amplitude(court) == [] and hz.atteinte(court) == [])
+
+    print("\n— Objectif atteignable —")
+    r = {x["cible"]: x for x in hz.atteinte(d, (2.0, 5.0, 10.0), seances=5)}
+    ok("+2 % est touche par toutes les fenetres", r[2.0]["part"] == 1.0)
+    ok("il l'est en 2 seances (1,01^2 = +2,01 %)",
+       r[2.0]["seances_medianes"] == 2.0)
+    ok("+5 % est touche en 5 seances (1,01^5 = +5,10 %)",
+       r[5.0]["part"] == 1.0 and r[5.0]["seances_medianes"] == 5.0)
+    ok("+10 % n'est jamais touche en 5 seances",
+       r[10.0]["part"] == 0.0 and r[10.0]["seances_medianes"] is None)
+    ok("sur une hausse qui ne se retourne pas, rien n'est rendu",
+       r[5.0]["part_rendue"] == 0.0)
+
+    # Dent de scie : +10 % en 5 seances, puis retour a 100. Tout est rendu.
+    cycle = np.concatenate([np.linspace(100, 110, 6)[1:],
+                            np.linspace(110, 100, 6)[1:]])
+    dents = pd.DataFrame({"close": np.tile(cycle, 40)},
+                         index=pd.bdate_range("2020-01-02", periods=400))
+    rs = {x["cible"]: x for x in hz.atteinte(dents, (5.0,), seances=10)}
+    ok("un titre qui revient toujours a son point de depart rend tout",
+       rs[5.0]["part_rendue"] == 1.0)
+    ok("et il touche quand meme son objectif la moitie du temps",
+       0.3 < rs[5.0]["part"] < 0.7)
+
+    print("\n— L'entree en euros : que de l'arithmetique —")
+    e = hz.entree(prix=100.0, stop=95.0, sleeve=10_000.0)
+    ok("1 % de 10 000 / 5 de risque = 20 titres", e["titres"] == 20)
+    ok("le risque en euros vaut bien 1 % du sleeve",
+       abs(e["risque_eur"] - 100.0) < 1e-9)
+    ok("un R vaut le montant risque", e["euro_par_R"] == e["risque_eur"])
+    ok("un R net vaut 70 % du brut, PFU deduit",
+       abs(e["euro_par_R_net"] - 70.0) < 1e-9)
+    ok("le point mort est au-dessus du prix d'entree",
+       e["point_mort_prix"] > e["prix"])
+    serre = hz.entree(prix=100.0, stop=99.5, sleeve=10_000.0)
+    ok("un stop serre est plafonne par le poids maximum",
+       serre["plafonne"] and serre["titres"] == 25)
+    ok("le plafond tient : 25 titres a 100 = 25 % de 10 000",
+       abs(serre["poids"] - 0.25) < 1e-9)
+    ok("un stop au-dessus du prix est refuse, pas devine",
+       not hz.entree(prix=100.0, stop=101.0, sleeve=10_000.0)["ok"])
+
+    print("\n— Le gain espere refuse de s'inventer —")
+    g = hz.gain_espere(e, ev_R=None, n_trades=0, validee=False)
+    ok("sans hypothese validee, le gain espere n'est pas chiffrable",
+       not g["chiffrable"])
+    ok("et il le dit au lieu d'afficher zero euro",
+       "avantage demontre" in g["pourquoi"])
+    ok("une esperance positive ne suffit pas si la Phase 0 a dit non",
+       not hz.gain_espere(e, ev_R=0.4, n_trades=500,
+                          validee=False)["chiffrable"])
+    g2 = hz.gain_espere(e, ev_R=0.2, n_trades=300, validee=True)
+    ok("une hypothese validee donne 0,2 R x 100 EUR = 20 EUR",
+       g2["chiffrable"] and abs(g2["euros_par_trade"] - 20.0) < 1e-9)
+    ok("le net retranche l'impot", abs(g2["euros_par_trade_net"] - 14.0) < 1e-9)
+    ok("le nombre de trades accompagne toujours la moyenne",
+       "300 trades" in g2["avertissement"])
+
+
 def test_cle_av() -> None:
     """La cle Alpha Vantage doit survivre a une mise a jour.
 
@@ -1258,6 +1354,7 @@ def main() -> int:
     test_resolve_et_app()
     test_veto_resultats()
     test_univers_figes()
+    test_horizon()
     test_cle_av()
 
     print()
