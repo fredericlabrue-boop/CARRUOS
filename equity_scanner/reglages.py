@@ -943,9 +943,10 @@ TIROIR_CSS = """
 .opt{display:flex;justify-content:space-between;align-items:center;
  font-size:12.5px;color:var(--txt);padding:5px 0;cursor:pointer}
 .sw{width:34px;height:18px;border-radius:10px;background:#1c2635;position:relative;
- flex:none;transition:.18s}
+ flex:none;transition:background-color .18s,border-color .18s}
 .sw::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;
- border-radius:50%;background:#5b6d85;transition:.18s}
+ border-radius:50%;background:#5b6d85;
+ transition:transform .18s,background-color .18s}
 .opt.on .sw{background:var(--acc)}
 .opt.on .sw::after{left:18px;background:#05080d}
 .dens{display:flex;gap:6px}

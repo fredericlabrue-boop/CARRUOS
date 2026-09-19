@@ -426,7 +426,8 @@ body{overflow:hidden}
 .maj{position:fixed;right:18px;bottom:18px;z-index:70;width:54px;height:54px;
  border-radius:50%;background:rgba(6,18,26,.9);border:1px solid var(--bord-fort);
  color:var(--acc);display:grid;place-items:center;cursor:pointer;
- box-shadow:0 0 22px rgba(34,211,238,.18);transition:.18s}
+ box-shadow:0 0 22px rgba(34,211,238,.18);
+ transition:box-shadow .18s,color .18s,border-color .18s}
 .maj:hover{box-shadow:0 0 34px rgba(34,211,238,.4)}
 .maj svg{width:30px;height:30px}
 .maj .mo{transform-origin:22px 22px;animation:tour 22s linear infinite}
@@ -547,12 +548,14 @@ body{overflow:hidden}
 input{flex:1;min-width:0;background:var(--champ-fond);
  border:1px solid var(--bord);
  padding:10px 12px;color:var(--txt-fort);font:15px ui-monospace,Consolas,monospace;
- letter-spacing:.07em;outline:none;transition:.14s}
+ letter-spacing:.07em;outline:none;
+ transition:border-color .14s,background-color .14s}
 input:focus{border-color:var(--acc);background:#081b23}
 input::placeholder{color:#2f5462;letter-spacing:.03em}
 button{background:#08222a;border:1px solid var(--bord-fort);color:var(--acc);
  padding:10px 17px;font:500 12.5px ui-monospace,Consolas,monospace;
- letter-spacing:.12em;cursor:pointer;transition:.14s;white-space:nowrap;
+ letter-spacing:.12em;cursor:pointer;white-space:nowrap;
+ transition:background-color .14s,border-color .14s,color .14s;
  clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),
  calc(100% - 7px) 100%,0 100%,0 7px)}
 button:hover{background:#0e3b48;border-color:var(--acc)}
@@ -1575,10 +1578,20 @@ document.addEventListener('keydown', function(e){
 # une fois : deux copies finiraient par diverger, et c'est toujours celle
 # qu'on ne regarde pas qui garde le bug.
 JS_FICHE = r"""
-function eur(v){
+// Le symbole euro etait colle a TOUS les montants, y compris ceux d'un
+// titre cote en dollars ou en pence. Un montant dans la mauvaise devise
+// n'est pas une approximation : c'est un chiffre faux.
+var SYMBOLE = {EUR:'€', USD:'$', GBP:'£', GBp:'p', CHF:'CHF',
+               SEK:'kr', NOK:'kr', DKK:'kr', CAD:'C$', JPY:'¥', AUD:'A$'};
+
+function mt(v, dev){
+ var d = dev || 'EUR';
+ var sym = SYMBOLE[d] || d;
  return (v<0?'-':'') + Math.abs(Math.round(v)).toLocaleString('fr-FR')
-        + ' €';
+        + ' ' + sym;
 }
+
+function eur(v){ return mt(v, 'EUR'); }
 
 function sgn(v, suff){
  var c = v > 0 ? 'pos' : (v < 0 ? 'neg' : '');
@@ -1597,21 +1610,22 @@ function carte(r){
  var tenu = r.detenu;
  var h = '<div class="lig"><h3>' + r.ticker + ' <span>'
    + (tenu ? (r.quantite + ' titres a ' + r.entree.toFixed(2)
-              + ' · depuis le ' + r.depuis)
+              + ' ' + (r.devise||'') + ' · depuis le ' + r.depuis)
            : ('non detenu · observe sur ' + (r.fenetre_mois||12)
               + ' mois'))
    + '</span></h3>';
 
- h += etatSortie(r) + chiffresCles(r, tenu) + blocsSortie(r);
- h += blocEntree(r.entree_regle, r.ticker);
+ h += alerteCoherence(r) + etatSortie(r) + chiffresCles(r, tenu)
+    + blocsSortie(r);
+ h += blocEntree(r.entree_regle, r.ticker, r.devise);
  h += blocHorizons(r.horizons);
  h += blocObjectifs(r.objectifs);
  h += detailTechnique(r, tenu);
 
  if(r.point_mort)
    h += "<div class=\"bilan\">Vendre aujourd'hui : impot de <b>"
-      + eur(r.point_mort.impot) + '</b>, il resterait <b>'
-      + eur(r.point_mort.net_si_vendu) + '</b> a replacer. Le nouveau '
+      + mt(r.point_mort.impot, r.devise) + '</b>, il resterait <b>'
+      + mt(r.point_mort.net_si_vendu, r.devise) + '</b> a replacer. Le nouveau '
       + 'placement partirait avec <b>'
       + r.point_mort.handicap_pct.toFixed(2) + ' %</b> de retard.</div>';
  else if(!tenu)
@@ -1619,6 +1633,22 @@ function carte(r){
       + 'latent, ni cout fiscal ne sont calcules. Donnez un prix '
       + "d'entree pour obtenir le trajet complet.</div>";
  return h + '</div>';
+}
+
+// Un gain latent tres negatif vient presque toujours d'un prix d'entree
+// qui n'appartient pas a cette serie — pas d'un desastre boursier. On le
+// dit AVANT tout le reste, sinon on lit un chiffre faux sans le savoir.
+function alerteCoherence(r){
+ var c = r.coherence_entree;
+ if(!c || c.ok) return '';
+ return '<div class="etat chaud"><div class="gros">PRIX D\'ENTREE HORS '
+      + 'BORNES</div><div class="sous">'
+      + 'Vous avez saisi <b>' + c.entree.toFixed(2) + '</b>, mais depuis le '
+      + c.depuis + " ce titre n'est jamais sorti de l'intervalle <b>"
+      + c.bas.toFixed(2) + ' &ndash; ' + c.haut.toFixed(2) + '</b> '
+      + (r.devise||'') + '.'
+      + '<br>Le gain latent affiche plus bas est donc <b>faux</b>.'
+      + '<br>Piste : ' + (c.piste||'') + '</div></div>';
 }
 
 // Ce que dit VOTRE specification, lu tel quel. Elle ferme a la PREMIERE
@@ -1665,7 +1695,7 @@ function chiffresCles(r, tenu){
  if(r.marge_stop_pct !== null && r.marge_stop_pct !== undefined)
    h += cel('MARGE AU STOP', sgnTxt(r.marge_stop_pct), r.marge_stop_pct);
  if(tenu && r.valeur !== null && r.valeur !== undefined)
-   h += cel('VALEUR', eur(r.valeur), 0);
+   h += cel('VALEUR', mt(r.valeur, r.devise), 0);
  return h + '</div>';
 }
 
@@ -1701,7 +1731,7 @@ function blocsSortie(r){
 // d'entree. Soit ils declenchent, soit ils disent lesquels manquent.
 // Le titre de ce bloc evite deliberement le verbe qui en ferait un
 // conseil : il annonce une REGLE consultee, pas une action suggeree.
-function blocEntree(e, tk){
+function blocEntree(e, tk, dev){
  if(!e || e.erreur) return '';
  var h = '<div class="titre-sec">RENFORCER LA LIGNE ? CE QUE DIT VOTRE '
        + 'SPECIFICATION D\'ENTREE</div>';
@@ -1733,7 +1763,8 @@ function blocEntree(e, tk){
      + 'Si vous preniez la ligne quand meme, au prix et au stop de la '
      + 'regle : <b>' + e.titres + (e.titres > 1 ? ' titres' : ' titre')
      + '</b> pour <b>'
-     + eur(e.montant) + '</b>, soit <b>' + eur(e.risque_eur)
+     + mt(e.montant, dev) + '</b>, soit <b>'
+     + mt(e.risque_eur, dev)
      + '</b> de perte si le stop saute'
      + (e.plafonne ? ' (taille reduite par le plafond de poids)' : '')
      + '. Arithmetique, pas un conseil.</div>';

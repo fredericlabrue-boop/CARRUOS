@@ -413,6 +413,21 @@ def main() -> int:
     _v('class="app strat-page"' in st,
        "le corps de la page porte bien cette classe")
 
+    print("\n  MISE EN PAGE QUI NE SAUTE PAS")
+    # `transition:.18s` sans nom de propriete vaut `transition: all` : le
+    # navigateur anime alors AUSSI la largeur, le remplissage et la
+    # police quand ils changent. C'est exactement ce que la regle du
+    # projet interdit, et c'etait present a cinq endroits.
+    nus = re.findall(r"transition:\s*[.0-9]", css)
+    _v(not nus, f"aucune transition sans nom de propriete ({len(nus)})")
+    # La premiere colonne des rails en `auto` suivait le texte : un
+    # libelle plus long au rafraichissement decalait toute la grille.
+    _v("grid-template-columns:128px1fr62px" in css.replace(" ", ""),
+       "la colonne des rails a une largeur fixe")
+    _v("tabular-nums" in css,
+       "les chiffres des rails ont une chasse fixe : 0/5 et 12/5 "
+       "occupent la meme largeur")
+
     print("\n  AUCUN SECRET DANS LE DEPOT")
     import subprocess
     racine = str(Path(__file__).resolve().parent.parent)
@@ -447,6 +462,22 @@ def main() -> int:
     gi = (Path(racine) / ".gitignore").read_text(encoding="utf-8")
     _v(".bruce_cache/" in gi,
        ".bruce_cache est ignore : la cle ne peut pas etre commitee")
+
+    print("\n  DEVISE ET COHERENCE DU PRIX D'ENTREE")
+    _v("function mt(" in ja and "SYMBOLE" in ja,
+       "les montants portent la devise du titre, pas l'euro par defaut")
+    _v("'USD':" in ja or "USD:'$'" in ja.replace(" ", ""),
+       "le dollar est connu")
+    _v("GBp" in ja, "les pence de Londres aussi — le piege du facteur 100")
+    _v("function alerteCoherence" in ja,
+       "un prix d'entree hors bornes est signale")
+    _v("est donc <b>faux</b>" in ja,
+       "et la carte dit que le gain latent affiche est faux")
+    from . import strategie as _sg
+    _v(_sg.devise_du_titre("NVDA") == "USD"
+       and _sg.devise_du_titre("MC.PA") == "EUR"
+       and _sg.devise_du_titre("SHEL.L") == "GBp",
+       "la devise se deduit du suffixe de place")
 
     print("\n  GRAPHIQUE SANS RESEAU")
     from . import chart as _ch

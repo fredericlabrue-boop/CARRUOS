@@ -319,12 +319,81 @@ def revue_ligne(ligne: dict, d: pd.DataFrame, marche_ok: bool,
         "sorties_actives": actives,
         "n_sorties": len(actives),
         "marche_ok": bool(marche_ok),
+        # La DEVISE de cotation. Tous les montants d'une ligne sont
+        # exprimes dedans, jamais convertis en douce : le P&L est un
+        # rapport, donc la devise s'y annule, mais une valeur de
+        # portefeuille affichee « EUR » alors que le titre cote en
+        # dollars est simplement fausse.
+        "devise": devise_du_titre(out["ticker"]),
+        # Le prix d'entree est-il compatible avec l'historique du titre ?
+        # Un P&L tres negatif vient presque toujours de la : mauvais
+        # ticker, mauvaise place, ou prix saisi dans une autre unite.
+        "coherence_entree": _coherence(entree, d) if detenu else None,
         # Fiscalite d'une vente immediate
         "impot_si_vente": round(impot_du, 2) if detenu else None,
         "net_si_vente": round(cours * qte - impot_du, 2) if detenu else None,
         "taux_impot": impot,
         "resultats": earn or {},
     })
+    return out
+
+
+def devise_du_titre(ticker: str) -> str:
+    """La devise de cotation, deduite du suffixe de place.
+
+    Sans suffixe, c'est une valeur americaine cotee en dollars. Londres
+    est le piege : le LSE cote en PENCE, pas en livres.
+    """
+    try:
+        from .find import devise
+        return devise(ticker)
+    except Exception:
+        return "USD"
+
+
+def _coherence(entree: float, d: pd.DataFrame) -> dict:
+    """Le prix d'entree tombe-t-il dans l'intervalle parcouru par le
+    titre ?
+
+    C'EST LE DIAGNOSTIC QUI MANQUAIT. Un gain latent tres negatif n'est
+    presque jamais un vrai desastre : c'est un prix saisi qui n'appartient
+    pas a cette serie. Trois causes, toutes silencieuses jusqu'ici —
+
+      - le mnemonique nu est parti sur une autre place que celle ou
+        l'ordre a ete passe (meme nom, autre cotation, autre prix) ;
+      - le titre cote en pence a Londres et le prix a ete saisi en
+        livres, ou l'inverse : un facteur 100 ;
+      - la ligne a subi une division du nominal depuis l'achat, et
+        l'historique est ajuste alors que le prix note ne l'est pas.
+
+    On ne devine pas laquelle. On dit que le prix est hors bornes, on
+    donne les bornes, et on laisse trancher.
+    """
+    bas = float(d["low"].min()) if "low" in d else float(d["close"].min())
+    haut = float(d["high"].max()) if "high" in d else float(d["close"].max())
+    if not (np.isfinite(bas) and np.isfinite(haut)) or haut <= 0:
+        return {"ok": True}
+    dedans = bas <= entree <= haut
+    out = {"ok": bool(dedans), "bas": round(bas, 4), "haut": round(haut, 4),
+           "depuis": str(d.index[0].date()), "entree": round(entree, 4)}
+    if dedans:
+        return out
+    # Un facteur voisin de 100 designe presque a coup sur le piege des
+    # pence ; on le nomme, sans affirmer que c'est le cas.
+    milieu = (bas + haut) / 2
+    rapport = (entree / milieu) if milieu > 0 else 0.0
+    if 0.007 <= rapport <= 0.02:
+        out["piste"] = ("un facteur voisin de 100 : le titre cote "
+                        "peut-etre en PENCE et le prix a ete saisi en "
+                        "livres.")
+    elif 50 <= rapport <= 150:
+        out["piste"] = ("un facteur voisin de 100 : le prix a peut-etre "
+                        "ete saisi en pence alors que le titre cote en "
+                        "livres.")
+    else:
+        out["piste"] = ("le mnemonique est peut-etre parti sur une autre "
+                        "place que celle ou l'ordre a ete passe, ou le "
+                        "titre a subi une division depuis l'achat.")
     return out
 
 

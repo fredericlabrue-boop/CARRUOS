@@ -111,6 +111,20 @@ def periodes_unite(cle: str) -> dict | None:
             "haut": d(b["haut"], 6), "dollar_vol": d(b["dollar_vol"])}
 
 
+def mini_barres(cle: str, pe: dict | None) -> int:
+    """Nombre de barres en dessous duquel une unite n'a rien a montrer.
+
+    On demande de quoi calculer la plus longue moyenne convertie, plus
+    deux barres pour que la pente ait un sens. Jamais moins de huit :
+    en dessous, un graphique n'est plus un graphique.
+    """
+    if pe is None:
+        return 40                       # journalier : inchange
+    besoin = max(pe["sma_longue"], pe["sma_moyenne"], pe["bb"][0],
+                 pe["macd"][1]) + 2
+    return max(8, besoin)
+
+
 def _f(v):
     try:
         v = float(v)
@@ -381,11 +395,25 @@ def _analyse(brut, bench_brut, regle, nb, ticker, sleeve, ccy, pre=None):
                    bench_close=_reech(bench_brut, regle)["close"],
                    periodes=_pe)
         b = enrich(_reech(bench_brut, regle), periodes=_pe)
-    # 40 barres suffisent pour bougies, EMA20, RSI et MACD. La SMA200
-    # manquera : _bloc_etats la marquera "na" et le verdict basculera
-    # sur DONNEES INSUFFISANTES au lieu d'inventer un faux AUCUN.
-    if len(d) < 40:
-        return None
+    # Combien de barres faut-il ? Un plancher unique de 40 rendait
+    # l'onglet 1 AN TOUJOURS vide : vingt ans d'historique ne font que
+    # vingt barres annuelles. L'onglet affichait « pas assez
+    # d'historique » quel que soit le titre — d'où le « données
+    # indisponibles » permanent sur les ETF qu'on regarde justement sur
+    # longue période.
+    #
+    # Le besoin réel, c'est la plus longue moyenne CONVERTIE pour cette
+    # unité, plus une marge. Les indicateurs qui manquent encore sont
+    # marqués « na » par _bloc_etats, et le verdict bascule sur DONNEES
+    # INSUFFISANTES au lieu d'inventer un faux AUCUN.
+    besoin = mini_barres(_cle, _pe)
+    if len(d) < besoin:
+        # « Pas assez d'historique » ne disait ni combien il en manquait,
+        # ni pourquoi. On rend le detail : on voit tout de suite si le
+        # titre est trop jeune ou si l'unite est trop large pour lui.
+        return {"insuffisant": {
+            "barres": len(d), "besoin": besoin,
+            "depuis": str(d.index[0].date()) if len(d) else "?"}}
     bo = b.reindex(d.index).ffill()
     ok = bool(market_regime_ok(b))
     s = evaluate(d, ticker, ok, days_to_earnings=999)
@@ -460,7 +488,8 @@ body{background:var(--fond);color:var(--txt);
 .ol label{display:flex;align-items:center;gap:5px;font-size:10.5px;
  color:var(--txt-doux);cursor:pointer;user-select:none;letter-spacing:.06em}
 .ol input{display:none}
-.ol .sw{width:20px;height:3px;border-radius:2px;opacity:.28;transition:.15s}
+.ol .sw{width:20px;height:3px;border-radius:2px;opacity:.28;
+ transition:opacity .15s,background-color .15s}
 .ol input:checked+.sw{opacity:1;box-shadow:0 0 7px currentColor}
 .ol label:hover{color:#e8f6fa}
 .zb{background:#08222a;border:1px solid var(--bord-fort);color:#22d3ee;
@@ -552,7 +581,8 @@ body{background:var(--fond);color:var(--txt);
 .hd .mt{font-size:12.5px;color:#576a83}
 .tabs{display:flex;gap:4px;background:#0d1219;border:1px solid #1a2330;
  border-radius:11px;padding:4px;margin-left:auto;margin-right:46px}
-.tabs button{background:none;border:0;color:#64748b;font:500 12.5px inherit;letter-spacing:.12em;padding:9px 20px;border-radius:8px;cursor:pointer;transition:.13s}
+.tabs button{background:none;border:0;color:#64748b;font:500 12.5px inherit;letter-spacing:.12em;padding:9px 20px;border-radius:8px;cursor:pointer;
+ transition:background-color .13s,color .13s}
 .tabs button:hover{color:#cbd5e1}
 .tabs button.on{background:#1b2635;color:#f1f5f9}
 .grid{display:grid;grid-template-columns:1fr 344px;gap:14px;align-items:start}
@@ -716,8 +746,20 @@ function ic(e){return e==='ok'?'<i class="i-ok">✓</i>':e==='ko'?'<i class="i-k
 function cls(e){return e==='ok'?'okt':e==='ko'?'ko':'na';}
 
 function draw(){
- const d=D[U]; if(!d){document.getElementById('side').innerHTML=
-   '<div class="box">Pas assez d\\'historique pour cette unité de temps.</div>';return;}
+ const d=D[U];
+ if(!d || d.insuffisant){
+  var i = d && d.insuffisant;
+  var m = "Pas assez d'historique pour cette unite de temps.";
+  if(i){
+   m = '<b>' + i.barres + ' barre(s) disponible(s)</b>, ' + i.besoin
+     + " necessaires pour cette unite.<br>L'historique de ce titre "
+     + 'commence le ' + i.depuis + ".<br><br>Une unite large demande "
+     + "beaucoup d'annees : vingt ans ne font que vingt barres "
+     + 'annuelles. Essayez une unite plus fine.';
+  }
+  document.getElementById('side').innerHTML='<div class="box">'+m+'</div>';
+  return;
+ }
  bou.setData(d.ohlc); bou.setMarkers(d.markers); vol.setData(d.volume);
  // le cone repart du dernier cours, vers l'avenir
  const K=(d.cone&&d.cone.bandes)?d.cone.bandes:{h1:[],b1:[],h2:[],b2:[],mid:[]};

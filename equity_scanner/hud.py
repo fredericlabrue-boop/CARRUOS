@@ -78,11 +78,16 @@ CSS = """
 .rails{display:flex;flex-direction:column;gap:7px}
 .rail.cliq{cursor:pointer}
 .rail.cliq:hover .n{color:var(--acc)}
-.rail{display:grid;grid-template-columns:auto 1fr 62px;gap:9px;
+/* Largeur FIXE de la premiere colonne. En `auto`, elle suivait le texte :
+   a chaque rafraichissement de l'etat, un libelle plus long decalait
+   toute la grille — c'est le « visuel qui saute ». 128 px tiennent
+   « MES LIGNES A TRAITER » sans retour a la ligne. */
+.rail{display:grid;grid-template-columns:128px 1fr 62px;gap:9px;
  align-items:center;
  font:400 10px ui-monospace,Consolas,monospace;letter-spacing:.1em}
 .rail .n{color:var(--txt-faible);white-space:nowrap}
-.rail .v{text-align:right;color:var(--txt-fort);font-size:11.5px}
+.rail .v{text-align:right;color:var(--txt-fort);font-size:11.5px;
+ font-variant-numeric:tabular-nums}
 .rail .t{height:3px;background:var(--bord);position:relative;overflow:hidden}
 .rail .t i{position:absolute;top:0;height:100%;background:var(--acc)}
 .rail .t .z{background:#134a56}

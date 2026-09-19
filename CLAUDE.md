@@ -127,6 +127,7 @@ jeu de paramètres qui ne l'a pas produit.
 | `comparatif.py` | système contre SMH buy & hold net de PFU |
 | `contexte.py` | faits mesurés d'un titre, sans score inventé |
 | `positions.py` | registre manuel des positions |
+| | chaque ligne porte sa **devise de cotation** (déduite du suffixe de place) et un **contrôle de cohérence** du prix d'entrée : s'il n'est jamais tombé dans l'intervalle parcouru par le titre, la carte le dit et prévient que le gain latent affiché est faux |
 | `news.py` | Alpha Vantage — quota 25/jour, caches obligatoires |
 | | la clé est rangée **deux fois** : `.bruce_cache` à côté du programme, et `~/.carruos/` — cette seconde copie est la seule qui survive à une mise à jour, `.bruce_cache` n'étant pas livré dans l'archive |
 | | `app.retrouve_cle()` va la chercher dans une installation **voisine** si les deux manquent. Portée volontairement étroite : un seul niveau au-dessus du programme plus quelques dossiers usuels, deux niveaux de profondeur, plafond de 400 dossiers, un seul nom de fichier lu. Elle ne tourne **jamais** si `~/.carruos/` existe déjà — sinon effacer volontairement la clé la ferait ressusciter au lancement suivant |
@@ -248,6 +249,15 @@ jeu de paramètres qui ne l'a pas produit.
   n'ont été vus que sur les captures : des équerres qu'une animation
   rallumait malgré `--equerre:0`, des champs de saisie restés sombres sur
   le thème clair, un mot invisible. Aucun test ne les voyait.
+- **`transition:.18s` sans nom de propriété vaut `transition: all`** — le
+  navigateur anime alors aussi la largeur, le remplissage et la police
+  quand ils changent. C'était le cas à cinq endroits, et c'est une des
+  causes du « visuel qui saute ». Nommer les propriétés. `test_pages` le
+  vérifie.
+- **Une colonne de grille en `auto` suit son texte.** La première colonne
+  des rails était en `auto` : au rafraîchissement, un libellé plus long
+  décalait toute la grille. Largeur fixe, et `tabular-nums` sur les
+  chiffres pour que `0/5` et `12/5` occupent la même place.
 - Toute animation CSS doit porter sur `transform` ou `opacity`. Animer
   `top`, `left`, `width` ou `background-position` fait sauter la page
   entière. `test_pages` le vérifie.
