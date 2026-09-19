@@ -33,6 +33,31 @@ from .rules import evaluate, evaluate_exit, market_regime_ok, position_size
 # On essaie donc d'abord une copie locale, puis le CDN, et si les deux
 # echouent la page le DIT au lieu de rester blanche.
 LOCAL = "/statique/lightweight-charts.js"
+
+
+def source_trace() -> str:
+    """Ou aller chercher la bibliotheque de graphiques.
+
+    C'est le SERVEUR qui tranche, au moment de fabriquer la page, parce
+    que lui seul sait si la copie locale existe. Une seule balise, et
+    elle est BLOQUANTE : le script de la page ne demarre qu'une fois la
+    bibliotheque chargee.
+
+    La version precedente essayait le fichier local puis basculait sur le
+    CDN depuis `onerror`. Ca ne pouvait pas marcher : le script de repli
+    etait ajoute de facon ASYNCHRONE, donc le code de la page s'executait
+    avant qu'il soit charge et trouvait toujours la bibliotheque absente.
+    Resultat : « GRAPHIQUE INDISPONIBLE » meme avec une connexion
+    parfaite. Le message de secours reste utile — il ne se declenche
+    plus que quand la source choisie est vraiment injoignable.
+    """
+    try:
+        if (Path(__file__).resolve().parent / "statique"
+                / "lightweight-charts.js").is_file():
+            return LOCAL
+    except OSError:
+        pass
+    return CDN
 CDN = "https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"
 
 UNITES = [("jour", "1 JOUR", None, 420),
@@ -1056,15 +1081,7 @@ def build_html(brut, ticker, bench_brut, sleeve=8000.0, ccy="",
            f'color:#fca5a5;border-radius:10px;padding:9px 15px;font-size:12.5px">'
            f'HUD indisponible &mdash; {e(souci)}</div>' if souci else "")
         + '</div>'
-        '<script>'
-        'function chargeDistant(){'
-        ' var s=document.createElement("script");'
-        f' s.src={json.dumps(CDN)};'
-        ' s.onerror=function(){ window.__GRAPH_KO=true; };'
-        ' document.head.appendChild(s);'
-        '}'
-        '</script>'
-        f'<script src="{LOCAL}" onerror="chargeDistant()"></script>'
+        f'<script src="{source_trace()}"></script>'
         "<script>const DATA=__D__;const CHANCE=" + json.dumps(chance)
         + ";const TICKER=" + json.dumps(ticker) + ";" + JS + rg.tiroir_js() + "</script></body></html>"
     ).replace("__D__", json.dumps(data, separators=(",", ":")))

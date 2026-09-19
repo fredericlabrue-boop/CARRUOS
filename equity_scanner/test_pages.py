@@ -413,13 +413,27 @@ def main() -> int:
        "le corps de la page porte bien cette classe")
 
     print("\n  GRAPHIQUE SANS RESEAU")
+    from . import chart as _ch
     g = pages["graphique"]
     jg = _scripts(g)
-    _v("/statique/lightweight-charts.js" in g,
-       "la copie locale de la bibliotheque est essayee en premier")
-    _v("chargeDistant" in g and g.index("function chargeDistant")
-       < g.index('onerror="chargeDistant()"'),
-       "le repli distant est DEFINI avant la balise qui peut echouer")
+    # Le test precedent validait un mecanisme CASSE : il verifiait que la
+    # fonction de repli etait definie avant la balise, alors que le vrai
+    # defaut etait que ce repli ajoutait le script de facon ASYNCHRONE —
+    # le code de la page tournait avant, et ne trouvait jamais la
+    # bibliotheque. Un test peut confirmer une mecanique et rater ce
+    # qu'elle produit ; celui-ci regarde maintenant le resultat.
+    srcs = re.findall(r'<script[^>]*\bsrc="([^"]+)"', g)
+    _v(len(srcs) == 1,
+       f"une SEULE balise de script externe, donc bloquante ({len(srcs)})")
+    if len(srcs) != 1:
+        print(f"          -> {srcs}")
+    _v(srcs and (srcs[0] == _ch.LOCAL or srcs[0] == _ch.CDN),
+       "elle pointe sur la copie locale ou sur le CDN, choisi par le serveur")
+    _v("chargeDistant" not in g,
+       "aucun repli asynchrone : il arrivait toujours trop tard")
+    _v(_ch.source_trace() in (_ch.LOCAL, _ch.CDN),
+       "source_trace() tranche cote serveur, la ou l'on sait si le "
+       "fichier local existe")
     _v("GRAPHIQUE INDISPONIBLE" in jg,
        "sans bibliotheque, la page explique au lieu de rester vide")
     # L'antislash d'un chemin Windows est mange par une chaine Python non

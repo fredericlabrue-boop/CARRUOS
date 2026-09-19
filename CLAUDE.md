@@ -108,7 +108,7 @@ jeu de paramètres qui ne l'a pas produit.
 |---|---|
 | `app.py` | serveur HTTP local, page d'accueil, routes API, majordome |
 | `chart.py` | page graphique, 4 colonnes, cône de dispersion |
-| | la bibliothèque de tracé est cherchée **en local d'abord** (`equity_scanner/statique/lightweight-charts.js`), puis sur le CDN. Sans les deux, la page **le dit** et le reste continue de marcher |
+| | `chart.source_trace()` choisit **côté serveur** où prendre la bibliothèque de tracé : la copie locale (`equity_scanner/statique/lightweight-charts.js`) si elle existe, sinon le CDN. **Une seule balise, bloquante.** Jamais de repli `onerror` : il ajouterait le script de façon asynchrone, le code de la page tournerait avant, et la bibliothèque serait toujours absente |
 | `hud.py` | éléments visuels : cerf, cadrans, rails, radar |
 | `indicators.py` | indicateurs — **PERIODES gelées** |
 | `rules.py` | les 13 blocs d'entrée et les 4 sorties |
@@ -222,6 +222,17 @@ jeu de paramètres qui ne l'a pas produit.
   `\statique\`, et JavaScript avale `\s` et `\l` sans rien dire. Un
   chemin Windows s'affichait collé. Utiliser des barres obliques —
   Windows les accepte aussi.
+- **Un script externe se charge de façon BLOQUANTE, ou il arrive trop
+  tard.** Un repli qui fait `document.createElement("script")` dans un
+  `onerror` est asynchrone : le code de la page s'exécute avant, ne
+  trouve rien, et affiche son message de secours même avec une connexion
+  parfaite. C'est exactement ce qui est arrivé. Quand le choix dépend de
+  l'environnement, c'est le **serveur** qui tranche à la fabrication de
+  la page, pas le navigateur à l'exécution.
+- **Un test peut valider une mécanique et rater ce qu'elle produit.** Le
+  test du repli vérifiait que la fonction était définie avant la balise —
+  elle l'était — sans jamais vérifier que la bibliothèque finissait par
+  être là. Vérifier le résultat, pas le montage.
 - **Le rendu ne suffit pas, il faut regarder.** Trois défauts de thème
   n'ont été vus que sur les captures : des équerres qu'une animation
   rallumait malgré `--equerre:0`, des champs de saisie restés sombres sur
