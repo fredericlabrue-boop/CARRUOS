@@ -323,7 +323,7 @@ def _analyse(brut, bench_brut, regle, nb, ticker, sleeve, ccy):
 CSS = hd.CSS + rg.CSS_OPTIONS + rg.CSS_THEMES + rg.TIROIR_CSS + """
 *{box-sizing:border-box;margin:0}
 html,body{height:100%;margin:0;overflow:hidden}
-body{background:var(--fond);color:#94a3b8;
+body{background:var(--fond);color:var(--txt);
  font:var(--police,14px) ui-sans-serif,Segoe UI,system-ui}
 /* Disposition en couronne : les panneaux entourent la projection du cerf,
    qui occupe le centre. Tout tient dans la hauteur de la fenetre. */
@@ -336,15 +336,15 @@ body{background:var(--fond);color:#94a3b8;
  border:1px solid #0d2a33;margin-top:-8px;
  clip-path:polygon(11px 0,100% 0,100% calc(100% - 11px),
  calc(100% - 11px) 100%,0 100%,0 11px)}
-.ot{font:500 7.5px ui-monospace,monospace;letter-spacing:.24em;color:#3f6b78}
+.ot{font:500 7.5px ui-monospace,monospace;letter-spacing:.24em;color:var(--txt-faible)}
 .osep{width:1px;height:16px;background:#123c47;margin:0 3px}
 .ol label{display:flex;align-items:center;gap:5px;font-size:10.5px;
- color:#8fb3c1;cursor:pointer;user-select:none;letter-spacing:.06em}
+ color:var(--txt-doux);cursor:pointer;user-select:none;letter-spacing:.06em}
 .ol input{display:none}
 .ol .sw{width:20px;height:3px;border-radius:2px;opacity:.28;transition:.15s}
 .ol input:checked+.sw{opacity:1;box-shadow:0 0 7px currentColor}
 .ol label:hover{color:#e8f6fa}
-.zb{background:#08222a;border:1px solid #1b6b7d;color:#22d3ee;
+.zb{background:#08222a;border:1px solid var(--bord-fort);color:#22d3ee;
  padding:3px 10px;font:500 10.5px ui-monospace,monospace;letter-spacing:.1em;
  cursor:pointer;
  clip-path:polygon(5px 0,100% 0,100% calc(100% - 5px),
@@ -376,7 +376,7 @@ body{background:var(--fond);color:#94a3b8;
  letter-spacing:.34em;text-indent:.34em;color:#e8f6fa;
  text-shadow:0 0 22px rgba(34,211,238,.4);position:relative}
 .pil-h .sst{font:400 7.5px ui-monospace,monospace;letter-spacing:.3em;
- color:#3f6b78;margin-top:-4px;position:relative}
+ color:var(--txt-faible);margin-top:-4px;position:relative}
 .pil-h .tk{font:500 15px ui-monospace,monospace;letter-spacing:.22em;
  color:#c9b28a;position:relative;margin-top:4px}
 /* Feu de decision : l'anneau se remplit au prorata des blocs valides et
@@ -397,7 +397,7 @@ body{background:var(--fond);color:#94a3b8;
 .pil-h .kv{width:100%;display:flex;justify-content:space-between;
  font-size:10px;color:#475a72;padding:3px 0;border-top:1px solid #0b2028;
  position:relative}
-.pil-h .kv b{color:#cbe9f2;font-weight:500}
+.pil-h .kv b{color:var(--txt-fort);font-weight:500}
 .pil-r{grid-column:4;grid-row:3;min-height:0;overflow-y:auto;
  display:flex;flex-direction:column;gap:6px;padding-top:1px}
 /* Le verdict reste visible meme quand la liste des blocs defile. */
@@ -860,7 +860,7 @@ def build_html(brut, ticker, bench_brut, sleeve=8000.0, ccy="",
         f'<div class="ol"><span class="ot">INDICATEURS</span>{tog}'
         '<span class="osep"></span>'
         '<label><input type="checkbox" data-k="cone" checked>'
-        '<span class="sw" style="color:#94a3b8;background:#94a3b8"></span>'
+        '<span class="sw" style="color:var(--txt);background:var(--txt)"></span>'
         'Dispersion</label>'
         '<span class="osep"></span><span class="ot">ZOOM</span>'
         '<button class="zb" id="z-">&minus;</button>'

@@ -414,8 +414,54 @@ def main() -> int:
 
     print("\n  THEMES")
     from . import reglages as _rg
-    _v(set(_rg.THEMES) == {"carruos", "jarvis", "ultron", "reacteur"},
-       "quatre themes : CARRUOS, JARVIS, ULTRON, REACTEUR")
+    ATTENDUS = {"carruos", "jarvis", "ultron", "reacteur", "monolithe",
+                "orbite", "nocturne", "cristal", "terminal", "papier"}
+    _v(set(_rg.THEMES) == ATTENDUS,
+       f"{len(ATTENDUS)} themes : " + ", ".join(
+           _rg.THEMES[k]["nom"] for k in sorted(_rg.THEMES)))
+    if set(_rg.THEMES) != ATTENDUS:
+        print(f"          -> en trop : {set(_rg.THEMES) - ATTENDUS}")
+        print(f"          -> manquants : {ATTENDUS - set(_rg.THEMES)}")
+
+    # Le controle de validite des couleurs ne regardait que le theme
+    # ACTIF : un theme inactif pouvait embarquer une couleur cassee sans
+    # que rien ne bronche — et c'est arrive. On verifie les dix.
+    casses = []
+    for cle in _rg.THEMES:
+        valeurs = dict(_rg.THEMES[cle])
+        valeurs.pop("forme", None)
+        valeurs.update(_rg.forme(cle))
+        for nom, v in valeurs.items():
+            if (isinstance(v, str) and v.startswith("#")
+                    and not re.fullmatch(r"#[0-9a-fA-F]{3,8}", v)):
+                casses.append(f"{cle}.{nom}={v!r}")
+    _v(not casses, "aucune couleur invalide dans AUCUN des themes")
+    if casses:
+        print(f"          -> {casses}")
+
+    # Un theme qui change la FORME, pas seulement la couleur : c'est la
+    # demande, et sans controle elle se perd au premier ajout.
+    avec_forme = [k for k in _rg.THEMES if _rg.THEMES[k].get("forme")]
+    _v(len(avec_forme) >= 6,
+       f"{len(avec_forme)} themes changent la geometrie, pas que la teinte")
+    distinctes = {_rg.forme(k)["coin"] + "|" + _rg.forme(k)["rayon"]
+                  + "|" + _rg.forme(k)["pad"] for k in _rg.THEMES}
+    _v(len(distinctes) >= 6,
+       f"{len(distinctes)} geometries de panneau reellement differentes")
+    # Les variables de forme doivent TOUTES sortir dans :root, sinon une
+    # regle de base tomberait sur sa valeur de repli sans qu'on le voie.
+    racine = _rg.variables(_rg.DEFAUTS)
+    manquantes = [n for n in ("--coin", "--rayon", "--equerre", "--pad",
+                              "--gap", "--bord", "--bord-fort", "--pan-fond",
+                              "--pan-ombre", "--txt", "--txt-fort",
+                              "--txt-doux", "--txt-mi", "--txt-faible",
+                              "--titre-police", "--titre-espace",
+                              "--titre-casse", "--corps-police",
+                              "--champ-fond")
+                  if n + ":" not in racine]
+    _v(not manquantes, "toutes les variables de forme sont declarees")
+    if manquantes:
+        print(f"          -> absentes : {manquantes}")
     complet = all(
         all(k in t for k in ("nom", "resume", "accent", "marque", "fond",
                              "pos", "neg", "holo"))

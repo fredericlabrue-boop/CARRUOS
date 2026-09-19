@@ -23,11 +23,11 @@ CYAN = "var(--acc)"
 OR = "#c9b28a"
 
 CSS = """
-.hud{background:#05080d;border:1px solid #0e2b34;padding:24px 22px 20px;
+.hud{background:#05080d;border:1px solid var(--bord);padding:24px 22px 20px;
  margin-bottom:12px;position:relative;
  clip-path:polygon(18px 0,100% 0,100% calc(100% - 18px),calc(100% - 18px) 100%,0 100%,0 18px)}
 .hud::before,.hud::after{content:"";position:absolute;width:34px;height:34px;
- border:1px solid #1b6b7d;pointer-events:none}
+ border:1px solid var(--bord-fort);pointer-events:none}
 .hud::before{top:6px;right:6px;border-left:0;border-bottom:0}
 .hud::after{bottom:6px;left:6px;border-right:0;border-top:0}
 .hud-g{display:grid;grid-template-columns:1fr auto 1fr;gap:20px;align-items:center}
@@ -35,7 +35,7 @@ CSS = """
 .cadrans{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .cad{text-align:center}
 .cad .lb{font:400 8.5px ui-monospace,Consolas,monospace;letter-spacing:.2em;
- color:#3f6b78;margin-top:2px}
+ color:var(--txt-faible);margin-top:2px}
 .noyau{position:relative;display:flex;align-items:center;justify-content:center;
  width:250px;height:250px;margin:0 auto}
 .noyau svg{position:absolute;inset:0}
@@ -72,29 +72,30 @@ CSS = """
 @keyframes cone{0%,100%{opacity:.16}50%{opacity:.3}}
 .hud-id{text-align:center;margin-top:6px}
 .hud-id .tk{font:300 27px ui-sans-serif,system-ui;letter-spacing:.34em;
- text-indent:.34em;color:#e8f6fa}
+ text-indent:.34em;color:var(--txt-fort)}
 .hud-id .st{font:400 9px ui-monospace,Consolas,monospace;letter-spacing:.28em;
- color:#3f6b78;margin-top:3px}
+ color:var(--txt-faible);margin-top:3px}
 .rails{display:flex;flex-direction:column;gap:7px}
 .rail.cliq{cursor:pointer}
 .rail.cliq:hover .n{color:var(--acc)}
-.rail{display:grid;grid-template-columns:74px 1fr 62px;gap:9px;align-items:center;
+.rail{display:grid;grid-template-columns:auto 1fr 62px;gap:9px;
+ align-items:center;
  font:400 10px ui-monospace,Consolas,monospace;letter-spacing:.1em}
-.rail .n{color:#3f6b78}
-.rail .v{text-align:right;color:#cbe9f2;font-size:11.5px}
-.rail .t{height:3px;background:#0b2028;position:relative;overflow:hidden}
+.rail .n{color:var(--txt-faible);white-space:nowrap}
+.rail .v{text-align:right;color:var(--txt-fort);font-size:11.5px}
+.rail .t{height:3px;background:var(--bord);position:relative;overflow:hidden}
 .rail .t i{position:absolute;top:0;height:100%;background:var(--acc)}
 .rail .t .z{background:#134a56}
 .rail.ok .v{color:var(--pos)}.rail.ko .v{color:var(--neg)}
-.bandeau{display:flex;flex-wrap:wrap;gap:0;margin-top:16px;border-top:1px solid #0e2b34;
+.bandeau{display:flex;flex-wrap:wrap;gap:0;margin-top:16px;border-top:1px solid var(--bord);
  padding-top:11px;font:400 10px ui-monospace,Consolas,monospace;letter-spacing:.12em}
 .bandeau .cliq{cursor:pointer}
 .bandeau .cliq:hover .v{color:var(--acc)}
 .bandeau .cliq .n::after{content:" >";opacity:.6}
-.bandeau div{flex:1;min-width:104px;padding:0 9px;border-left:1px solid #0e2b34}
+.bandeau div{flex:1;min-width:104px;padding:0 9px;border-left:1px solid var(--bord)}
 .bandeau div:first-child{border-left:0;padding-left:0}
-.bandeau .n{color:#3f6b78;font-size:8.5px;letter-spacing:.2em}
-.bandeau .v{color:#cbe9f2;font-size:14px;margin-top:3px}
+.bandeau .n{color:var(--txt-faible);font-size:8.5px;letter-spacing:.2em}
+.bandeau .v{color:var(--txt-fort);font-size:14px;margin-top:3px}
 .bandeau .v.pos{color:var(--pos)}.bandeau .v.neg{color:var(--neg)}
 .bandeau .v.or{color:#c9b28a}
 """
@@ -136,7 +137,7 @@ def cadran(valeur, mini, maxi, libelle, unite="", zlo=None, zhi=None,
         f'<text x="60" y="57" text-anchor="middle" fill="#e8f6fa" '
         f'font-size="21" font-family="ui-sans-serif,system-ui" '
         f'font-weight="300">{html.escape(txt)}</text>'
-        f'<text x="60" y="73" text-anchor="middle" fill="#3f6b78" font-size="8" '
+        f'<text x="60" y="73" text-anchor="middle" fill="var(--txt-faible)" font-size="8" '
         f'font-family="ui-monospace,monospace" letter-spacing="1.4">'
         f'{html.escape(libelle)}</text></svg></div>')
 
@@ -166,14 +167,14 @@ def noyau(trace: str) -> str:
         'fill="url(#rai)"/>'
         '<ellipse class="socle" cx="125" cy="234" rx="56" ry="9" fill="url(#pad)"/>'
         '<circle class="rot3" cx="125" cy="125" r="119" fill="none" '
-        'stroke="#0e2b34" stroke-width="1"/>'
+        'stroke="var(--bord)" stroke-width="1"/>'
         '<circle class="rot1" cx="125" cy="125" r="110" fill="none" '
-        'stroke="#1b6b7d" stroke-width="1" stroke-dasharray="2 9"/>'
+        'stroke="var(--bord-fort)" stroke-width="1" stroke-dasharray="2 9"/>'
         '<circle class="rot2" cx="125" cy="125" r="100" fill="none" '
         'stroke="var(--acc)" stroke-width="1" stroke-dasharray="42 26 8 26" '
         'opacity=".55" filter="url(#bloom)"/>'
         '<circle class="rot1" cx="125" cy="125" r="90" fill="none" '
-        'stroke="#0e2b34" stroke-width="6" stroke-dasharray="1 15"/>'
+        'stroke="var(--bord)" stroke-width="6" stroke-dasharray="1 15"/>'
         '</svg>'
         '<svg viewBox="0 0 380 400" width="168" height="177" '
         'style="position:relative">'
@@ -312,7 +313,7 @@ RADAR_CSS = """
 .radar .bl:nth-of-type(4){animation-delay:3.3s}
 @keyframes blip{0%,88%{opacity:0}90%{opacity:1}100%{opacity:0}}
 .radar .lab{position:absolute;left:0;right:0;bottom:-3px;text-align:center;
- font:400 7.5px ui-monospace,monospace;letter-spacing:.22em;color:#3f6b78}
+ font:400 7.5px ui-monospace,monospace;letter-spacing:.22em;color:var(--txt-faible)}
 """
 
 
@@ -344,7 +345,7 @@ def radar() -> str:
 CSS += """
 .seuils{margin-top:9px;padding-top:8px;border-top:1px solid #0b2028}
 .sfx{display:flex;justify-content:space-between;align-items:baseline;
- font-size:9.5px;letter-spacing:.08em;color:#6f93a3;padding:3px 0}
+ font-size:9.5px;letter-spacing:.08em;color:var(--txt-mi);padding:3px 0}
 .sfx b{font-weight:500;font-size:10px}
 .sfn{font-size:9px;line-height:1.5;color:#2f5462;margin-top:7px}
 """

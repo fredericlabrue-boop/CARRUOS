@@ -156,19 +156,19 @@ CERF_FIXE = (
 # elle s'affichait ailleurs sans mise en forme, libelles et valeurs
 # colles les uns aux autres.
 CSS_FICHE = """
-.lig{border:1px solid #0e2b34;padding:11px 13px;margin-bottom:9px;
+.lig{border:1px solid var(--bord);padding:11px 13px;margin-bottom:9px;
  clip-path:polygon(11px 0,100% 0,100% calc(100% - 11px),
  calc(100% - 11px) 100%,0 100%,0 11px)}
 .lig h3{font:500 13px ui-monospace,monospace;letter-spacing:.1em;
- color:#cbe9f2;margin-bottom:8px}
-.lig h3 span{font-size:10.5px;color:#3f6b78;letter-spacing:.06em}
+ color:var(--txt-fort);margin-bottom:8px}
+.lig h3 span{font-size:10.5px;color:var(--txt-faible);letter-spacing:.06em}
 .kv2{display:grid;grid-template-columns:1fr auto;gap:2px 10px;
- font:400 11.5px ui-monospace,monospace;color:#6f93a3}
-.kv2 b{color:#cbe9f2;text-align:right}
+ font:400 11.5px ui-monospace,monospace;color:var(--txt-mi)}
+.kv2 b{color:var(--txt-fort);text-align:right}
 .trajet{margin:9px 0;padding:8px 10px;background:rgba(8,20,26,.5);
  border-left:2px solid var(--acc)}
 .sortie{display:flex;justify-content:space-between;font-size:11px;
- padding:3px 0;color:#5b7183}
+ padding:3px 0;color:var(--txt-mi)}
 .sortie.on{color:var(--neg)}
 .sortie .et{font:500 9px ui-monospace,monospace;letter-spacing:.14em}
 .pos{color:var(--pos)}.neg{color:var(--neg)}
@@ -183,21 +183,21 @@ CSS_FICHE = """
 .etat.chaud{border-color:#7d2530;background:rgba(40,10,14,.42)}
 .etat.tiede{border-color:#7a5b1e;background:rgba(38,28,8,.38)}
 .etat .gros{font:600 25px ui-monospace,monospace;letter-spacing:.04em;
- color:#cbe9f2;line-height:1.25}
+ color:var(--txt-fort);line-height:1.25}
 .etat.chaud .gros{color:var(--neg)}
-.etat .sous{margin-top:7px;font-size:12px;line-height:1.7;color:#8fb3c1}
-.etat .sous b{color:#cbe9f2}
+.etat .sous{margin-top:7px;font-size:12px;line-height:1.7;color:var(--txt-doux)}
+.etat .sous b{color:var(--txt-fort)}
 .chiffres{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));
  gap:9px;margin:11px 0}
-.chiffres .c{padding:8px 10px;border:1px solid #0e2b34;
+.chiffres .c{padding:8px 10px;border:1px solid var(--bord);
  background:rgba(8,20,26,.42)}
 .chiffres .c .e{font:500 8.5px ui-monospace,monospace;letter-spacing:.15em;
- color:#3f6b78;display:block;margin-bottom:4px}
-.chiffres .c .v{font:600 17px ui-monospace,monospace;color:#cbe9f2;white-space:nowrap;overflow-wrap:normal}
+ color:var(--txt-faible);display:block;margin-bottom:4px}
+.chiffres .c .v{font:600 17px ui-monospace,monospace;color:var(--txt-fort);white-space:nowrap;overflow-wrap:normal}
 .chiffres .c .v.pos{color:var(--pos)}
 .chiffres .c .v.neg{color:var(--neg)}
 .sortie.gr{font-size:12.5px;padding:6px 9px;margin-bottom:3px;
- border:1px solid #0e2b34;background:rgba(8,20,26,.35)}
+ border:1px solid var(--bord);background:rgba(8,20,26,.35)}
 .sortie.gr.on{border-color:#7d2530;background:rgba(40,10,14,.4)}
 .sortie.gr .et{font-size:10px;letter-spacing:.16em}
 /* Les etiquettes des blocs manquants et des vetos. Sans cette regle, les
@@ -209,14 +209,14 @@ CSS_FICHE = """
 .thz{width:100%;border-collapse:collapse;margin-top:8px;
  font:400 11px ui-monospace,monospace}
 .thz th{text-align:right;padding:4px 5px;font-weight:500;font-size:8.5px;
- letter-spacing:.13em;color:#3f6b78;border-bottom:1px solid #0e2b34}
+ letter-spacing:.13em;color:var(--txt-faible);border-bottom:1px solid var(--bord)}
 .thz th:first-child,.thz td:first-child{text-align:left}
 .thz td{text-align:right;padding:3px 5px;border-bottom:1px solid #0b2028;
- color:#8fb3c1}
-.thz td:first-child{color:#cbe9f2}
+ color:var(--txt-doux)}
+.thz td:first-child{color:var(--txt-fort)}
 .repli{margin-top:11px}
 .repli>summary{cursor:pointer;font:500 9px ui-monospace,monospace;
- letter-spacing:.17em;color:#3f6b78;padding:5px 0;list-style:none}
+ letter-spacing:.17em;color:var(--txt-faible);padding:5px 0;list-style:none}
 .repli>summary::-webkit-details-marker{display:none}
 .repli>summary:before{content:"[ + ]  "}
 .repli[open]>summary:before{content:"[ - ]  "}
@@ -240,22 +240,23 @@ CSS_DETAIL = """
 #detail .fx:hover{color:var(--neg)}
 #detail .pourquoi{margin:10px 0 13px;padding:10px 12px;
  background:rgba(8,20,26,.55);border-left:2px solid var(--acc);
- font-size:12px;line-height:1.7;color:#8fb3c1}
-#detail .pourquoi b{color:#cbe9f2}
+ font-size:12px;line-height:1.7;color:var(--txt-doux)}
+#detail .pourquoi b{color:var(--txt-fort)}
 #detail .manque{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
 #detail .manque span{font:400 10px ui-monospace,monospace;padding:3px 7px;
  border:1px solid #7d2530;color:#f87171}
 #detail .manque span.ok{border-color:#10705a;color:var(--pos)}
 #detail .actions{display:flex;gap:7px;margin-top:14px}
-.rap{border:1px solid #0e2b34;padding:10px 12px;margin-bottom:8px}
-.rap .n{font:500 12px ui-monospace,monospace;color:#cbe9f2}
-.rap .d{font-size:11px;color:#5b7183;margin-top:3px;line-height:1.6}
+.rap{border:1px solid var(--bord);padding:10px 12px;margin-bottom:8px}
+.rap .n{font:500 12px ui-monospace,monospace;color:var(--txt-fort)}
+.rap .d{font-size:11px;color:var(--txt-mi);margin-top:3px;line-height:1.6}
 """
 
 CSS = hd.CSS + hd.FOND_CSS + rg.CSS_OPTIONS + rg.CSS_THEMES \
     + rg.TIROIR_CSS + CSS_FICHE + CSS_DETAIL + """
 *{box-sizing:border-box;margin:0}
-body{background:#080b10;color:#94a3b8;font:14px ui-sans-serif,Segoe UI,system-ui;
+body{background:var(--fond);color:var(--txt);
+ font:14px var(--corps-police,ui-sans-serif,Segoe UI,system-ui);
  min-height:100vh;overflow-x:hidden}
 #splash{position:fixed;inset:0;background:#080b10;display:flex;flex-direction:column;
  align-items:center;justify-content:center;gap:17px;z-index:99;
@@ -285,20 +286,21 @@ body{background:#080b10;color:#94a3b8;font:14px ui-sans-serif,Segoe UI,system-ui
 html{height:100%}
 body{overflow:hidden}
 .fond{transform:translateZ(0);backface-visibility:hidden}
-.app{position:relative;z-index:1;height:100vh;display:grid;grid-template-rows:auto auto minmax(0,1fr);
- gap:9px;padding:9px 13px 11px}
+.app{position:relative;z-index:1;height:100vh;display:grid;
+ grid-template-rows:auto auto minmax(0,1fr);
+ gap:var(--gap);padding:9px 13px 11px}
 
 /* La reserve a droite est la place de la roue de reglages : sans elle,
    l'horloge passe dessous. */
 .bar{display:flex;align-items:center;gap:13px;padding:0 50px 0 3px;flex:none}
 .bar h1{font-size:15px;font-weight:300;color:var(--marque);letter-spacing:.4em}
 .bar .sst{font:400 9px ui-monospace,Consolas,monospace;letter-spacing:.24em;
- color:#3f6b78}
+ color:var(--txt-faible)}
 .bar .sep{flex:1}
 .bar .etat{font:400 10px ui-monospace,Consolas,monospace;letter-spacing:.18em;
- color:#3f6b78}
-.bar .etat b{color:#cbe9f2;font-weight:400}
-.raf{background:#08222a;border:1px solid #1b6b7d;color:var(--acc);
+ color:var(--txt-faible)}
+.bar .etat b{color:var(--txt-fort);font-weight:400}
+.raf{background:#08222a;border:1px solid var(--bord-fort);color:var(--acc);
  padding:6px 12px;font:500 10px ui-monospace,monospace;letter-spacing:.14em;
  cursor:pointer;
  clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),
@@ -306,7 +308,7 @@ body{overflow:hidden}
 .raf:hover{background:#0e3b48}
 /* --- Majordome. Disque flottant, panneau au clic. --- */
 .maj{position:fixed;right:18px;bottom:18px;z-index:70;width:54px;height:54px;
- border-radius:50%;background:rgba(6,18,26,.9);border:1px solid #1b6b7d;
+ border-radius:50%;background:rgba(6,18,26,.9);border:1px solid var(--bord-fort);
  color:var(--acc);display:grid;place-items:center;cursor:pointer;
  box-shadow:0 0 22px rgba(34,211,238,.18);transition:.18s}
 .maj:hover{box-shadow:0 0 34px rgba(34,211,238,.4)}
@@ -326,7 +328,7 @@ body{overflow:hidden}
 /* Entete : titre a gauche, croix de fermeture a droite. Sans elle, le
    panneau une fois ouvert ne se refermait plus et masquait l'ecran. */
 .majh{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-.majt{font:500 8px ui-monospace,monospace;letter-spacing:.26em;color:#3f6b78;
+.majt{font:500 8px ui-monospace,monospace;letter-spacing:.26em;color:var(--txt-faible);
  flex:1}
 .majx{flex:none;width:22px;height:22px;line-height:19px;text-align:center;
  cursor:pointer;font-size:15px;color:#5d8a97;background:rgba(8,34,42,.9);
@@ -335,10 +337,10 @@ body{overflow:hidden}
  calc(100% - 5px) 100%,0 100%,0 5px)}
 .majx:hover{color:#f87171;border-color:#7d2530;background:#2a1114}
 .majmic.ko{color:#6b4a4f;border-color:#3a1c20}
-.majr{font-size:12px;line-height:1.55;color:#cbe9f2;min-height:42px;
+.majr{font-size:12px;line-height:1.55;color:var(--txt-fort);min-height:42px;
  margin-bottom:9px}
 .maje{font-size:9.5px;line-height:1.6;color:#2f5462;margin-top:8px}
-.raf.occupe{color:#3f6b78;border-color:#123c47}
+.raf.occupe{color:var(--txt-faible);border-color:#123c47}
 .raf.occupe span{display:inline-block;animation:tour 1s linear infinite}
 #roue{top:8px;right:13px;width:34px;height:34px;line-height:32px;font-size:15px;
  border-radius:0;clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),
@@ -349,12 +351,17 @@ body{overflow:hidden}
    Coins biseautes, equerres dans les angles, bordure cyan sombre.
    Un seul et meme cadre pour toute l'application. */
 .grille{display:grid;grid-template-columns:.92fr 1.08fr 1.1fr .9fr;
- gap:9px;min-height:0}
-.pan{background:rgba(5,9,14,.66);border:1px solid #0e2b34;position:relative;
- padding:14px 15px 11px;display:flex;flex-direction:column;min-height:0;
- box-shadow:inset 0 0 38px rgba(34,211,238,.05),0 0 22px rgba(0,0,0,.45);
- clip-path:polygon(15px 0,100% 0,100% calc(100% - 15px),
- calc(100% - 15px) 100%,0 100%,0 15px);
+ gap:var(--gap);min-height:0}
+/* La geometrie passe par des variables : c'est ce qui permet a un theme
+   de changer la FORME du panneau — biseau, arrondi, densite, matiere —
+   et pas seulement sa couleur. Les valeurs par defaut sont exactement
+   l'apparence d'origine, donc un theme qui n'en redefinit aucune ne
+   change rien. */
+.pan{background:var(--pan-fond);border:1px solid var(--bord);
+ position:relative;padding:var(--pad);display:flex;flex-direction:column;
+ min-height:0;box-shadow:var(--pan-ombre);border-radius:var(--rayon);
+ clip-path:polygon(var(--coin) 0,100% 0,100% calc(100% - var(--coin)),
+ calc(100% - var(--coin)) 100%,0 100%,0 var(--coin));
  animation:monte .75s cubic-bezier(.22,1,.36,1) backwards}
 .grille .pan:nth-child(1){animation-delay:.06s}
 .grille .pan:nth-child(2){animation-delay:.16s}
@@ -362,9 +369,15 @@ body{overflow:hidden}
 @keyframes monte{from{opacity:0;transform:translateY(22px)}}
 /* equerres : elles respirent au lieu d'etre figees */
 .pan::before,.pan::after{content:"";position:absolute;width:24px;height:24px;
- border:1px solid #1b6b7d;pointer-events:none;
+ border:1px solid var(--bord-fort);pointer-events:none;
+ opacity:var(--equerre);
  animation:equerre 4.6s ease-in-out infinite}
-@keyframes equerre{0%,100%{opacity:.45}50%{opacity:.95}}
+/* La variable doit entrer DANS les etapes : une animation l'emporte
+   toujours sur une declaration normale, donc `opacity:var(--equerre)`
+   seul etait rallume a chaque cycle. Avec --equerre a 0, les deux
+   etapes valent zero et les equerres disparaissent vraiment. */
+@keyframes equerre{0%,100%{opacity:calc(var(--equerre,1) * .45)}
+ 50%{opacity:calc(var(--equerre,1) * .95)}}
 .pan::before{top:5px;right:5px;border-left:0;border-bottom:0}
 .pan::after{bottom:5px;left:5px;border-right:0;border-top:0;
  animation-delay:2.3s}
@@ -378,9 +391,11 @@ body{overflow:hidden}
  100%{transform:translateX(294%)}}
 .grille .pan:nth-child(2) .trait i{animation-delay:1.7s}
 .grille .pan:nth-child(3) .trait i{animation-delay:3.4s}
-.pan h2{font:500 9.5px ui-monospace,Consolas,monospace;letter-spacing:.24em;
- color:#3f6b78;margin-bottom:11px;flex:none;display:flex;align-items:center;
- gap:9px}
+.pan h2{font:500 9.5px var(--titre-police,ui-monospace,Consolas,monospace);
+ letter-spacing:var(--titre-espace,.24em);
+ text-transform:var(--titre-casse,none);
+ color:var(--txt-faible);margin-bottom:11px;flex:none;display:flex;
+ align-items:center;gap:9px}
 .pan h2::after{content:"";flex:1;height:1px;
  background:linear-gradient(90deg,#123c47,transparent)}
 .corps{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;
@@ -388,7 +403,7 @@ body{overflow:hidden}
 .corps::-webkit-scrollbar{width:6px}
 .corps::-webkit-scrollbar-track{background:#07131a}
 .corps::-webkit-scrollbar-thumb{background:#13323c}
-.corps::-webkit-scrollbar-thumb:hover{background:#1b6b7d}
+.corps::-webkit-scrollbar-thumb:hover{background:var(--bord-fort)}
 
 /* --- Le HUD resserre pour tenir dans le budget vertical ---------- */
 /* Le HUD passe en verre pour laisser voir la projection derriere.
@@ -413,20 +428,21 @@ body{overflow:hidden}
 
 /* --- Saisie et boutons, au meme dessin que les cadres ------------ */
 .row{display:flex;gap:7px}
-input{flex:1;min-width:0;background:#07131a;border:1px solid #123c47;
- padding:10px 12px;color:#cbe9f2;font:15px ui-monospace,Consolas,monospace;
+input{flex:1;min-width:0;background:var(--champ-fond);
+ border:1px solid var(--bord);
+ padding:10px 12px;color:var(--txt-fort);font:15px ui-monospace,Consolas,monospace;
  letter-spacing:.07em;outline:none;transition:.14s}
 input:focus{border-color:var(--acc);background:#081b23}
 input::placeholder{color:#2f5462;letter-spacing:.03em}
-button{background:#08222a;border:1px solid #1b6b7d;color:var(--acc);
+button{background:#08222a;border:1px solid var(--bord-fort);color:var(--acc);
  padding:10px 17px;font:500 12.5px ui-monospace,Consolas,monospace;
  letter-spacing:.12em;cursor:pointer;transition:.14s;white-space:nowrap;
  clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),
  calc(100% - 7px) 100%,0 100%,0 7px)}
 button:hover{background:#0e3b48;border-color:var(--acc)}
 button:active{transform:translateY(1px)}
-.sec{background:#0a1620;border-color:#123c47;color:#6f93a3}
-.sec:hover{background:#0e2530;color:#cbe9f2}
+.sec{background:#0a1620;border-color:#123c47;color:var(--txt-mi)}
+.sec:hover{background:#0e2530;color:var(--txt-fort)}
 
 /* formulaire des positions : quatre champs qui tiennent toujours */
 .posf{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;
@@ -437,26 +453,26 @@ button:active{transform:translateY(1px)}
 /* scans : une colonne de quatre lignes compactes */
 .gh{display:flex;flex-direction:column;gap:7px}
 .gh button{text-align:left;padding:10px 13px;background:#0a1620;
- border-color:#123c47;color:#8fb3c1}
-.gh button:hover{border-color:var(--acc);color:#cbe9f2}
-.gh b{display:block;color:#cbe9f2;font-weight:500;font-size:12.5px;
+ border-color:#123c47;color:var(--txt-doux)}
+.gh button:hover{border-color:var(--acc);color:var(--txt-fort)}
+.gh b{display:block;color:var(--txt-fort);font-weight:500;font-size:12.5px;
  letter-spacing:.1em;margin-bottom:2px}
-.gh i{font-style:normal;font-size:10px;color:#3f6b78;letter-spacing:.1em}
+.gh i{font-style:normal;font-size:10px;color:var(--txt-faible);letter-spacing:.1em}
 
 .msg{font-size:12px;line-height:1.7;color:#5b7b8a;min-height:18px;margin-top:10px;
  white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace}
 .err{color:#fb7185}
 table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
-th{text-align:left;color:#3f6b78;font-weight:400;font-size:9px;letter-spacing:.16em;
+th{text-align:left;color:var(--txt-faible);font-weight:400;font-size:9px;letter-spacing:.16em;
  padding:6px 7px;font-family:ui-monospace,Consolas,monospace}
-td{padding:7px;border-top:1px solid #0e2b34;color:#8fb3c1}
+td{padding:7px;border-top:1px solid var(--bord);color:var(--txt-doux)}
 tr:hover td{background:#08181f}
 td b{color:#e8f6fa;font-weight:500}
 .go{color:var(--acc);cursor:pointer}
 .go:hover{text-shadow:0 0 7px var(--acc)}
-.clebloc{margin:8px 0 10px;padding:9px 11px;background:#060f15;
+.clebloc{margin:8px 0 10px;padding:9px 11px;background:var(--pan-fond);
  border:1px solid #123c47}
-.clebloc .ch{font-size:7.5px;letter-spacing:.2em;color:#3f6b78;display:block;
+.clebloc .ch{font-size:7.5px;letter-spacing:.2em;color:var(--txt-faible);display:block;
  margin-bottom:6px}
 .clebloc input{font-size:12px}
 .clebloc button{padding:8px 12px;font-size:10.5px}
@@ -465,9 +481,9 @@ td b{color:#e8f6fa;font-weight:500}
 .ah{display:flex;gap:9px;font:400 8.5px ui-monospace,monospace;
  letter-spacing:.14em;color:#2f5462;margin-bottom:3px}
 .ah b{font-weight:400;margin-left:auto}
-.at{font-size:11.5px;line-height:1.5;color:#8fb3c1}
+.at{font-size:11.5px;line-height:1.5;color:var(--txt-doux)}
 .sep2{height:1px;background:#0b2028;margin:11px 0 9px}
-select{background:#07131a;border:1px solid #123c47;color:#cbe9f2;
+select{background:#07131a;border:1px solid #123c47;color:var(--txt-fort);
  padding:9px 8px;font:12px ui-monospace,monospace;flex:1;min-width:0;
  outline:none}
 select:focus{border-color:var(--acc)}
@@ -476,12 +492,12 @@ select:focus{border-color:var(--acc)}
  clip-path:polygon(9px 0,100% 0,100% calc(100% - 9px),
  calc(100% - 9px) 100%,0 100%,0 9px)}
 .p0b b{font:500 19px ui-monospace,monospace;letter-spacing:.14em}
-.p0b span{font-size:10px;color:#6f93a3;line-height:1.4}
-.p0c{font-size:10px;line-height:1.7;color:#6f93a3;font-family:ui-monospace,
+.p0b span{font-size:10px;color:var(--txt-mi);line-height:1.4}
+.p0c{font-size:10px;line-height:1.7;color:var(--txt-mi);font-family:ui-monospace,
  monospace;white-space:pre-wrap;max-height:120px;overflow-y:auto;
  border-top:1px solid #0b2028;padding-top:7px;margin-top:7px}
 .avert{margin-top:11px;font:400 10px ui-monospace,Consolas,monospace;
- line-height:1.75;color:#2f5462;border-top:1px solid #0e2b34;padding-top:9px}
+ line-height:1.75;color:#2f5462;border-top:1px solid var(--bord);padding-top:9px}
 
 /* --- Ecrans etroits : on rend le defilement, sinon rien ne tient - */
 @media(max-width:1500px){
@@ -576,7 +592,7 @@ async function pos(){
   var h='<table><tr><th>TITRE</th><th>QTE</th><th>ENTREE</th><th>COURS</th>'
    +'<th>P&amp;L</th><th>STOP</th><th>VERDICT</th><th></th></tr>';
   j.lignes.forEach(function(l){
-   var vc=(l.verdict==='CONSERVER')?'#94a3b8'
+   var vc=(l.verdict==='CONSERVER')?'var(--txt)'
         :((l.verdict==='SURVEILLER')?'#fbbf24'
         :((l.verdict==='INDISPONIBLE')?'#64748b':'#f87171'));
    var act=Object.keys(l.sorties||{}).filter(function(k){return l.sorties[k];});
@@ -756,8 +772,8 @@ async function actus(){
   m.textContent = (j.quota!=null && j.quota<=8)
    ? j.quota+' appels Alpha Vantage restants aujourd\'hui.' : '';
   r.innerHTML=j.items.map(function(a){
-   var c = a.score==null ? '#6f93a3'
-         : (a.score>0.15?'#34d399':(a.score<-0.15?'#f87171':'#94a3b8'));
+   var c = a.score==null ? 'var(--txt-mi)'
+         : (a.score>0.15?'#34d399':(a.score<-0.15?'#f87171':'var(--txt)'));
    var s = a.score==null ? '' : (a.score>0.15?'positif'
          : (a.score<-0.15?'negatif':'neutre'));
    return '<div class="act">'
@@ -940,7 +956,7 @@ async function ouvrirWeb(){
   if(j.ok){
    majDit('Page ouverte dans le navigateur. Le micro y fonctionne.', false);
    $('majr').innerHTML='Carruos est ouvert dans votre navigateur. '
-    +'Le micro y fonctionne.<br><span style="color:#3f6b78">'+j.url+'</span>';
+    +'Le micro y fonctionne.<br><span style="color:var(--txt-faible)">'+j.url+'</span>';
    return;
   }
  }catch(e){}
@@ -1125,7 +1141,7 @@ function majEcoute(){
   if(!p.ok){
    const dit=PERM_DIT[p.motif]||PERM_DIT['refus'];
    $('majr').innerHTML=dit
-    +'<br><span style="color:#3f6b78">Le bouton DIAGNOSTIC dit '
+    +'<br><span style="color:var(--txt-faible)">Le bouton DIAGNOSTIC dit '
     +'precisement ce qui bloque.</span>';
    majDit('Le micro est refuse. Voyez le diagnostic.', false);
    const c=$('majc');
@@ -1661,22 +1677,22 @@ CSS_STRAT = """
  grid-template-rows:auto auto}}
 .champs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .champs label{display:flex;flex-direction:column;gap:4px;
- font:400 10px ui-monospace,monospace;letter-spacing:.14em;color:#3f6b78}
+ font:400 10px ui-monospace,monospace;letter-spacing:.14em;color:var(--txt-faible)}
 .champs input{width:100%}
-.ex{font-size:11.5px;line-height:1.6;color:#5b7183;margin-bottom:11px}
+.ex{font-size:11.5px;line-height:1.6;color:var(--txt-mi);margin-bottom:11px}
 .tproj{width:100%;border-collapse:collapse;margin-top:12px;
  font:400 11.5px ui-monospace,monospace}
 .tproj th{text-align:right;padding:5px 6px;font-weight:500;font-size:9.5px;
- letter-spacing:.14em;color:#3f6b78;border-bottom:1px solid #0e2b34}
+ letter-spacing:.14em;color:var(--txt-faible);border-bottom:1px solid var(--bord)}
 .tproj th:first-child,.tproj td:first-child{text-align:left}
 .tproj td{text-align:right;padding:4px 6px;border-bottom:1px solid #0b2028}
-.tproj tr.fort td{color:#cbe9f2;font-weight:600}
-.bilan{margin-top:13px;padding-top:11px;border-top:1px solid #0e2b34;
- font-size:12px;line-height:1.75;color:#8fb3c1}
+.tproj tr.fort td{color:var(--txt-fort);font-weight:600}
+.bilan{margin-top:13px;padding-top:11px;border-top:1px solid var(--bord);
+ font-size:12px;line-height:1.75;color:var(--txt-doux)}
 .bilan b{color:var(--acc)}
 .titre-sec{font:500 9px ui-monospace,monospace;letter-spacing:.2em;
- color:#3f6b78;margin:16px 0 9px;padding-top:11px;
- border-top:1px solid #0e2b34}
+ color:var(--txt-faible);margin:16px 0 9px;padding-top:11px;
+ border-top:1px solid var(--bord)}
 """
 
 JS_STRAT = r"""
@@ -1712,7 +1728,7 @@ async function proj(){
      + 'Pour seulement <b>egaler</b> le capitalisant, une rotation doit '
      + 'produire <b>' + (j.barre_brute*100).toFixed(2) + ' %</b> brut par '
      + 'an au lieu de ' + (h.taux*100).toFixed(2) + ' %.'
-     + "<br><span style=\"color:#3f6b78\">Ce tableau n'est pas une "
+     + "<br><span style=\"color:var(--txt-faible)\">Ce tableau n'est pas une "
      + "prevision : il deroule l'hypothese que vous avez saisie.</span>"
      + '</div>';
   $('pres').innerHTML = t;
@@ -1786,7 +1802,7 @@ proj(); lignes();
 
 
 BARRE = ('<div style="margin-bottom:15px"><button onclick="location.href=\'/\'" '
-         'style="background:#121a24;border:1px solid #22303f;color:#94a3b8;'
+         'style="background:#121a24;border:1px solid #22303f;color:var(--txt);'
          'border-radius:9px;padding:9px 18px;font:500 13px inherit;cursor:pointer">'
          '&#8592; Retour</button></div>')
 
