@@ -478,6 +478,49 @@ def test_phase0() -> None:
        leve)
 
 
+def test_marqueurs() -> None:
+    """Les fleches du graphique, vectorisees, doivent etre IDENTIQUES.
+
+    La boucle scalaire pesait 3 des 5 secondes de generation de la page.
+    Remplacer une boucle par une passe numpy ne vaut que si le resultat
+    ne bouge pas d'une fleche — on le verifie sur des series qui en
+    produisent vraiment, pas sur une serie qui n'en produit aucune.
+    """
+    from . import chart
+    from .indicators import enrich
+    from .rules import evaluate
+
+    print("\n— Fleches de signal : vectorise = scalaire —")
+    bo = enrich(serie(1400, seed=211, derive=0.0005, vol=0.008, depart=400.0))
+    total, ecarts = 0, []
+    for graine in (3, 13, 41, 57):
+        d = enrich(serie(1400, seed=graine), bench_close=bo["close"])
+        b = bo.reindex(d.index).ffill()
+        lent = []
+        for i in range(max(210, len(d) - 900), len(d)):
+            try:
+                marche = bool(b["close"].iloc[i] > b["sma200"].iloc[i])
+                if evaluate(d, "X", marche, i=i, days_to_earnings=999).fired:
+                    lent.append(d.index[i].strftime("%Y-%m-%d"))
+            except Exception:
+                pass
+        rapide = [m["time"] for m in chart._marqueurs(d, b, 900)]
+        total += len(lent)
+        if lent != rapide:
+            ecarts.append((graine, sorted(set(lent) ^ set(rapide))[:4]))
+    ok(f"l'echantillon produit de vraies fleches ({total})", total >= 30)
+    ok("aucun ecart entre la passe numpy et la boucle barre a barre",
+       not ecarts)
+    if ecarts:
+        print(f"          -> {ecarts}")
+    # Et la forme attendue par la page, pas seulement les dates.
+    d = enrich(serie(1400, seed=41), bench_close=bo["close"])
+    m = chart._marqueurs(d, bo.reindex(d.index).ffill(), 900)
+    ok("chaque fleche porte les champs attendus par le graphique",
+       all(set(x) == {"time", "position", "color", "shape", "text"}
+           for x in m))
+
+
 def test_horizon() -> None:
     """Amplitude par horizon et objectifs atteignables.
 
@@ -1354,6 +1397,7 @@ def main() -> int:
     test_resolve_et_app()
     test_veto_resultats()
     test_univers_figes()
+    test_marqueurs()
     test_horizon()
     test_cle_av()
 

@@ -25,6 +25,14 @@ from .dashboard import LABELS
 from .indicators import PERIODES, enrich
 from .rules import evaluate, evaluate_exit, market_regime_ok, position_size
 
+# La bibliotheque de graphiques. Elle etait chargee UNIQUEMENT depuis un
+# CDN : sans internet, la page s'ouvrait avec quatre colonnes de texte et
+# un grand vide a la place du graphique, sans un mot d'explication. Le
+# mode cle USB rend ce cas tres concret.
+#
+# On essaie donc d'abord une copie locale, puis le CDN, et si les deux
+# echouent la page le DIT au lieu de rester blanche.
+LOCAL = "/statique/lightweight-charts.js"
 CDN = "https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"
 
 UNITES = [("jour", "1 JOUR", None, 420),
@@ -92,13 +100,62 @@ def _reech(df: pd.DataFrame, regle: str | None) -> pd.DataFrame:
     return df.resample(regle).agg(AGG).dropna()
 
 
+def _dates(idx) -> list:
+    """Les dates au format attendu par le graphique, en une passe.
+
+    `strftime` appele barre par barre sur un Timestamp est lent ; sur
+    l'index entier, pandas le fait en C. Sur mille barres relues deux
+    fois par page, ce n'est plus un detail.
+    """
+    return idx.strftime("%Y-%m-%d").tolist()
+
+
 def _serie(d, col, n):
-    out = []
-    for ts, v in d[col].tail(n).items():
-        x = _f(v)
-        if x is not None:
-            out.append({"time": ts.strftime("%Y-%m-%d"), "value": x})
-    return out
+    """Une serie d'indicateur, prete pour le graphique.
+
+    `.items()` construisait un Timestamp et un scalaire pandas par barre.
+    En numpy, les memes valeurs sortent d'un coup — arrondies a la meme
+    decimale, donc le graphique est au pixel pres le meme.
+    """
+    v = d[col].tail(n)
+    vals = v.to_numpy(dtype=float)
+    fini = np.isfinite(vals)
+    if not fini.any():
+        return []
+    dates = _dates(v.index)
+    arr = np.round(vals, 4)
+    return [{"time": dates[i], "value": float(arr[i])}
+            for i in range(len(arr)) if fini[i]]
+
+
+def _ohlc(d, n) -> list:
+    """Les bougies. `high` et `low` sont bornes par l'ouverture et la
+    cloture comme avant : une bougie dont le plus haut serait sous son
+    ouverture ne se dessine pas."""
+    q = d.tail(n)
+    o = q["open"].to_numpy(dtype=float)
+    h = q["high"].to_numpy(dtype=float)
+    b = q["low"].to_numpy(dtype=float)
+    c = q["close"].to_numpy(dtype=float)
+    hi = np.round(np.maximum.reduce([o, h, b, c]), 4)
+    lo = np.round(np.minimum.reduce([o, h, b, c]), 4)
+    o4, c4 = np.round(o, 4), np.round(c, 4)
+    bon = np.isfinite(o4) & np.isfinite(c4) & np.isfinite(hi) & np.isfinite(lo)
+    dates = _dates(q.index)
+    return [{"time": dates[i], "open": float(o4[i]), "high": float(hi[i]),
+             "low": float(lo[i]), "close": float(c4[i])}
+            for i in range(len(dates)) if bon[i]]
+
+
+def _volume(d, n) -> list:
+    q = d.tail(n)
+    v = np.round(q["volume"].to_numpy(dtype=float), 4)
+    hausse = q["close"].to_numpy(dtype=float) >= q["open"].to_numpy(dtype=float)
+    fini = np.isfinite(v)
+    dates = _dates(q.index)
+    return [{"time": dates[i], "value": float(v[i]),
+             "color": "#10b98130" if hausse[i] else "#ef444430"}
+            for i in range(len(dates)) if fini[i]]
 
 
 def _cone(d, regle, horizon: int = 20) -> dict:
@@ -148,8 +205,34 @@ def _cone(d, regle, horizon: int = 20) -> dict:
 
 
 def _marqueurs(d, bo, n):
+    """Les fleches de signal sur le graphique.
+
+    Cette fonction appelait `evaluate()` une fois par barre — 724 appels
+    scalaires par page, chacun construisant des Series pandas pour lire
+    treize booleens. A elle seule elle pesait 3 des 5 secondes de
+    generation de la page.
+
+    `signaux_vectorises` calcule les memes treize blocs d'un coup sur
+    toute la serie, en numpy. Son equivalence avec `evaluate()` barre par
+    barre est verifiee par `test_moteur` — ce n'est pas une
+    approximation, c'est le meme resultat.
+
+    On retombe sur la boucle si la version vectorisee echoue : une
+    fleche manquante vaut mieux qu'une page blanche.
+    """
+    debut = max(210, len(d) - n)
+    try:
+        from . import backtest as bt
+        feu = bt.signaux_vectorises(d, bo)
+        idx = d.index
+        return [{"time": idx[i].strftime("%Y-%m-%d"),
+                 "position": "belowBar", "color": "#10b981",
+                 "shape": "arrowUp", "text": "A"}
+                for i in range(debut, len(d)) if feu[i]]
+    except Exception:
+        pass
     out = []
-    for i in range(max(210, len(d) - n), len(d)):
+    for i in range(debut, len(d)):
         try:
             ok = bool(bo["close"].iloc[i] > bo["sma200"].iloc[i])
             if evaluate(d, "X", ok, i=i, days_to_earnings=999).fired:
@@ -254,13 +337,25 @@ def _jauges(d, bench):
     }
 
 
-def _analyse(brut, bench_brut, regle, nb, ticker, sleeve, ccy):
+def _analyse(brut, bench_brut, regle, nb, ticker, sleeve, ccy, pre=None):
+    """Une unite de temps.
+
+    `pre` permet de fournir le couple (titre, indice) deja enrichi. La
+    page construisait l'unite JOUR deux fois : une fois pour les jauges
+    et les modules, une fois ici, avec exactement les memes arguments.
+    Sur douze appels a `enrich` par page, deux etaient des doublons
+    exacts.
+    """
     # cle de l'unite : elle donne les longueurs converties
     _cle = next((k for k, _, r, _ in UNITES if r == regle), "jour")
     _pe = periodes_unite(_cle)
-    d = enrich(_reech(brut, regle),
-               bench_close=_reech(bench_brut, regle)["close"], periodes=_pe)
-    b = enrich(_reech(bench_brut, regle), periodes=_pe)
+    if pre is not None:
+        d, b = pre
+    else:
+        d = enrich(_reech(brut, regle),
+                   bench_close=_reech(bench_brut, regle)["close"],
+                   periodes=_pe)
+        b = enrich(_reech(bench_brut, regle), periodes=_pe)
     # 40 barres suffisent pour bougies, EMA20, RSI et MACD. La SMA200
     # manquera : _bloc_etats la marquera "na" et le verdict basculera
     # sur DONNEES INSUFFISANTES au lieu d'inventer un faux AUCUN.
@@ -303,13 +398,12 @@ def _analyse(brut, bench_brut, regle, nb, ticker, sleeve, ccy):
         "niveaux": niveaux,
         "stats": {"cours": _f(last["close"]), "rsi": _f(last["rsi14"]),
                   "atr": _f(last["atr14"]), "bougies": min(nb, len(d))},
-        "ohlc": [{"time": t.strftime("%Y-%m-%d"), "open": _f(r.open),
-                  "high": _f(max(r.open, r.high, r.low, r.close)),
-                  "low": _f(min(r.open, r.high, r.low, r.close)),
-                  "close": _f(r.close)} for t, r in d.tail(nb).iterrows()],
-        "volume": [{"time": t.strftime("%Y-%m-%d"), "value": _f(r.volume),
-                    "color": "#10b98130" if r.close >= r.open else "#ef444430"}
-                   for t, r in d.tail(nb).iterrows()],
+        # `iterrows()` construit une Series pandas complete par barre, et
+        # `r.open` passe par __getattr__. Sur mille barres parcourues deux
+        # fois, cela pesait le tiers de la page. Les memes nombres, lus en
+        # numpy, sont identiques a l'arrondi pres — qui est le meme.
+        "ohlc": _ohlc(d, nb),
+        "volume": _volume(d, nb),
         "markers": _marqueurs(d, bo, nb),
         "cone": _cone(d, regle),
     }
@@ -502,7 +596,36 @@ CSS += """
 """
 
 JS = """
-const D=DATA; const LC=LightweightCharts; let U='jour';
+// Sans la bibliotheque, cette ligne levait une ReferenceError et TOUT le
+// script mourait : les quatre colonnes, les unites de temps, les modules.
+// On verifie d'abord, on explique, et on laisse le reste de la page
+// fonctionner.
+if(typeof LightweightCharts === 'undefined'){
+ // Il n'existe pas d'element « graph » : les conteneurs sont p1/p2/p3.
+ // Viser un id inexistant renvoyait sur document.body, et
+ // insertBefore(m, body) posait le message HORS du body — invisible.
+ var z = document.getElementById('p1');
+ var m = document.createElement('div');
+ m.style.cssText = 'padding:18px 20px;margin:10px 0;'
+  + 'border:1px solid var(--bord-fort);background:var(--pan-fond);'
+  + 'font:13px ui-monospace,monospace;line-height:1.8;color:var(--txt-doux)';
+ m.innerHTML = '<b style="color:var(--neg)">GRAPHIQUE INDISPONIBLE</b><br>'
+  + "La bibliotheque de trace n'a pas pu etre chargee : ni copie locale, "
+  + 'ni acces au reseau.<br><br>'
+  + 'Pour ne plus jamais en dependre, telecharge une fois ce fichier :<br>'
+  + '<span style="color:var(--acc)">unpkg.com/lightweight-charts@4.2.0/'
+  + 'dist/lightweight-charts.standalone.production.js</span><br>'
+  + 'et pose-le dans <span style="color:var(--acc)">'
+  + 'equity_scanner/statique/lightweight-charts.js</span>.<br><br>'
+  + 'Tout le reste de cette page fonctionne : les quatre colonnes, les '
+  + 'blocs, les niveaux et les unites de temps sont calcules ici, pas '
+  + 'par la bibliotheque.';
+ if(z && z.parentNode){ z.parentNode.insertBefore(m, z); }
+ else { document.body.insertBefore(m, document.body.firstChild); }
+}
+const D=DATA; const LC=(typeof LightweightCharts!=='undefined')
+ ? LightweightCharts : null;
+let U='jour';
 const base={layout:{background:{color:'transparent'},textColor:'#64748b',fontSize:11},
  grid:{vertLines:{color:'#141c27'},horzLines:{color:'#141c27'}},
  rightPriceScale:{borderColor:'#1a2330'},timeScale:{borderColor:'#1a2330',rightOffset:5},
@@ -513,7 +636,27 @@ const base={layout:{background:{color:'transparent'},textColor:'#64748b',fontSiz
               axisDoubleClickReset:true}};
 // Les hauteurs viennent du conteneur, pas de valeurs figees : la page
 // doit tenir dans la fenetre quelle que soit sa taille.
+// Un faux graphique quand la bibliotheque manque : il avale les appels
+// au lieu de lever. Les quatre colonnes ne doivent rien a la
+// bibliotheque, elles n'ont pas a mourir avec elle.
+const RIEN=function(){};
+const MUET_TEMPS={fitContent:RIEN,setVisibleLogicalRange:RIEN,
+ getVisibleLogicalRange:function(){return null;},
+ subscribeVisibleLogicalRangeChange:RIEN,
+ unsubscribeVisibleLogicalRangeChange:RIEN,applyOptions:RIEN};
+const MUET={setData:RIEN,setMarkers:RIEN,applyOptions:RIEN,
+ createPriceLine:function(){return {applyOptions:RIEN,remove:RIEN};},
+ removePriceLine:RIEN,remove:RIEN,
+ priceScale:function(){return {applyOptions:RIEN};},
+ addLineSeries:function(){return MUET;},
+ addCandlestickSeries:function(){return MUET;},
+ addHistogramSeries:function(){return MUET;},
+ addAreaSeries:function(){return MUET;},
+ timeScale:function(){return MUET_TEMPS;},
+ subscribeCrosshairMove:RIEN,unsubscribeCrosshairMove:RIEN,
+ resize:RIEN};
 function mk(id){const el=document.getElementById(id);
+ if(!LC||!el) return MUET;
  const h=Math.max(90,el.parentElement.clientHeight-30);
  return LC.createChart(el,Object.assign({},base,{height:h,width:el.clientWidth}));}
 const cP=mk('p1'),cR=mk('p2'),cM=mk('p3');
@@ -815,7 +958,11 @@ def build_html(brut, ticker, bench_brut, sleeve=8000.0, ccy="",
     data = {}
     for cle, _lab, regle, nb in UNITES:
         try:
-            data[cle] = _analyse(brut, bench_brut, regle, nb, ticker, sleeve, ccy)
+            # L'unite JOUR est deja enrichie au-dessus, avec les memes
+            # arguments : on la repasse au lieu de la recalculer.
+            deja = (dj, bj) if regle is None else None
+            data[cle] = _analyse(brut, bench_brut, regle, nb, ticker,
+                                 sleeve, ccy, pre=deja)
         except Exception:
             data[cle] = None
 
@@ -909,7 +1056,15 @@ def build_html(brut, ticker, bench_brut, sleeve=8000.0, ccy="",
            f'color:#fca5a5;border-radius:10px;padding:9px 15px;font-size:12.5px">'
            f'HUD indisponible &mdash; {e(souci)}</div>' if souci else "")
         + '</div>'
-        f'<script src="{CDN}"></script>'
+        '<script>'
+        'function chargeDistant(){'
+        ' var s=document.createElement("script");'
+        f' s.src={json.dumps(CDN)};'
+        ' s.onerror=function(){ window.__GRAPH_KO=true; };'
+        ' document.head.appendChild(s);'
+        '}'
+        '</script>'
+        f'<script src="{LOCAL}" onerror="chargeDistant()"></script>'
         "<script>const DATA=__D__;const CHANCE=" + json.dumps(chance)
         + ";const TICKER=" + json.dumps(ticker) + ";" + JS + rg.tiroir_js() + "</script></body></html>"
     ).replace("__D__", json.dumps(data, separators=(",", ":")))

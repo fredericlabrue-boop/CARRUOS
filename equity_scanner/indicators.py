@@ -108,40 +108,53 @@ def enrich(df: pd.DataFrame, bench_close: pd.Series | None = None,
     PERIODES et ne sont jamais recalculees.
     """
     P = dict(PERIODES, **(periodes or {}))
-    d = df.copy()
-    c, h, l, v = d["close"], d["high"], d["low"], d["volume"]
+    c, h, l, v = df["close"], df["high"], df["low"], df["volume"]
 
-    d["sma200"] = sma(c, P["sma_longue"])
-    d["sma50"] = sma(c, P["sma_moyenne"])
-    d["ema20"] = ema(c, P["ema_courte"])
-    d["atr14"] = atr(h, l, c, P["atr"])
-    d["rsi14"] = rsi(c, P["rsi"])
-    d["macd"], d["macd_sig"], d["macd_hist"] = macd(c, *P["macd"])
-    d["bb_mid"], d["bb_up"], d["bb_low"], d["bb_width"] = bollinger(
-        c, P["bb"][0], P["bb"][1])
-    d["vol_ma20"] = v.rolling(P["vol_ma"], min_periods=P["vol_ma"]).mean()
-    # rvol et rs_ma50 suivent EUX AUSSI la conversion de calendrier. Les
-    # laisser sur leurs valeurs par défaut (20 et 50 barres) donnait, en
-    # hebdomadaire, un volume relatif calculé sur 20 SEMAINES face à des
-    # moyennes converties sur 4 : deux horizons différents dans la même
-    # ligne de règle.
-    d["rvol"] = rvol(v, P["vol_ma"])
-    d["sma50_slope20"] = d["sma50"] - d["sma50"].shift(P["pente"])
-    d["bars_since_high60"] = bars_since_high(h, P["haut"])
-    d["gap_pct"] = (d["open"] / c.shift(1) - 1.0).abs()
-    d["dollar_vol20"] = (c * v).rolling(
-        P["dollar_vol"], min_periods=P["dollar_vol"]).mean()
+    # Chaque `d[col] = ...` faisait recopier le gestionnaire de blocs de
+    # pandas : vingt colonnes ajoutees une par une, donc vingt recopies.
+    # On calcule tout d'abord, on assemble en UNE fois. Les valeurs sont
+    # les memes — ce sont les memes appels, dans le meme ordre.
+    sma50 = sma(c, P["sma_moyenne"])
+    ma, sig, hist = macd(c, *P["macd"])
+    mid, up, low, width = bollinger(c, P["bb"][0], P["bb"][1])
+    neuf = {
+        "sma200": sma(c, P["sma_longue"]),
+        "sma50": sma50,
+        "ema20": ema(c, P["ema_courte"]),
+        "atr14": atr(h, l, c, P["atr"]),
+        "rsi14": rsi(c, P["rsi"]),
+        "macd": ma, "macd_sig": sig, "macd_hist": hist,
+        "bb_mid": mid, "bb_up": up, "bb_low": low, "bb_width": width,
+        "vol_ma20": v.rolling(P["vol_ma"], min_periods=P["vol_ma"]).mean(),
+        # rvol et rs_ma50 suivent EUX AUSSI la conversion de calendrier.
+        # Les laisser sur leurs valeurs par défaut (20 et 50 barres)
+        # donnait, en hebdomadaire, un volume relatif calculé sur
+        # 20 SEMAINES face à des moyennes converties sur 4 : deux
+        # horizons différents dans la même ligne de règle.
+        "rvol": rvol(v, P["vol_ma"]),
+        "sma50_slope20": sma50 - sma50.shift(P["pente"]),
+        "bars_since_high60": bars_since_high(h, P["haut"]),
+        "gap_pct": (df["open"] / c.shift(1) - 1.0).abs(),
+        "dollar_vol20": (c * v).rolling(
+            P["dollar_vol"], min_periods=P["dollar_vol"]).mean(),
+    }
 
     if bench_close is not None:
-        bench = bench_close.reindex(d.index).ffill()
-        d["rs"], d["rs_ma50"] = rs_ratio(c, bench, P["sma_moyenne"])
+        bench = bench_close.reindex(df.index).ffill()
+        neuf["rs"], neuf["rs_ma50"] = rs_ratio(c, bench, P["sma_moyenne"])
         # 126 séances = six mois. Sur une autre taille de bougie, le
         # nombre de barres suit le même facteur de conversion que les
         # moyennes : 126 × (200 converti / 200 journalier).
         facteur = P["sma_longue"] / PERIODES["sma_longue"]
         n6m = max(2, round(126 * facteur))
-        d["rs_6m"] = (c / c.shift(n6m)) / (bench / bench.shift(n6m))
-    return d
+        neuf["rs_6m"] = (c / c.shift(n6m)) / (bench / bench.shift(n6m))
+
+    ajout = pd.DataFrame(neuf, index=df.index)
+    # Une colonne deja presente dans df serait dupliquee par concat : on
+    # la laisse a la version fraichement calculee, comme le faisait
+    # l'affectation directe.
+    garde = [k for k in df.columns if k not in ajout.columns]
+    return pd.concat([df[garde], ajout], axis=1)
 
 
 def colonnes_manquantes(d: pd.DataFrame, avec_benchmark: bool = True) -> list[str]:

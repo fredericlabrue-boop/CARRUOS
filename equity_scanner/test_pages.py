@@ -412,6 +412,24 @@ def main() -> int:
     _v('class="app strat-page"' in st,
        "le corps de la page porte bien cette classe")
 
+    print("\n  GRAPHIQUE SANS RESEAU")
+    g = pages["graphique"]
+    jg = _scripts(g)
+    _v("/statique/lightweight-charts.js" in g,
+       "la copie locale de la bibliotheque est essayee en premier")
+    _v("chargeDistant" in g and g.index("function chargeDistant")
+       < g.index('onerror="chargeDistant()"'),
+       "le repli distant est DEFINI avant la balise qui peut echouer")
+    _v("GRAPHIQUE INDISPONIBLE" in jg,
+       "sans bibliotheque, la page explique au lieu de rester vide")
+    # L'antislash d'un chemin Windows est mange par une chaine Python non
+    # brute : le chemin s'affichait colle, donc inutilisable.
+    _v("equity_scanner/statique/lightweight-charts.js" in jg,
+       "le chemin du fichier a poser est lisible en entier")
+    _v("MUET" in jg and "LightweightCharts!=='undefined'"
+       in jg.replace(" ", ""),
+       "un faux graphique avale les appels au lieu de tuer le script")
+
     print("\n  THEMES")
     from . import reglages as _rg
     ATTENDUS = {"carruos", "jarvis", "ultron", "reacteur", "monolithe",

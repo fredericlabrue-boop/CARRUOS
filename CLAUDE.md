@@ -108,6 +108,7 @@ jeu de paramètres qui ne l'a pas produit.
 |---|---|
 | `app.py` | serveur HTTP local, page d'accueil, routes API, majordome |
 | `chart.py` | page graphique, 4 colonnes, cône de dispersion |
+| | la bibliothèque de tracé est cherchée **en local d'abord** (`equity_scanner/statique/lightweight-charts.js`), puis sur le CDN. Sans les deux, la page **le dit** et le reste continue de marcher |
 | `hud.py` | éléments visuels : cerf, cadrans, rails, radar |
 | `indicators.py` | indicateurs — **PERIODES gelées** |
 | `rules.py` | les 13 blocs d'entrée et les 4 sorties |
@@ -214,6 +215,15 @@ jeu de paramètres qui ne l'a pas produit.
 
 - Python 3.11 — pas de syntaxe 3.12+ (attention aux f-strings avec
   antislash).
+- **Aucun antislash dans une chaîne JavaScript non brute.** `JS` de
+  `chart.py` est une chaîne Python ordinaire : `\\statique\\` y devient
+  `\statique\`, et JavaScript avale `\s` et `\l` sans rien dire. Un
+  chemin Windows s'affichait collé. Utiliser des barres obliques —
+  Windows les accepte aussi.
+- **Le rendu ne suffit pas, il faut regarder.** Trois défauts de thème
+  n'ont été vus que sur les captures : des équerres qu'une animation
+  rallumait malgré `--equerre:0`, des champs de saisie restés sombres sur
+  le thème clair, un mot invisible. Aucun test ne les voyait.
 - Toute animation CSS doit porter sur `transform` ou `opacity`. Animer
   `top`, `left`, `width` ou `background-position` fait sauter la page
   entière. `test_pages` le vérifie.

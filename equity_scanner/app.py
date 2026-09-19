@@ -2000,6 +2000,28 @@ class Bruce(http.server.BaseHTTPRequestHandler):
         except Exception as exc:
             return self._json({"ok": False, "erreur": str(exc)}, 500)
 
+    # Fichiers servis depuis le dossier du programme. La liste est FERMEE :
+    # un nom construit a partir de l'URL permettrait de remonter l'arbre
+    # des dossiers et de lire n'importe quel fichier de la machine.
+    STATIQUES = {"lightweight-charts.js": "application/javascript"}
+
+    def _statique(self, nom: str):
+        genre = self.STATIQUES.get(nom)
+        if genre is None:
+            return self._envoie("<h1>404</h1>", code=404)
+        f = Path(__file__).resolve().parent / "statique" / nom
+        try:
+            brut = f.read_bytes()
+        except OSError:
+            return self._envoie("<h1>404</h1>", code=404)
+        self.send_response(200)
+        self.send_header("Content-Type", genre)
+        self.send_header("Content-Length", str(len(brut)))
+        # Le fichier ne change jamais : inutile de le redemander.
+        self.send_header("Cache-Control", "public, max-age=31536000")
+        self.end_headers()
+        self.wfile.write(brut)
+
     def do_GET(self):
         u = urllib.parse.urlparse(self.path)
         q = {k: v[0] for k, v in urllib.parse.parse_qs(u.query).items()}
@@ -2012,6 +2034,8 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                 return self._json({"res": _find(q.get("q", ""))})
             if u.path == "/api/analyse":
                 return self._json(_verifie(q.get("ticker", "")))
+            if u.path.startswith("/statique/"):
+                return self._statique(u.path[len("/statique/"):])
             if u.path == "/graphique":
                 return self._envoie(_page_graphique(q.get("ticker", "")))
             if u.path == "/strategie":
