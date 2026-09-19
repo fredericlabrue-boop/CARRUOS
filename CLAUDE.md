@@ -184,7 +184,27 @@ jeu de paramètres qui ne l'a pas produit.
    z = +0,93 » — a été établi avec l'ancien témoin. **Trancher demande
    une nouvelle spécification**, pas un choix après coup.
 
-7. **Corporate actions** au-delà des splits : changements de ticker,
+7. **Scalp et day trading** — *bloqué sur les données, et sur une
+   question.* `intraday-v1-BROUILLON.md` fait l'état des lieux. Ce n'est
+   **pas** une spécification et ça ne doit pas être traité comme telle :
+   aucun seuil n'y est gelé, aucune empreinte ne le couvre.
+
+   Deux verrous. Le premier est matériel : yfinance donne 7 jours de
+   bougies 1 minute, Alpha Vantage gratuit plafonne à 25 appels/jour.
+   Un historique intraday utilisable coûte environ 50 €/mois.
+
+   Le second est le vrai : **qui est en face ?** En journalier, la
+   contrepartie est contrainte (fonds indiciels, mandats de style,
+   prises de profit) et pas mieux informée. En intraday, c'est un
+   teneur de marché automatisé qui voit le carnet et dont le métier est
+   de gagner le spread. Tant que cette question n'a pas de réponse
+   écrite, le protocole dit de s'arrêter — c'est elle qui a tué la
+   stratégie 1.
+
+   Aucun signal intraday ne sort du programme tant que ce brouillon n'a
+   pas été remplacé par un `intraday-v1.md` daté et haché.
+
+8. **Corporate actions** au-delà des splits : changements de ticker,
    fusions, retraits de cote. `qualite.py` **détecte** une division non
    ajustée et une interruption de cotation, et refuse le signal ; il ne
    sait pas encore recoller un historique après un changement de ticker.
