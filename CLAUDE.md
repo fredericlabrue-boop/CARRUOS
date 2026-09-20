@@ -79,6 +79,17 @@ jeu de paramètres qui ne l'a pas produit.
   pour la vérification avant l'ordre, elles n'entrent dans aucune règle.
 - Un score composite construit sur des poids non testés.
 - Un verdict directionnel (HAUSSIER / ACHAT) dérivé d'un tel score.
+- **Un « avis » ou un « intérêt » qui soit autre chose qu'un compte.**
+  `interet.py` répond à la demande d'un avis à chaque consultation, et
+  y répond par quatre comptes : combien des 13 blocs passent, avec pour
+  chaque bloc manquant **la valeur mesurée en face de son seuil** ;
+  les vetos d'éligibilité ; le même décompte aligné sur les six unités
+  de temps, sans pondération ; l'historique du signal sur ce titre avec
+  son intervalle de Wilson. L'échelle à sept marches est écrite dans
+  `interet.NIVEAUX`, avant tout usage, et chaque marche porte le nom
+  de son compte — « IL MANQUE PEU » se vérifie, « ACHETER » non.
+  Deux phrases accompagnent la carte à chaque affichage : qu'aucune
+  hypothèse n'a passé sa Phase 0, et que ce n'est pas un avis.
 - Une ligne de prédiction de prix. Le cône de dispersion existe : dérive
   fixée à zéro, il donne l'amplitude, jamais le sens.
 - Un take-profit **actif**. Les spécifications 2 et 3 disent « aucun
@@ -128,6 +139,10 @@ jeu de paramètres qui ne l'a pas produit.
 | `short.py` | stratégie 3, vente à découvert — **constantes gelées** |
 | `comparatif.py` | système contre SMH buy & hold net de PFU |
 | `contexte.py` | faits mesurés d'un titre, sans score inventé |
+| `interet.py` | la carte INTÉRÊT : quatre comptes, une échelle de 7 marches |
+| | le verdict de la page graphique en **découle** au lieu d'être calculé à côté : deux échelles parallèles finissent par se contredire |
+| | et cette échelle regarde les **vetos**, ce que l'ancienne ne faisait pas — un titre à 13/13 dont le volume dollar est sous le plancher s'affichait ACHAT, entrée, stop et nombre de titres compris |
+| | le vocabulaire suit l'unité de temps : « la veille » est faux sur l'onglet 1 MOIS, et le génitif se contracte |
 | `positions.py` | registre manuel des positions |
 | | chaque ligne porte sa **devise de cotation** (déduite du suffixe de place) et un **contrôle de cohérence** du prix d'entrée : s'il n'est jamais tombé dans l'intervalle parcouru par le titre, la carte le dit et prévient que le gain latent affiché est faux |
 | `news.py` | Alpha Vantage — quota 25/jour, caches obligatoires |
@@ -244,6 +259,16 @@ jeu de paramètres qui ne l'a pas produit.
   parfaite. C'est exactement ce qui est arrivé. Quand le choix dépend de
   l'environnement, c'est le **serveur** qui tranche à la fabrication de
   la page, pas le navigateur à l'exécution.
+- **Une comparaison de type qui ne tombe jamais ne se voit pas.**
+  `_bloc_etats` rend `'ok'` / `'ko'` / `'na'`, des **chaînes**. Le script
+  de la page les comparait à `1` et à `true` : le compteur rendait donc
+  toujours zéro, le cercle central restait vide et la voix annonçait
+  « 0 blocs sur 13 » sur un titre qui les avait tous. Rien ne plantait.
+  Dans la même fonction, la table de couleurs était indexée sur `sortie`
+  alors que le verdict vaut `vente` : l'anneau retombait sur le gris au
+  moment précis où il devait alerter. `test_pages` vérifie maintenant que
+  **chaque état possible a sa couleur et sa classe CSS**, en partant de la
+  table Python — pas d'une liste recopiée à la main.
 - **Un test peut valider une mécanique et rater ce qu'elle produit.** Le
   test du repli vérifiait que la fonction était définie avant la balise —
   elle l'était — sans jamais vérifier que la bibliothèque finissait par

@@ -22,6 +22,7 @@ import pandas as pd
 from . import hud as hd
 from . import reglages as rg
 from .dashboard import LABELS
+from . import interet as it
 from .indicators import PERIODES, enrich
 from .rules import evaluate, evaluate_exit, market_regime_ok, position_size
 
@@ -407,8 +408,36 @@ def _jauges(d, bench):
     }
 
 
+# Le niveau d'interet -> la classe CSS de la pastille, et le mot court
+# qu'elle affiche. Le mot long reste dans la carte INTERET : « LES 13
+# BLOCS PASSENT » ne tient pas dans un cercle de 132 pixels.
+VERDICT_CSS = {"refus": "na", "na": "na", "hors": "hors", "sortie": "vente",
+               "complet": "achat", "proche": "proche", "loin": "aucun"}
+VERDICT_MOT = {"refus": "DONNÉES REFUSÉES", "na": "DONNÉES INSUFFISANTES",
+               "hors": "HORS CRITÈRES", "sortie": "SORTIE",
+               "complet": "ACHAT", "proche": "PROCHE", "loin": "AUCUN"}
+
+
+def _sous_verdict(u: dict) -> str:
+    """La ligne sous le mot : toujours un compte, jamais un adjectif."""
+    n = u["niveau"]
+    if n == "refus":
+        m = u.get("refus_motifs") or []
+        return m[0] if m else "le contrôle qualité refuse cette série"
+    if n == "na":
+        return (f"{u['na']} indicateur(s) non calculable(s) sur cette "
+                f"unité de temps")
+    if n == "hors":
+        return u["vetos"][0] if u["vetos"] else "veto de la spécification"
+    if n == "sortie":
+        return f"{u['sorties_actives']} conditions de sortie actives"
+    if n == "complet":
+        return "les 13 blocs passent"
+    return f"{u['ko']} bloc(s) manquant(s)"
+
+
 def _analyse(brut, bench_brut, regle, nb, ticker, sleeve, ccy, pre=None,
-             cle=None):
+             cle=None, qual=None):
     """Une unite de temps.
 
     `pre` permet de fournir le couple (titre, indice) deja enrichi. La
@@ -460,17 +489,27 @@ def _analyse(brut, bench_brut, regle, nb, ticker, sleeve, ccy, pre=None,
     n_na = sum(1 for e in etats if e["etat"] == "na")
     n_out = sum(1 for v in sorties.values() if v)
 
-    if n_na:
-        v = ("na", "DONNÉES INSUFFISANTES",
-             f"{n_na} indicateur(s) non calculable(s) sur cette unité de temps")
-    elif n_out >= 2:
-        v = ("vente", "SORTIE", f"{n_out} conditions de sortie actives")
-    elif n_ko == 0:
-        v = ("achat", "ACHAT", "les 13 blocs passent")
-    elif n_ko <= 2:
-        v = ("proche", "PROCHE", f"{n_ko} bloc(s) manquant(s)")
-    else:
+    # L'INTERET de l'unite : le meme decompte, mais avec les deux
+    # nombres que chaque bloc manquant a compares. « il manque 2 blocs »
+    # ne dit pas quoi guetter ; « RVOL 0,81 pour un seuil de 1,20 » si.
+    try:
+        interet = it.lire_unite(
+            d, b, s, sorties, etats, cle=_cle, periodes=_pe,
+            refuse=bool(qual and not qual[0]), motifs=(qual or (True, ()))[1])
+    except Exception:
+        interet = None
+
+    # Le verdict DECOULE de l'interet, il ne se calcule plus a cote :
+    # deux echelles paralleles finissent par se contredire. Et celle-ci
+    # regarde les VETOS, ce que l'ancienne ne faisait pas — un titre
+    # dont les 13 blocs passent mais dont le volume dollar est sous le
+    # plancher de la specification s'affichait ACHAT, niveaux compris,
+    # alors que la specification interdit l'entree.
+    if interet is None:
         v = ("aucun", "AUCUN", f"{n_ko} blocs manquants")
+    else:
+        v = (VERDICT_CSS[interet["niveau"]], VERDICT_MOT[interet["niveau"]],
+             _sous_verdict(interet))
 
     niveaux = None
     if v[0] == "achat":
@@ -483,6 +522,7 @@ def _analyse(brut, bench_brut, regle, nb, ticker, sleeve, ccy, pre=None,
     last = d.iloc[-1]
     out = {
         "verdict": {"type": v[0], "titre": v[1], "sous": v[2]},
+        "interet": interet,
         "blocs": etats,
         "sorties": [{"nom": k, "actif": bool(x)} for k, x in sorties.items()],
         "niveaux": niveaux,
@@ -678,6 +718,42 @@ to{transform:translateX(450%) skewX(-18deg)}}
 .note{font-size:12px;color:#475a72;line-height:1.85;margin-top:16px;border-top:1px solid #1a2330;padding-top:13px}
 .ex{font-size:12.5px;line-height:1.95;color:#64748b}
 .ex b{color:var(--neg);font-weight:500}
+/* HORS CRITERES : un veto de la specification. Ni vert ni rouge —
+   le titre ne concourt pas, ce n'est pas un jugement sur son cours. */
+.v-hors{background:#1d1626;border-color:#4a3a63;color:#c4a5e4}
+/* --- la carte INTERET --------------------------------------------- */
+.int{border-radius:13px;padding:18px 20px;margin-bottom:11px;
+ border:1px solid #243040;background:#0e141c}
+.int>h3{font-size:10px;letter-spacing:.2em;color:#475a72;font-weight:500;
+ margin-bottom:12px}
+.int .gd{display:flex;align-items:baseline;justify-content:space-between;gap:14px}
+.int .gd b{font-size:24px;font-weight:600;line-height:1.08;letter-spacing:.01em}
+.int .gd u{text-decoration:none;font-size:21px;flex:none;opacity:.85;
+ font-variant-numeric:tabular-nums}
+.int .mo{font-size:12.5px;color:#64748b;margin-top:8px;line-height:1.6}
+.int .sec{margin-top:15px;border-top:1px solid #1a2330;padding-top:12px}
+.int .sec>span{font-size:9.5px;letter-spacing:.2em;color:#475a72;display:block;
+ margin-bottom:9px}
+.int .mq{font-size:13px;line-height:1.45;margin-bottom:10px}
+.int .mq b{color:#fca5a5;font-weight:500;display:block}
+.int .mq i{font-style:normal;color:#64748b;font-size:12px;
+ font-variant-numeric:tabular-nums}
+/* Colonnes FIXES : un libelle plus long ne doit pas decaler la grille.
+   C'est le defaut qui faisait sauter les rails. */
+.int .ut{display:grid;grid-template-columns:104px 46px 1fr;gap:7px 10px;
+ align-items:center;font-size:12px}
+.int .ut span{color:#64748b;letter-spacing:.05em}
+.int .ut em{font-style:normal;text-align:right;color:#cbd5e1;
+ font-variant-numeric:tabular-nums}
+.int .jg{height:6px;border-radius:3px;background:#182230;overflow:hidden}
+.int .jg i{display:block;height:100%;border-radius:3px;background:currentColor;
+ transform-origin:left center;animation:remplit 1s cubic-bezier(.3,0,.2,1) .2s backwards}
+.int .av{font-size:11.5px;color:#475a72;line-height:1.75;margin-top:15px;
+ border-top:1px solid #1a2330;padding-top:12px}
+.int .av b{color:#94a3b8;font-weight:500}
+.n-complet{color:var(--pos)}.n-proche{color:#fbbf24}.n-loin{color:#7c8ba1}
+.n-sortie{color:var(--neg)}.n-hors{color:#c4a5e4}.n-na{color:#a78bfa}
+.n-refus{color:var(--neg)}.n-vide{color:#475a72}
 """
 
 CSS += """
@@ -786,6 +862,63 @@ const G={ema20:[ema],sma50:[s50],sma200:[s200],bb:[bbu,bbl],rsi:[rsi],macd:[macd
 function ic(e){return e==='ok'?'<i class="i-ok">✓</i>':e==='ko'?'<i class="i-ko">✕</i>':'<i class="i-na">?</i>';}
 function cls(e){return e==='ok'?'okt':e==='ko'?'ko':'na';}
 
+// La carte INTERET. Elle ne conseille rien : elle compte les conditions
+// ecrites AVANT le test, nomme celles qui manquent avec le nombre mesure
+// en face de son seuil, aligne les six unites de temps sans les ponderer,
+// et rappelle qu'aucune hypothese n'a passe sa Phase 0.
+function carteInteret(d){
+ const u = d && d.interet;
+ const I = (typeof INTERET !== 'undefined') ? INTERET : null;
+ if(!u && !I) return '';
+ const cl = u ? u.niveau : 'vide';
+ let h = '<div class="int n-'+cl+'"><h3>INTÉRÊT</h3>';
+ if(u){
+  h += '<div class="gd"><b>'+u.titre+'</b><u>'+u.compte+'</u></div>';
+  h += '<div class="mo">'+u.motif+'</div>';
+  if(u.manquants && u.manquants.length){
+   h += '<div class="sec"><span>IL MANQUE</span>';
+   u.manquants.forEach(m=>{h += '<div class="mq"><b>'+m.nom+'</b>'
+     + (m.texte ? '<i>'+m.texte+'</i>' : '') + '</div>';});
+   h += '</div>';
+  }
+  if(u.refus_motifs && u.refus_motifs.length){
+   h += '<div class="sec"><span>POURQUOI LA SÉRIE EST REFUSÉE</span>';
+   u.refus_motifs.forEach(v=>{h += '<div class="mq"><b>'+v+'</b></div>';});
+   h += '</div>';
+  }
+  if(u.vetos && u.vetos.length){
+   h += '<div class="sec"><span>VETOS DE LA SPÉCIFICATION</span>';
+   u.vetos.forEach(v=>{h += '<div class="mq"><b>'+v+'</b></div>';});
+   h += '</div>';
+  }
+  if(u.vigilance && u.vigilance.length){
+   h += '<div class="sec"><span>À VÉRIFIER À LA MAIN</span>';
+   u.vigilance.forEach(v=>{h += '<div class="mq"><i>'+v+'</i></div>';});
+   h += '</div>';
+  }
+ }
+ if(I && I.accord && I.accord.lignes && I.accord.lignes.length){
+  h += '<div class="sec"><span>LES UNITÉS DE TEMPS</span><div class="ut">';
+  I.accord.lignes.forEach(g=>{
+   const part = (g.total ? Math.round(g.ok/g.total*100) : 0);
+   h += '<span>'+g.label+'</span><em>'+g.compte+'</em>'
+      + '<div class="jg n-'+g.niveau+'"><i style="transform:scaleX('
+      + (part/100).toFixed(3) + ')"></i></div>';
+  });
+  h += '</div><div class="mo">' + I.accord.phrase + '</div></div>';
+ }
+ if(I && I.historique){
+  const x = I.historique;
+  h += '<div class="sec"><span>CE SIGNAL SUR CE TITRE</span>'
+     + '<div class="mo">' + x.phrase
+     + (x.reserve ? '<br>' + x.reserve : '') + '</div></div>';
+ }
+ if(I){
+  h += '<div class="av"><b>' + I.rappel + '</b><br>' + I.pas_un_avis + '</div>';
+ }
+ return h + '</div>';
+}
+
 function draw(){
  const d=D[U];
  if(!d || d.insuffisant){
@@ -798,7 +931,8 @@ function draw(){
      + "beaucoup d'annees : vingt ans ne font que vingt barres "
      + 'annuelles. Essayez une unite plus fine.';
   }
-  document.getElementById('side').innerHTML='<div class="box">'+m+'</div>';
+  document.getElementById('side').innerHTML='<div class="box">'+m+'</div>'
+    + carteInteret(null);
   return;
  }
  bou.setData(d.ohlc); bou.setMarkers(d.markers); vol.setData(d.volume);
@@ -824,6 +958,7 @@ function draw(){
  const v=d.verdict;
  let h='<div class="vd v-'+v.type+'"><div class="t">'+v.titre+
        '</div><div class="s">'+v.sous+'</div></div>';
+ h+=carteInteret(d);
  if(d.niveaux){const n=d.niveaux;
   h+='<div class="box"><h3>NIVEAUX</h3><div class="lv">'+
    '<div><div class="k">ENTRÉE</div><div class="v">'+n.entree+'</div></div>'+
@@ -843,12 +978,13 @@ function draw(){
  document.getElementById('side').innerHTML=h;
 
  // --- colonne centrale : le resume en trois chiffres ---
- const coul={achat:'#34d399',sortie:'#f87171',proche:'#f59e0b',
+ const coul={achat:'#34d399',vente:'#f87171',proche:'#f59e0b',
+             hors:'#c4a5e4',na:'#a78bfa',
              aucun:'#475a72',vide:'#475a72'}[v.type]||'#475a72';
  const vh=document.getElementById('vd-h');
  if(vh){
   vh.textContent=v.titre;
-  const ok=d.blocs.filter(b=>b.etat===1||b.etat===true).length;
+  const ok=d.blocs.filter(b=>b.etat==='ok').length;
   const feu=document.getElementById('feu');
   feu.style.color=coul;
   const C=2*Math.PI*56, part=C*ok/d.blocs.length;
@@ -858,7 +994,9 @@ function draw(){
   if(U==='jour' && vh.dataset.dit!==v.titre){
    vh.dataset.dit=v.titre;
    const dit={achat:'Signal complet. Les treize blocs sont valides.',
-    sortie:'Conditions de sortie actives.',
+    vente:'Conditions de sortie actives.',
+    hors:'Hors critères. Un veto de la spécification.',
+    na:'Données insuffisantes sur cette unité de temps.',
     proche:ok+' blocs sur '+d.blocs.length+'. Signal incomplet.',
     aucun:'Aucun signal.'}[v.type];
    if(dit) parle(TICKER+'. '+dit);
@@ -1063,6 +1201,18 @@ def build_html(brut, ticker, bench_brut, sleeve=8000.0, ccy="",
         souci = f"modules : {type(exc).__name__}: {exc}"
         traceback.print_exc()
 
+    # Le controle qualite ne tournait pas sur la page graphique : un
+    # titre dont `scan` refuse le signal s'y affichait quand meme comme
+    # les autres. Une seule passe, sur la serie journaliere, partagee
+    # par les six unites.
+    qual = None
+    try:
+        from . import qualite as ql
+        rq = ql.controle(brut, bench=bench_brut, ticker=ticker)
+        qual = (rq.utilisable, tuple(rq.bloquants))
+    except Exception:
+        qual = None
+
     data = {}
     for cle, _lab, regle, nb in UNITES:
         try:
@@ -1070,9 +1220,25 @@ def build_html(brut, ticker, bench_brut, sleeve=8000.0, ccy="",
             # arguments : on la repasse au lieu de la recalculer.
             deja = (dj, bj) if regle is None else None
             data[cle] = _analyse(brut, bench_brut, regle, nb, ticker,
-                                 sleeve, ccy, pre=deja, cle=cle)
+                                 sleeve, ccy, pre=deja, cle=cle, qual=qual)
         except Exception:
             data[cle] = None
+
+    # --- L'INTERET, la partie qui ne depend pas de l'onglet -----------
+    # L'accord des unites de temps et l'historique du signal sur CE
+    # titre. Aucune ponderation entre les six unites : on les aligne, le
+    # lecteur voit lui-meme si elles disent la meme chose.
+    try:
+        inter = it.carte(
+            unite=None,
+            acc=it.accord([(k, lab, data.get(k)) for k, lab, _r, _n in UNITES]),
+            hist=it.historique(perf),
+            ticker=ticker)
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        inter = {"accord": None, "historique": None,
+                 "pas_un_avis": it.PAS_UN_AVIS, "rappel": it.RAPPEL_PHASE0}
 
     # Pas d'antislash dans une expression de f-string : interdit avant
     # Python 3.12. On construit la classe a part.
@@ -1172,7 +1338,9 @@ def build_html(brut, ticker, bench_brut, sleeve=8000.0, ccy="",
         + '</div>'
         f'<script src="{source_trace()}"></script>'
         "<script>const DATA=__D__;const CHANCE=" + json.dumps(chance)
-        + ";const TICKER=" + json.dumps(ticker) + ";" + JS + rg.tiroir_js() + "</script></body></html>"
+        + ";const TICKER=" + json.dumps(ticker)
+        + ";const INTERET=" + json.dumps(inter, ensure_ascii=False)
+        + ";" + JS + rg.tiroir_js() + "</script></body></html>"
     ).replace("__D__", json.dumps(data, separators=(",", ":")))
 
     return doc

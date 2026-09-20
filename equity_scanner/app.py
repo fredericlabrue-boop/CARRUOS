@@ -35,7 +35,8 @@ from . import news as nw
 from . import positions as ps
 from . import reglages as rg
 from .indicators import enrich
-from .rules import evaluate, market_regime_ok, position_size, rank
+from .rules import (evaluate, evaluate_exit, market_regime_ok, position_size,
+                    rank)
 
 NOM = "CARRUOS"
 TITRE = NOM + " - scanner actions"
@@ -322,6 +323,13 @@ CSS_FICHE = """
 .manque span{font:400 10px ui-monospace,monospace;padding:3px 7px;
  border:1px solid #7d2530;color:#f87171;white-space:nowrap}
 .manque span.ok{border-color:#10705a;color:var(--pos)}
+/* Les blocs manquants, nommes ET chiffres. Une etiquette « 4a_rvol »
+   ne dit ni ce qui manque ni de combien on est loin ; deux lignes si. */
+.mqf{margin-top:9px}
+.mqf div{margin-bottom:8px;line-height:1.45}
+.mqf b{display:block;color:#fca5a5;font-weight:500;font-size:13px}
+.mqf i{font-style:normal;color:#64748b;font-size:12px;
+ font-variant-numeric:tabular-nums}
 .thz{width:100%;border-collapse:collapse;margin-top:8px;
  font:400 11px ui-monospace,monospace}
 .thz th{text-align:right;padding:4px 5px;font-weight:500;font-size:8.5px;
@@ -1747,7 +1755,14 @@ function blocEntree(e, tk, dev){
      + ' BLOCS SUR ' + e.n_blocs + '</div><div class="sous">'
      + 'Votre specification <b>ne declencherait pas</b> d\'entree sur '
      + tk + ' aujourd\'hui.</div></div>';
-  if(e.manquants && e.manquants.length){
+  if(e.detail && e.detail.length){
+   h += '<div class="mqf">';
+   e.detail.forEach(function(m){
+    h += '<div><b>' + m.nom + '</b>'
+       + (m.texte ? '<i>' + m.texte + '</i>' : '') + '</div>';
+   });
+   h += '</div>';
+  }else if(e.manquants && e.manquants.length){
    h += '<div class="manque">';
    e.manquants.forEach(function(m){ h += '<span>' + m + '</span>'; });
    h += '</div>';
@@ -1768,6 +1783,14 @@ function blocEntree(e, tk, dev){
      + '</b> de perte si le stop saute'
      + (e.plafonne ? ' (taille reduite par le plafond de poids)' : '')
      + '. Arithmetique, pas un conseil.</div>';
+ }
+ if(e.vigilance && e.vigilance.length){
+  h += '<div class="manque" style="margin-top:6px">';
+  e.vigilance.forEach(function(v){ h += '<span>' + v + '</span>'; });
+  h += '</div>';
+ }
+ if(e.pas_un_avis){
+  h += '<p class="ex" style="margin-top:8px">' + e.pas_un_avis + '</p>';
  }
  return h;
 }
@@ -3002,6 +3025,26 @@ def _revue_titre(q: dict) -> dict:
             "plafonne": bool(taille.get("capped")),
             "sleeve": float(REGLAGES.get("sleeve") or 0),
         }
+        # « 4a_rvol » ne dit rien a personne, et surtout pas de combien
+        # on est loin. Le meme bloc, nomme et chiffre : « volume
+        # confirme — volume relatif 0,81 (il faut au moins 1,20) ».
+        from . import chart as _gr
+        from . import interet as _it
+        _u = _it.lire_unite(d, enrich(bench_brut), sig,
+                            evaluate_exit(d, marche),
+                            _gr._bloc_etats(d, sig),
+                            refuse=not rap.utilisable,
+                            motifs=rap.bloquants)
+        r["entree_regle"]["detail"] = _u["manquants"]
+        r["entree_regle"]["niveau"] = _u["titre"]
+        r["entree_regle"]["compte"] = _u["compte"]
+        r["entree_regle"]["vigilance"] = _u["vigilance"]
+        # Sans ca, « RÉSULTATS INCONNUS » s'affichait DEUX fois : une
+        # fois en veto, une fois en vigilance. C'est un calendrier qui
+        # manque, pas un defaut du titre : il n'appartient qu'a la
+        # seconde liste.
+        r["entree_regle"]["vetos"] = _u["vetos"]
+        r["entree_regle"]["pas_un_avis"] = _it.PAS_UN_AVIS
     except Exception as exc:
         r["entree_regle"] = {"erreur": f"{type(exc).__name__}: {exc}"}
 

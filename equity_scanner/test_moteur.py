@@ -1570,6 +1570,128 @@ def test_univers_figes() -> None:
        dl.avertissement("cac40", "2021-01-01") == "")
 
 
+def test_interet() -> None:
+    """La carte INTERET : une echelle qui compte, et qui ne conseille pas."""
+    from . import chart as gr
+    from . import interet as it
+    from . import rules as R
+    from .dashboard import LABELS
+    from .indicators import enrich
+
+    print("\n— Carte d'interet —")
+
+    # --- l'echelle est exhaustive et son ordre est celui qui est ecrit
+    marches = set()
+    for refuse in (False, True):
+        for n_na in (0, 1):
+            for vet in ([], ["prix < 10 $"]):
+                for n_out in (0, 2):
+                    for n_ko in range(14):
+                        marches.add(it.niveau(n_ko, n_na, n_out, vet, refuse))
+    ok("les sept marches sont toutes atteignables",
+       marches == set(it.TITRES))
+    ok("un refus qualite prime sur tout le reste",
+       it.niveau(0, 1, 2, ["v"], True) == "refus")
+    ok("des indicateurs non calculables priment sur un veto",
+       it.niveau(0, 1, 0, ["v"], False) == "na")
+    # LE defaut corrige : un titre a 13/13 que la specification interdit
+    # s'affichait ACHAT, avec entree, stop et nombre de titres.
+    ok("un veto de la specification declasse un 13/13",
+       it.niveau(0, 0, 0, ["volume dollar 20j < 20 M$"], False) == "hors")
+    ok("sans veto ni manque, 13/13 donne LES 13 BLOCS PASSENT",
+       it.niveau(0, 0, 0, [], False) == "complet")
+    ok("1 ou 2 blocs manquants : IL MANQUE PEU ; 3 : SIGNAL ABSENT",
+       it.niveau(1, 0, 0, [], False) == "proche"
+       and it.niveau(2, 0, 0, [], False) == "proche"
+       and it.niveau(3, 0, 0, [], False) == "loin")
+    ok("chaque marche a sa classe CSS et son mot court",
+       all(c in gr.VERDICT_CSS and c in gr.VERDICT_MOT for c in it.TITRES))
+
+    # --- Wilson : les memes bornes que la page, sur 3 320 couples
+    ecarts = [(k, n) for n in range(1, 81) for k in range(n + 1)
+              if max(abs(it.wilson(k, n)[0] - gr._wilson(k, n)[0]),
+                     abs(it.wilson(k, n)[2] - gr._wilson(k, n)[2])) > 1e-9]
+    ok("l'intervalle de Wilson est celui de la page (3 320 couples)",
+       not ecarts)
+    ok("un intervalle est toujours rendu, jamais un taux seul",
+       set(it.historique({"n": 11, "gagnants": 5})) >= {"bas", "haut", "phrase"})
+    ok("sous 30 trades, la reserve est ecrite noir sur blanc",
+       "trop large" in it.historique({"n": 11, "gagnants": 5})["reserve"]
+       and it.historique({"n": 40, "gagnants": 22})["reserve"] == "")
+
+    # --- les 13 mesures existent et nomment leurs deux nombres
+    brut, bb = serie(n=1200, seed=3, derive=0.0006), serie(n=1200, seed=9)
+    d = enrich(brut, bench_close=bb["close"])
+    b = enrich(bb)
+    m = it.mesures(d, b)
+    ok("les 13 blocs ont chacun leur mesure et son seuil", len(m) == 13)
+    ok("aucun texte de mesure n'est vide",
+       all(v["texte"] and "{" not in v["texte"] for v in m.values()))
+
+    # --- le vocabulaire suit l'unite de temps : « la veille » est faux
+    #     sur l'onglet 1 MOIS.
+    mm = it.mesures(d, b, cle="mois", periodes=gr.periodes_unite("mois"))
+    ok("sur l'unite MOIS, la barre precedente est le mois precedent",
+       "mois précédent" in mm["3c"]["texte"] and "veille" not in mm["3c"]["texte"])
+    ok("et le genitif se contracte (« du mois precedent »)",
+       "de le " not in mm["3c"]["texte"])
+
+    # --- un bloc manquant retrouve toujours son code
+    ok2 = bool(R.market_regime_ok(b))
+    sig = R.evaluate(d, "TEST", ok2, days_to_earnings=999)
+    sor = R.evaluate_exit(d, ok2)
+    et = gr._bloc_etats(d, sig)
+    u = it.lire_unite(d, b, sig, sor, et)
+    ok("chaque bloc manquant est nomme ET chiffre",
+       u["manquants"] and all(x["code"] != "?" and x["texte"]
+                              for x in u["manquants"]))
+
+    # --- « resultats inconnus » n'est pas un defaut du titre
+    class Sig13:
+        vetos = ["RÉSULTATS INCONNUS — à vérifier à la main"]
+    et13 = [{"nom": lab, "etat": "ok"} for lab in LABELS.values()]
+    u13 = it.lire_unite(d, b, Sig13(), {k: False for k in sor}, et13)
+    ok("un calendrier de resultats absent ne declasse pas le titre",
+       u13["niveau"] == "complet" and u13["vigilance"])
+
+    class SigVeto:
+        vetos = ["volume dollar 20j < 20 M$"]
+    uv = it.lire_unite(d, b, SigVeto(), {k: False for k in sor}, et13)
+    ok("mais un veto de la specification, oui",
+       uv["niveau"] == "hors" and gr.VERDICT_MOT[uv["niveau"]] == "HORS CRITÈRES")
+    ok("et le sous-titre NOMME le veto au lieu de dire « veto »",
+       gr._sous_verdict(uv) == "volume dollar 20j < 20 M$")
+
+    # --- un refus qualite dit POURQUOI
+    ur = it.lire_unite(d, b, sig, sor, et, refuse=True,
+                       motifs=["derniere barre au 2020-01-01"])
+    ok("un refus qualite remonte son motif exact",
+       ur["niveau"] == "refus"
+       and "2020-01-01" in gr._sous_verdict(ur))
+
+    # --- l'accord des unites n'invente aucune ponderation
+    a = it.accord([("jour", "1 JOUR", {"interet": {"compte": "13 / 13",
+                                                   "niveau": "complet",
+                                                   "titre": "x", "ok": 13,
+                                                   "total": 13, "ko": 0}}),
+                   ("an", "1 AN", None)])
+    ok("une unite sans historique n'est pas comptee comme un echec",
+       a["mesurables"] == 1 and a["pleines"] == 1
+       and a["lignes"][1]["compte"] == "—")
+
+    # --- les deux rappels permanents
+    ok("le rappel de Phase 0 est present et parle d'absence d'avantage",
+       "Phase 0" in it.RAPPEL_PHASE0 and "avantage" in it.RAPPEL_PHASE0)
+    ok("la carte dit explicitement que ce n'est pas un avis",
+       it.PAS_UN_AVIS.startswith("Ce n'est pas un avis"))
+    # Le point qui compte vraiment : aucun mot d'ordre nulle part.
+    textes = " ".join(list(it.TITRES.values()) + list(it.MOTIFS.values())
+                      + [it.PAS_UN_AVIS, it.RAPPEL_PHASE0]).lower()
+    ok("aucun impératif d'achat ou de vente dans les libelles",
+       not any(w in textes for w in ("achetez", "vendez", "achète",
+                                     "conseill", "recommand", "il faut acheter")))
+
+
 def main() -> int:
     os.chdir(tempfile.mkdtemp())      # aucune ecriture dans le dossier reel
     test_parametres_geles()
@@ -1595,6 +1717,7 @@ def main() -> int:
     test_seance()
     test_horizon()
     test_cle_av()
+    test_interet()
 
     print()
     if ECHECS:

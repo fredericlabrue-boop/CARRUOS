@@ -657,6 +657,87 @@ def main() -> int:
     _v("var(--acc)" in _hd.CSS and "#22d3ee" not in _hd.CSS,
        "les jauges du HUD suivent la couleur du theme")
 
+    print("\n  CARTE INTERET")
+    import json as _js
+    from . import interet as _it
+    g3 = pages["graphique"]
+    j3 = _scripts(g3)
+
+    def _objet(doc, marqueur):
+        """L'objet JSON qui suit un marqueur, par comptage d'accolades."""
+        i = doc.index(marqueur) + len(marqueur)
+        prof, k, dans = 0, i, False
+        while k < len(doc):
+            c = doc[k]
+            if dans:
+                if c == "\\":
+                    k += 2
+                    continue
+                if c == '"':
+                    dans = False
+            elif c == '"':
+                dans = True
+            elif c == "{":
+                prof += 1
+            elif c == "}":
+                prof -= 1
+                if prof == 0:
+                    return _js.loads(doc[i:k + 1])
+            k += 1
+        raise ValueError("objet non termine")
+
+    _v("const INTERET=" in j3, "la carte d'interet est injectee dans la page")
+    _v("h+=carteInteret(d);" in j3.replace(" ", ""),
+       "et posee dans la colonne de droite au tirage")
+    I3 = _objet(j3, "const INTERET=")
+    _v(bool(I3.get("accord", {}).get("lignes")),
+       "les unites de temps sont alignees, une ligne chacune")
+    _v(I3.get("rappel") == _it.RAPPEL_PHASE0
+       and I3.get("pas_un_avis") == _it.PAS_UN_AVIS,
+       "les deux rappels voyagent avec la carte")
+
+    # Le RESULTAT, pas le montage : chaque unite doit porter sa lecture,
+    # et elle ne peut pas contredire la pastille du haut.
+    D3 = _objet(j3, "const DATA=")
+    from . import chart as _ch3
+    faits = [(k, b) for k, b in D3.items()
+             if b and not b.get("insuffisant")]
+    _v(bool(faits), "au moins une unite de temps est exploitable")
+    _v(all(b.get("interet") for _k, b in faits),
+       "chaque unite exploitable porte sa lecture d'interet")
+    _v(all(_ch3.VERDICT_CSS[b["interet"]["niveau"]] == b["verdict"]["type"]
+           and _ch3.VERDICT_MOT[b["interet"]["niveau"]] == b["verdict"]["titre"]
+           for _k, b in faits),
+       "la pastille et la carte ne peuvent pas se contredire")
+    _v(all(m["code"] != "?" and m["texte"]
+           for _k, b in faits for m in b["interet"]["manquants"]),
+       "chaque bloc manquant est chiffre, jamais seulement nomme")
+
+    # Le defaut trouve en relisant : `etat` est une CHAINE, la comparer
+    # a 1 rendait toujours zero — « 0 / 13 BLOCS » sur un titre complet.
+    _v("b.etat===1" not in j3.replace(" ", "")
+       and "b.etat==='ok'" in j3.replace(" ", ""),
+       "le compteur central compare des chaines, pas des entiers")
+    # Et la table de couleurs etait indexee sur une cle qui n'existe pas.
+    m_coul = re.search(r"const coul=\{(.*?)\}\[v\.type\]", j3, re.S)
+    _v(bool(m_coul), "la table de couleurs du cercle est trouvable")
+    if m_coul:
+        cles_coul = set(re.findall(r"(\w+)\s*:", m_coul.group(1)))
+        attendues = set(_ch3.VERDICT_CSS.values())
+        _v(attendues <= cles_coul,
+           "chaque etat possible a sa couleur (" +
+           ", ".join(sorted(attendues - cles_coul)) + " manquant)"
+           if attendues - cles_coul else
+           "chaque etat possible a sa couleur")
+    # Et une classe CSS pour chaque marche, des deux cotes.
+    manque = [c for c in _ch3.VERDICT_CSS.values() if ".v-" + c not in _ch3.CSS]
+    _v(not manque, "chaque pastille a sa classe CSS (" + ",".join(manque) + ")"
+       if manque else "chaque pastille a sa classe CSS")
+    manque2 = [c for c in _it.TITRES if ".n-" + c not in _ch3.CSS]
+    _v(not manque2, "chaque marche a sa couleur dans la carte ("
+       + ",".join(manque2) + ")" if manque2 else
+       "chaque marche a sa couleur dans la carte")
+
     print("\n  BLOC POSITIONS")
     _v('id="ptk"' in h and 'id="pq"' in h and 'id="pe"' in h and 'id="pst"' in h,
        "les quatre champs de saisie sont presents")
