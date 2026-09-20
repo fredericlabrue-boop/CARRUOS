@@ -640,8 +640,21 @@ body{background:var(--fond);color:var(--txt);
 .pil-l .kv{padding:2px 0;font-size:10.5px;line-height:1.25}
 .pil-l .kv b{font-size:11px}
 .pil-l .ex{font-size:9.5px;line-height:1.45}
+/* `minmax(190px,...)` posait un PLANCHER : trois panneaux exigeaient au
+   moins 190+74+74 plus les ecarts, soit 352 px. Dans une fenetre courte
+   la colonne depassait sa piste et se deversait sur le bandeau du bas.
+   Le plancher passe a zero — les `fr` gardent les proportions — et
+   `overflow:hidden` garantit qu'aucun panneau ne peut plus mordre sur
+   ce qui est en dessous, quoi qu'il arrive. */
 .pil-c{grid-column:2;grid-row:3;min-height:0;display:grid;gap:7px;
- grid-template-rows:minmax(190px,3.2fr) minmax(74px,1fr) minmax(74px,1fr)}
+ overflow:hidden;
+ grid-template-rows:minmax(0,3.2fr) minmax(0,1fr) minmax(0,1fr)}
+/* La boite en colonne flex : le libelle prend ce qu'il lui faut, le
+   graphique prend EXACTEMENT le reste. Plus rien a deviner — c'est la
+   mise en page qui donne la hauteur, le script se contente de la lire. */
+.pil-c .box{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.pil-c .box>.lb{flex:none}
+.pil-c .box>div[id]{flex:1 1 auto;min-height:0;overflow:hidden}
 .pil-h{grid-column:3;grid-row:3;min-height:0;display:flex;
  flex-direction:column;align-items:center;justify-content:center;
  gap:9px;padding:14px 12px;position:relative;overflow:hidden;
@@ -666,9 +679,17 @@ body{background:var(--fond);color:var(--txt);
 .feu svg{width:100%;height:100%;display:block}
 .feu .fb{transition:stroke-dasharray .9s cubic-bezier(.2,1,.3,1)}
 .feu .fc{transform-origin:66px 66px;animation:tour 34s linear infinite}
+/* LE MOT DOIT TENIR DANS LE CERCLE.
+   16 px en dur : « HORS CRITERES » fait 13 caracteres et debordait le
+   disque de 48 px, « DONNEES INSUFFISANTES » davantage. Le mot vit
+   maintenant dans un span qu'on mesure, et dont la taille descend
+   jusqu'a ce qu'il tienne — en largeur ET en hauteur. « ACHAT » garde
+   ses 17 px, « DONNEES INSUFFISANTES » se pose sur deux lignes. */
 .feu .fv{position:absolute;inset:0;display:flex;align-items:center;
- justify-content:center;font:500 16px ui-monospace,monospace;
- letter-spacing:.14em;color:currentColor;margin-top:-9px}
+ justify-content:center;color:currentColor;margin-top:-9px}
+.feu .fv .mv{display:block;max-width:78%;text-align:center;
+ font:500 17px/1.14 ui-monospace,Consolas,monospace;letter-spacing:.1em;
+ overflow-wrap:normal;word-break:normal;hyphens:none}
 .feu .fn{position:absolute;left:0;right:0;bottom:36px;text-align:center;
  font:400 9px ui-monospace,monospace;letter-spacing:.2em;color:#475a72}
 .feu.pulse{animation:battement 1.9s ease-in-out infinite}
@@ -882,10 +903,21 @@ const MUET={setData:RIEN,setMarkers:RIEN,applyOptions:RIEN,
  timeScale:function(){return MUET_TEMPS;},
  subscribeCrosshairMove:RIEN,unsubscribeCrosshairMove:RIEN,
  resize:RIEN};
+// La hauteur du graphique est celle de SON conteneur, lue telle quelle.
+// L'ancienne version prenait la hauteur de la BOITE moins 30 px devines
+// pour le libelle — qui en fait plus de 40 avec les marges — puis
+// imposait un plancher de 90 px souvent plus grand que la place
+// disponible. Resultat : le trace depassait sa boite a toutes les
+// tailles, de 3 px en grand et de 48 px en 1280x720, et mordait alors
+// sur le bandeau du bas. On ne devine plus : `.box` est une colonne
+// flex, le conteneur du trace prend le reste, et on lit sa hauteur.
+function hauteurUtile(el){
+ return Math.max(40, Math.floor(el.clientHeight));
+}
 function mk(id){const el=document.getElementById(id);
  if(!LC||!el) return MUET;
- const h=Math.max(90,el.parentElement.clientHeight-30);
- return LC.createChart(el,Object.assign({},base,{height:h,width:el.clientWidth}));}
+ return LC.createChart(el,Object.assign({},base,
+  {height:hauteurUtile(el),width:el.clientWidth}));}
 const cP=mk('p1'),cR=mk('p2'),cM=mk('p3');
 // Cone de dispersion : quatre lignes pointillees vers l'avenir. Elles ne
 // disent rien du SENS, seulement de l'amplitude plausible.
@@ -913,6 +945,31 @@ const mach=cM.addHistogramSeries({priceLineVisible:false,lastValueVisible:false}
 [40,55,80].forEach(v=>rsi.createPriceLine({price:v,color:'#33465e',lineWidth:1,
  lineStyle:2,axisLabelVisible:true}));
 const G={ema20:[ema],sma50:[s50],sma200:[s200],bb:[bbu,bbl],rsi:[rsi],macd:[macd,macs,mach]};
+
+// Pose le mot du verdict au centre du cercle et REDUIT sa taille
+// jusqu'a ce qu'il tienne. On mesure au lieu de calculer : la police,
+// le theme et la densite changent la largeur d'un caractere, donc toute
+// formule serait fausse sur au moins un theme.
+function poseVerdict(mot){
+ const el=document.getElementById('vd-h'); if(!el) return;
+ let sp=el.querySelector('.mv');
+ if(!sp){ el.textContent=''; sp=document.createElement('span');
+          sp.className='mv'; el.appendChild(sp); }
+ if(sp.dataset.mot===mot && sp.style.fontSize) return;
+ sp.dataset.mot=mot; sp.textContent=mot;
+ const feu=document.getElementById('feu');
+ // Le disque utile : l'anneau pointille interieur est a r=42 sur un
+ // viewBox de 132. On lui laisse une marge.
+ const d=(feu?feu.clientWidth:132);
+ // En largeur : le disque interieur, avec sa marge.
+ // En hauteur : deux lignes au plus — la troisieme viendrait buter sur
+ // le « n / 13 BLOCS » pose a 36 px du bas.
+ const limL=d*0.78, limH=d*0.34;
+ let t=17; sp.style.fontSize=t+'px';
+ while(t>8 && (sp.scrollWidth>limL+0.5 || sp.scrollHeight>limH+0.5)){
+  t-=0.5; sp.style.fontSize=t+'px';
+ }
+}
 
 function ic(e){return e==='ok'?'<i class="i-ok">✓</i>':e==='ko'?'<i class="i-ko">✕</i>':'<i class="i-na">?</i>';}
 function cls(e){return e==='ok'?'okt':e==='ko'?'ko':'na';}
@@ -1038,7 +1095,7 @@ function draw(){
              aucun:'#475a72',vide:'#475a72'}[v.type]||'#475a72';
  const vh=document.getElementById('vd-h');
  if(vh){
-  vh.textContent=v.titre;
+  poseVerdict(v.titre);
   const ok=d.blocs.filter(b=>b.etat==='ok').length;
   const feu=document.getElementById('feu');
   feu.style.color=coul;
@@ -1083,8 +1140,7 @@ let lock=false;
  lock=false;}));
 function redim(){[[cP,'p1'],[cR,'p2'],[cM,'p3']].forEach(([c,id])=>{
  const el=document.getElementById(id);
- c.applyOptions({width:el.clientWidth,
-  height:Math.max(90,el.parentElement.clientHeight-30)});});}
+ c.applyOptions({width:el.clientWidth,height:hauteurUtile(el)});});}
 // --- interrupteurs d'indicateurs : ils pilotent la visibilite des series
 const SERIES={cone:[co1h,co1b,co2h,co2b,comid],
               ema20:[ema],sma50:[s50],sma200:[s200],bb:[bbu,bbl],

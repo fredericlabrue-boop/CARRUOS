@@ -718,6 +718,38 @@ def main() -> int:
     _v("var(--acc)" in _hd.CSS and "#22d3ee" not in _hd.CSS,
        "les jauges du HUD suivent la couleur du theme")
 
+    print("\n  LE MOT DANS LE CERCLE, LES GRAPHIQUES DANS LEUR BOITE")
+    from . import chart as _ch5
+    js5 = _scripts(pages["graphique"])
+    css5 = re.sub(r"/\*.*?\*/", " ",
+                  re.search(r"<style>(.*?)</style>", pages["graphique"],
+                            re.S).group(1), flags=re.S)
+    # 16 px en dur : « HORS CRITERES » debordait le disque de 48 px. La
+    # taille se MESURE maintenant, parce qu'une formule serait fausse
+    # des qu'un theme change la police.
+    _v("function poseVerdict" in js5,
+       "le mot du verdict est pose par une fonction qui l'ajuste")
+    _v("scrollWidth" in js5 and "scrollHeight" in js5,
+       "elle mesure le texte au lieu de calculer sa largeur")
+    _v("overflow-wrap:normal" in css5.replace(" ", ""),
+       "le mot ne se coupe qu'aux espaces, jamais en plein milieu")
+    _v("vh.textContent=v.titre" not in js5.replace(" ", ""),
+       "plus personne ne pose le mot sans l'ajuster")
+    # Les graphiques : la hauteur se LIT, elle ne se devine plus.
+    _v("function hauteurUtile" in js5,
+       "la hauteur du trace vient d'une seule fonction")
+    for mauvais in ("clientHeight-30", "Math.max(90,"):
+        _v(mauvais not in js5.replace(" ", ""),
+           f"plus de hauteur devinee ({mauvais})")
+    m_pc = re.search(r"\.pil-c\{[^}]*\}", css5.replace("\n", " "))
+    _v(bool(m_pc) and "overflow:hidden" in m_pc.group(0).replace(" ", ""),
+       "la colonne centrale ne peut plus deborder sur le bandeau du bas")
+    _v("minmax(190px" not in css5.replace(" ", ""),
+       "les panneaux n'imposent plus un plancher de hauteur")
+    m_box = re.search(r"\.pil-c \.box\{[^}]*\}", css5.replace("\n", " "))
+    _v(bool(m_box) and "flex" in m_box.group(0),
+       "la boite donne au trace une hauteur definie, en colonne flex")
+
     print("\n  BANDEAU DES MODULES")
     # Le defaut trouve : `.mods`, `.mod`, `.hdr2`, `.gg`, `.zone`, `.val`,
     # `.nw2`... n'etaient definis NULLE PART. Le bandeau du bas de la page
