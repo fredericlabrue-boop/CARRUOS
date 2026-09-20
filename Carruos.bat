@@ -45,6 +45,9 @@ echo      R.  Epreuves de robustesse sur un rapport CSV
 echo      Z.  Calibrer le critere 4 sur des cours aleatoires
 echo      H.  Amplitude par horizon et take-profit envisageable
 echo      O.  Horaires des places europeennes et americaines
+echo      B.  Lecture des chandeliers - figures et ce qui a suivi
+echo      I.  Open interest des OPTIONS d'un titre
+echo      M.  Ouvrir le memo des seuils  (MEMO-LECTURE.md)
 echo.
 echo      --- COMPTE IBKR (lecture seule) ---
 echo      7.  Portefeuille - TWS papier        (7497)
@@ -78,6 +81,9 @@ if /i "%CHOIX%"=="R" goto robuste
 if /i "%CHOIX%"=="Z" goto calib
 if /i "%CHOIX%"=="H" goto horizon
 if /i "%CHOIX%"=="O" goto places
+if /i "%CHOIX%"=="B" goto bougies
+if /i "%CHOIX%"=="I" goto oi
+if /i "%CHOIX%"=="M" goto memo
 if "%CHOIX%"=="9" goto tests
 if "%CHOIX%"=="0" exit /b 0
 goto menu
@@ -229,6 +235,44 @@ echo   a laquelle passer un ordre.
 echo.
 %PY% -m equity_scanner.seance
 echo. & pause & goto menu
+
+:bougies
+echo.
+echo   Les figures de chandeliers - marteau, harami, avalement, etoiles,
+echo   trois soldats... - detectees sur le titre, PUIS ce qu'elles ont
+echo   ete suivies de sur CE titre, compare a ce que le titre fait un
+echo   jour quelconque.
+echo.
+echo   Le nom d'une figure n'est pas une preuve : c'est le tableau qui
+echo   tranche, et il dit souvent "indiscernable du hasard".
+echo.
+set BT=
+set /p BT=   Ticker (NVDA, MC.PA, TLX...) :
+if "%BT%"=="" goto menu
+%PY% -m equity_scanner.chandeliers %BT%
+echo. & pause & goto menu
+
+:oi
+echo.
+echo   UNE ACTION N'A PAS D'OPEN INTEREST : c'est une notion de contrats
+echo   a terme et d'options. Ceci lit l'open interest des OPTIONS du
+echo   titre - total calls et puts, rapport put/call, strikes les plus
+echo   charges. Pour l'action elle-meme, la notion voisine est le volume
+echo   rapporte a son habitude : choix B.
+echo.
+set OT=
+set /p OT=   Ticker :
+if "%OT%"=="" goto menu
+%PY% -m equity_scanner.options %OT%
+echo. & pause & goto menu
+
+:memo
+if not exist "MEMO-LECTURE.md" (
+  echo   MEMO-LECTURE.md introuvable a cote de ce fichier.
+  echo. & pause & goto menu
+)
+start "" "MEMO-LECTURE.md"
+goto menu
 
 :pfpapier
 echo   TWS ou IB Gateway doit etre lance, API activee.

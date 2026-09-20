@@ -1692,6 +1692,296 @@ def test_interet() -> None:
                                      "conseill", "recommand", "il faut acheter")))
 
 
+def test_chandeliers() -> None:
+    """Les figures : geometrie verifiable, et rien de plus."""
+    from . import chandeliers as cd
+    from .indicators import enrich
+
+    print("\n— Lecture des chandeliers —")
+
+    # Les seuils sont ecrits AVANT toute mesure. Les deplacer apres
+    # avoir regarde un resultat serait la meme peche que sur les
+    # parametres de strategie : avec dix seuils on finit toujours par
+    # faire briller une figure.
+    ok("les seuils de forme sont ceux qui ont ete ecrits",
+       (cd.SEUILS["doji_corps"], cd.SEUILS["petit_corps"],
+        cd.SEUILS["grand_corps"], cd.SEUILS["marubozu"],
+        cd.SEUILS["ombre_longue"], cd.SEUILS["ombre_opposee"],
+        cd.SEUILS["corps_tiers"], cd.SEUILS["tendance_barres"],
+        cd.SEUILS["tendance_seuil"], cd.SEUILS["etendue_mini_atr"],
+        cd.SEUILS["etendue_mini_pct"])
+       == (0.10, 0.35, 0.60, 0.90, 2.0, 0.15, 0.66, 5, 0.02, 0.30, 0.0015))
+    ok("les horizons de suivi sont 1, 5, 10 et 20 barres",
+       cd.HORIZONS == (1, 5, 10, 20) and cd.MINI_CAS == 10)
+
+    # --- chaque figure est construite A LA MAIN et doit etre trouvee
+    def bougies(lig, avant=None):
+        out = []
+        if avant:
+            sens, nb = avant
+            prix = 100.0
+            for _ in range(nb):
+                suiv = prix * (1 + sens)
+                out.append((prix, max(prix, suiv) * 1.002,
+                            min(prix, suiv) * 0.998, suiv))
+                prix = suiv
+            ech = prix / lig[0][0]
+            lig = [tuple(x * ech for x in b) for b in lig]
+        out += list(lig)
+        idx = pd.bdate_range("2020-01-02", periods=len(out))
+        df = pd.DataFrame(out, columns=["open", "high", "low", "close"],
+                          index=idx)
+        df["volume"] = 1e6
+        df["atr14"] = (df["high"] - df["low"]).rolling(5, min_periods=1).mean()
+        return df
+
+    CAS = [
+        ("doji", [(100, 103, 97, 100.1)], None),
+        ("marubozu_hausse", [(100, 110.2, 99.8, 110)], None),
+        ("marubozu_baisse", [(110, 110.2, 99.8, 100)], None),
+        ("marteau", [(105, 105.6, 95, 105.4)], (-0.01, 8)),
+        ("pendu", [(105, 105.6, 95, 105.4)], (0.01, 8)),
+        ("etoile_filante", [(100, 110, 99.6, 100.3)], (0.01, 8)),
+        ("marteau_inverse", [(100, 110, 99.6, 100.3)], (-0.01, 8)),
+        ("harami_hausse", [(110, 110.5, 99.5, 100), (103, 106, 102, 105)], None),
+        ("harami_baisse", [(100, 110.5, 99.5, 110), (106, 108, 102, 103)], None),
+        ("avalement_hausse", [(105, 106, 102, 103), (101, 110, 100.5, 109)], None),
+        ("avalement_baisse", [(103, 106, 102, 105), (109, 110, 100.5, 101)], None),
+        ("penetrante", [(110, 110.5, 99.5, 100), (98, 106.5, 97.5, 106)], None),
+        ("nuage_noir", [(100, 110.5, 99.5, 110), (112, 112.5, 103, 103.5)], None),
+        ("etoile_matin", [(110, 110.5, 99.5, 100), (99, 100.5, 98, 99.5),
+                          (100, 107, 99.5, 106)], None),
+        ("etoile_soir", [(100, 110.5, 99.5, 110), (110.5, 112, 110, 111),
+                         (110, 110.5, 103, 104)], None),
+        ("trois_soldats", [(100, 105.2, 99.8, 105), (105, 110.2, 104.8, 110),
+                           (110, 115.2, 109.8, 115)], None),
+        ("trois_corbeaux", [(115, 115.2, 109.8, 110), (110, 110.2, 104.8, 105),
+                            (105, 105.2, 99.8, 100)], None),
+    ]
+    manquantes = [nom for nom, lig, av in CAS
+                  if not cd.figures(bougies(lig, av))[nom][-1]]
+    ok(f"les {len(CAS)} figures sont detectees sur une bougie construite "
+       f"a la main", not manquantes)
+    for m in manquantes:
+        print(f"          -> {m} non detectee")
+    ok("chaque figure detectee a un nom et une definition ecrite",
+       all(c in cd.NOMS and c in cd.FORMES
+           for c in cd.figures(bougies([(100, 103, 97, 100.1)]))
+           if c not in ("",)))
+
+    # Une seance ou le titre n'a pas bouge ne porte aucune figure : tous
+    # les rapports d'ombre y explosent.
+    plate = bougies([(100, 100.02, 99.98, 100.0)])
+    ok("une bougie quasi plate ne porte aucune figure",
+       not any(m[-1] for m in cd.figures(plate).values()))
+
+    # --- le point qui compte : sur du BRUIT, tout doit etre indiscernable
+    nets = mesures = 0
+    for graine in range(6):
+        d = enrich(serie(n=2200, seed=graine, derive=0.0, vol=0.014))
+        r = cd.lecture(d)
+        for bloc in (r["figures"], r["volume_prix"]):
+            for f in bloc:
+                for x in f["suivi"]:
+                    if not x.get("assez"):
+                        continue
+                    mesures += 1
+                    nets += bool(not x["indiscernable"])
+    part = nets / max(1, mesures) * 100
+    # L'intervalle est a 95 % : environ 5 % de faux positifs sont
+    # ATTENDUS. Beaucoup plus voudrait dire que la comparaison au taux
+    # de base est mal faite et que le module fabrique un avantage.
+    ok(f"sur du bruit pur, {part:.1f} % des mesures ressortent nettes "
+       f"(5 % attendus, {mesures} mesures)", part < 12.0)
+
+    # Et le piege des comparaisons multiples doit etre AFFICHE, pas tu.
+    d = enrich(serie(n=1500, seed=3, derive=0.0004))
+    r = cd.lecture(d)
+    ok("le rapport compte ses propres mesures et dit combien sont "
+       "attendues par hasard",
+       r["comptage"]["mesures"] > 0
+       and "hasard" in r["comptage"]["phrase"]
+       and str(round(r["comptage"]["mesures"] * 0.05)) in
+           r["comptage"]["phrase"])
+    ok("le rappel dit que le nom d'une figure n'est pas une preuve",
+       "verifiee ici" in cd.RAPPEL or "vérifiée ici" in cd.RAPPEL)
+    txt = cd.texte(r)
+    ok("le texte nomme le taux de base a cote de chaque taux",
+       "base" in txt and "indiscernable" in txt)
+    ok("et dit qu'une action n'a pas d'open interest",
+       "pas d'open interest" in txt)
+
+
+def test_options() -> None:
+    """L'open interest des OPTIONS, et le refus d'en inventer un pour
+    l'action elle-meme."""
+    import sys
+    import types
+
+    print("\n— Open interest des options —")
+
+    class Chaine:
+        def __init__(self, c, p):
+            self.calls, self.puts = c, p
+
+    def faux_ticker(dates):
+        class T:
+            options = dates
+            fast_info = {"last_price": 120.0}
+
+            def option_chain(self, _d):
+                c = pd.DataFrame({"strike": [100, 110, 120, 130, 140],
+                                  "openInterest": [500, 1200, 9000, 3400, 800],
+                                  "volume": [50, 120, 900, 340, 80]})
+                pu = pd.DataFrame({"strike": [100, 110, 120, 130, 140],
+                                   "openInterest": [4200, 2600, 1500, 300, 100],
+                                   "volume": [420, 260, 150, 30, 10]})
+                return Chaine(c, pu)
+        return T()
+
+    vrai = sys.modules.get("yfinance")
+    faux = types.ModuleType("yfinance")
+    faux.Ticker = lambda _tk: faux_ticker(["2026-10-16", "2026-11-20"])
+    sys.modules["yfinance"] = faux
+    try:
+        from . import options as op
+        r = op.chaine("NVDA", echeances=2)
+        ok("la chaine d'options se lit", bool(r.get("ok")))
+        ok("l'open interest total est la somme des echeances",
+           r["oi_calls"] == 2 * (500 + 1200 + 9000 + 3400 + 800)
+           and r["oi_puts"] == 2 * (4200 + 2600 + 1500 + 300 + 100))
+        ok("le rapport put/call est calcule",
+           abs(r["ratio_pc"] - round(r["oi_puts"] / r["oi_calls"], 2)) < 1e-9)
+        ok("le strike le plus charge est trouve",
+           r["mur"] and r["mur"]["strike"] == 120.0)
+        ok("l'ecart de chaque strike au cours est donne",
+           all(c["ecart_pct"] is not None
+               for e in r["echeances"] for c in e["gros_calls"]))
+        t = op.texte(r)
+        # LE point du module : ne pas laisser croire qu'une action a un
+        # open interest.
+        ok("le rapport dit qu'une action n'a pas d'open interest",
+           "N'A PAS D'OPEN INTEREST" in t.upper())
+        ok("et renvoie vers la notion voisine pour l'action",
+           "chandeliers" in t)
+        ok("la reserve sur l'absence d'historique est ecrite",
+           "ne se compare a rien" in t)
+        # Aucune direction dans ce qui est AFFICHE. On ne regarde pas la
+        # docstring : elle contient « il ne dit pas qu'un rapport
+        # put/call eleve est haussier », qui REFUSE la lecture au lieu
+        # de la faire. Un controle qui ne distingue pas une affirmation
+        # de sa negation punit la bonne documentation.
+        bas = (t + op.RESERVE).lower()
+        ok("aucune lecture directionnelle affichee du rapport put/call",
+           not any(w in bas for w in ("est haussier", "est baissier",
+                                      "signal d'achat", "signal de vente",
+                                      "anticipe", "annonce une")))
+        faux.Ticker = lambda _tk: faux_ticker([])
+        ok("un titre sans option cotee ressort avec son motif",
+           not op.chaine("XXX").get("ok"))
+    finally:
+        if vrai is not None:
+            sys.modules["yfinance"] = vrai
+        else:
+            sys.modules.pop("yfinance", None)
+
+
+def test_memo() -> None:
+    """Le memo cite des seuils : ils doivent etre ceux qui tournent.
+
+    Un memo qui derive du code est pire qu'aucun memo — il donne
+    confiance dans un chiffre faux. Chaque nombre cite est donc
+    reconfronte a la constante d'ou il vient.
+    """
+    from pathlib import Path
+
+    from . import chandeliers as cd
+    from . import qualite as ql
+    from . import rules as R
+    from .indicators import PERIODES
+
+    print("\n— Memo de lecture —")
+    f = Path(__file__).resolve().parent.parent / "MEMO-LECTURE.md"
+    ok("MEMO-LECTURE.md existe a la racine", f.exists())
+    if not f.exists():
+        return
+    m = f.read_text(encoding="utf-8")
+
+    def _fr(x, dec=None):
+        """Un nombre comme le memo l'ecrit : virgule, sans zero inutile.
+
+        Le memo est en francais. Comparer « 0.5 » a « 0,5 » ferait
+        echouer ce test sur une difference de typographie, pas sur une
+        derive — et un test qui crie pour rien finit par etre ignore.
+        """
+        if dec is not None:
+            return f"{x:.{dec}f}".replace(".", ",")
+        return (f"{x:g}").replace(".", ",")
+
+    # (ce que le memo doit contenir, la valeur qui tourne vraiment)
+    ATTENDU = [
+        ("RSI 14", f"**{PERIODES['rsi']}**"),
+        ("MACD", f"**{PERIODES['macd'][0]} / {PERIODES['macd'][1]} / "
+                 f"{PERIODES['macd'][2]}**"),
+        ("Bollinger", f"**{PERIODES['bb'][0]}** séances, "
+                      f"**{PERIODES['bb'][1]:.0f}** écarts-types"),
+        ("SMA longue", f"**{PERIODES['sma_longue']}** séances"),
+        ("SMA moyenne", f"**{PERIODES['sma_moyenne']}** séances"),
+        ("EMA courte", f"**{PERIODES['ema_courte']}** séances"),
+        ("plus haut de reference", f"**{PERIODES['haut']}** séances"),
+        ("zone RSI", f"entre **{R.RSI_ZONE[0]:.0f} et "
+                     f"{R.RSI_ZONE[1]:.0f}**"),
+        ("plancher RSI", f"sous **{R.RSI_FLOOR:.0f}**"),
+        ("bande EMA", f"**{_fr(R.EMA_BAND_ATR)} × ATR**"),
+        ("fenetre de repli", f"**{R.PULLBACK_WINDOW}** séances"),
+        ("RVOL", f"**{_fr(R.RVOL_MIN, 2)}**"),
+        ("prix plancher", f"**{R.MIN_PRICE:.0f} $**"),
+        ("volume dollar", f"**{R.MIN_DOLLAR_VOL / 1e6:.0f} M$**"),
+        ("gap", f"**{R.GAP_VETO * 100:.0f} %** sur **{R.GAP_LOOKBACK}**"),
+        ("blackout resultats", f"**{R.EARNINGS_BLACKOUT}** séances"),
+        ("positions", f"**{R.MAX_POSITIONS}** positions"),
+        ("risque par trade", f"**{R.RISK_PER_TRADE * 100:.0f} %**"),
+        ("plafond de poids", f"**{R.MAX_WEIGHT * 100:.0f} %**"),
+        ("stop ATR", f"**{_fr(R.STOP_ATR_MULT)} × ATR**"),
+        ("stop swing", f"**{_fr(R.STOP_SWING_BUFFER)} × ATR**"),
+        ("historique minimum", f"**{ql.HISTOIRE_MIN}** barres"),
+        ("trous", f"**{ql.TROUS_MAX * 100:.0f} %**"),
+        ("saut suspect", f"**{_fr(ql.SAUT_SUSPECT)}**"),
+        ("doji", f"**{cd.SEUILS['doji_corps'] * 100:.0f} %**"),
+        ("petit corps", f"**{cd.SEUILS['petit_corps'] * 100:.0f} %**"),
+        ("grand corps", f"**{cd.SEUILS['grand_corps'] * 100:.0f} %**"),
+        ("marubozu", f"**{cd.SEUILS['marubozu'] * 100:.0f} %**"),
+        ("ombre longue", f"**{cd.SEUILS['ombre_longue']:.0f} ×**"),
+        ("ombre opposee", f"**{cd.SEUILS['ombre_opposee'] * 100:.0f} %**"),
+        ("corps dans le tiers", f"**{cd.SEUILS['corps_tiers'] * 100:.0f} %**"),
+        ("contexte", f"**±{cd.SEUILS['tendance_seuil'] * 100:.0f} %** sur "
+                     f"**{cd.SEUILS['tendance_barres']}**"),
+        ("barre etroite ATR", f"**{_fr(cd.SEUILS['etendue_mini_atr'])} × ATR**"),
+        ("barre etroite %",
+         f"**{_fr(cd.SEUILS['etendue_mini_pct'] * 100, 2)} %**"),
+        ("cas minimum", f"**moins de {cd.MINI_CAS} cas**"),
+    ]
+    absents = [(nom, val) for nom, val in ATTENDU if val not in m]
+    ok(f"les {len(ATTENDU)} seuils cites dans le memo sont ceux qui "
+       f"tournent", not absents)
+    for nom, val in absents:
+        print(f"          -> {nom} : le memo ne contient pas {val!r}")
+
+    # Le memo doit nommer les figures avec les memes mots que le code.
+    oublis = [n for n in cd.NOMS.values()
+              if n.startswith(("Doji", "Marteau", "Pendu", "Étoile",
+                               "Harami", "Avalement", "Pénétrante",
+                               "Nuage", "Trois", "Marubozu"))
+              and n not in m]
+    ok("chaque figure du code est nommee dans le memo", not oublis)
+    for n in oublis:
+        print(f"          -> figure absente du memo : {n}")
+    ok("le memo dit qu'une action n'a pas d'open interest",
+       "pas d'open interest" in m.lower())
+    ok("et rappelle les 72 mesures et les faux positifs attendus",
+       "une mesure sur\nvingt" in m or "une mesure sur vingt" in m)
+
+
 def main() -> int:
     os.chdir(tempfile.mkdtemp())      # aucune ecriture dans le dossier reel
     test_parametres_geles()
@@ -1718,6 +2008,9 @@ def main() -> int:
     test_horizon()
     test_cle_av()
     test_interet()
+    test_chandeliers()
+    test_options()
+    test_memo()
 
     print()
     if ECHECS:

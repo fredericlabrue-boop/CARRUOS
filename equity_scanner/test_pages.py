@@ -14,6 +14,7 @@ JavaScript et la correspondance avec les identifiants du HTML.
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -35,6 +36,30 @@ def _re_couleurs(css: str) -> list:
     """
     return [c for c in re.findall(r"#[0-9a-zA-Z]+", css)
             if not re.fullmatch(r"#[a-z]{4,}", c)]
+
+
+def _objet(doc, marqueur):
+    """L'objet JSON qui suit un marqueur, par comptage d'accolades."""
+    i = doc.index(marqueur) + len(marqueur)
+    prof, k, dans = 0, i, False
+    while k < len(doc):
+        c = doc[k]
+        if dans:
+            if c == "\\":
+                k += 2
+                continue
+            if c == '"':
+                dans = False
+        elif c == '"':
+            dans = True
+        elif c == "{":
+            prof += 1
+        elif c == "}":
+            prof -= 1
+            if prof == 0:
+                return json.loads(doc[i:k + 1])
+        k += 1
+    raise ValueError("objet non termine")
 
 
 def _scripts(html: str) -> str:
@@ -750,6 +775,32 @@ def main() -> int:
     _v(bool(m_box) and "flex" in m_box.group(0),
        "la boite donne au trace une hauteur definie, en colonne flex")
 
+    print("\n  LECTURE DES CHANDELIERS DANS LA PAGE")
+    from . import chandeliers as _cd2
+    js6 = _scripts(pages["graphique"])
+    _v("const CHAND=" in js6, "la lecture est injectee dans la page")
+    _v("function carteChandeliers" in js6,
+       "et posee dans la colonne de droite")
+    _v("h+=carteChandeliers();" in js6.replace(" ", ""),
+       "la carte est bien ajoutee au tirage")
+    C6 = _objet(js6, "const CHAND=") if "const CHAND={" in js6 else None
+    if C6 is not None:
+        _v("presentes" in C6 and "comptage" in C6,
+           "elle porte les figures du jour et le compte des mesures")
+        _v("hasard" in (C6.get("comptage") or {}).get("phrase", ""),
+           "le piege des comparaisons multiples voyage avec la carte")
+        _v(all("suivi" in f and "forme" in f for f in C6["presentes"]),
+           "chaque figure du jour porte sa definition et son suivi")
+    # Ce qui compte : le taux de base doit etre affiche A COTE du taux.
+    _v("un jour quelconque" in js6,
+       "le taux de base est affiche a cote de chaque taux mesure")
+    _v("indiscernable" in js6,
+       "une figure dans le bruit est nommee comme telle")
+    # Les seize figures du code doivent toutes avoir un libelle francais.
+    sans_nom = [c for c in _cd2.NOMS if c not in _cd2.FORMES
+                and not c.startswith(("hausse_", "baisse_"))]
+    _v(not sans_nom, f"chaque figure a sa definition ecrite ({sans_nom})")
+
     print("\n  BANDEAU DES MODULES")
     # Le defaut trouve : `.mods`, `.mod`, `.hdr2`, `.gg`, `.zone`, `.val`,
     # `.nw2`... n'etaient definis NULLE PART. Le bandeau du bas de la page
@@ -889,33 +940,10 @@ def main() -> int:
        "le reglage systeme d'animations reduites est respecte")
 
     print("\n  CARTE INTERET")
-    import json as _js
     from . import interet as _it
     g3 = pages["graphique"]
     j3 = _scripts(g3)
 
-    def _objet(doc, marqueur):
-        """L'objet JSON qui suit un marqueur, par comptage d'accolades."""
-        i = doc.index(marqueur) + len(marqueur)
-        prof, k, dans = 0, i, False
-        while k < len(doc):
-            c = doc[k]
-            if dans:
-                if c == "\\":
-                    k += 2
-                    continue
-                if c == '"':
-                    dans = False
-            elif c == '"':
-                dans = True
-            elif c == "{":
-                prof += 1
-            elif c == "}":
-                prof -= 1
-                if prof == 0:
-                    return _js.loads(doc[i:k + 1])
-            k += 1
-        raise ValueError("objet non termine")
 
     _v("const INTERET=" in j3, "la carte d'interet est injectee dans la page")
     _v("h+=carteInteret(d);" in j3.replace(" ", ""),

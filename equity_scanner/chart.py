@@ -1031,6 +1031,46 @@ function carteInteret(d){
  return h + '</div>';
 }
 
+// La lecture des chandeliers, dans la colonne de droite. Elle ne dit
+// jamais ce qu'une figure ANNONCE : elle dit ce qu'elle a ete suivie de
+// sur ce titre, a cote de ce que le titre fait un jour quelconque.
+function carteChandeliers(){
+ const C=(typeof CHAND!=='undefined')?CHAND:null;
+ if(!C) return '';
+ let h='<div class="int"><h3>LECTURE DES CHANDELIERS</h3>';
+ if(!C.presentes || !C.presentes.length){
+  h+='<div class="mo">Aucune figure r\u00e9pertori\u00e9e sur la '
+    +'derni\u00e8re bougie.</div>';
+ }else{
+  C.presentes.forEach(f=>{
+   h+='<div class="sec"><span>'+f.nom.toUpperCase()+'</span>'
+     +'<div class="mo" style="margin-top:0">'+f.forme+'</div>';
+   let eu=false;
+   (f.suivi||[]).forEach(x=>{
+    if(!x.assez) return;
+    eu=true;
+    const cl=x.indiscernable?'n-loin':(x.ecart>0?'n-complet':'n-sortie');
+    const mot=x.indiscernable?'dans le bruit':'\u00e9cart net';
+    h+='<div class="ut" style="grid-template-columns:52px 1fr;'
+      +'margin-top:8px"><span>'+x.horizon
+      +(x.horizon>1?' barres':' barre')+'</span>'
+      +'<em class="'+cl+'">'+(x.ecart>0?'+':'')+x.ecart.toFixed(1)
+      +' pt</em></div>'
+      +'<div class="mo" style="margin-top:2px;font-size:11.5px">'
+      +x.taux.toFixed(0)+' % de hausses, contre '+x.base.toFixed(0)
+      +' % un jour quelconque \u2014 '+mot+', '+x.n+' cas</div>';
+   });
+   if(!eu) h+='<div class="mo" style="margin-top:6px">Moins de dix cas '
+             +'sur l\u2019historique : rien de publiable.</div>';
+   h+='</div>';
+  });
+ }
+ if(C.comptage) h+='<div class="av">'+C.comptage.phrase+'</div>';
+ if(C.rappel) h+='<div class="av" style="border-top:0;padding-top:4px">'
+                +C.rappel+'</div>';
+ return h+'</div>';
+}
+
 function draw(){
  const d=D[U];
  if(!d || d.insuffisant){
@@ -1044,7 +1084,7 @@ function draw(){
      + 'annuelles. Essayez une unite plus fine.';
   }
   document.getElementById('side').innerHTML='<div class="box">'+m+'</div>'
-    + carteInteret(null);
+    + carteInteret(null) + carteChandeliers();
   return;
  }
  bou.setData(d.ohlc); bou.setMarkers(d.markers); vol.setData(d.volume);
@@ -1071,6 +1111,7 @@ function draw(){
  let h='<div class="vd v-'+v.type+'"><div class="t">'+v.titre+
        '</div><div class="s">'+v.sous+'</div></div>';
  h+=carteInteret(d);
+ h+=carteChandeliers();
  if(d.niveaux){const n=d.niveaux;
   h+='<div class="box"><h3>NIVEAUX</h3><div class="lv">'+
    '<div><div class="k">ENTRÉE</div><div class="v">'+n.entree+'</div></div>'+
@@ -1297,12 +1338,26 @@ def build_html(brut, ticker, bench_brut, sleeve=8000.0, ccy="",
     dj = enrich(brut, bench_close=bench_brut["close"])
     bj = enrich(bench_brut)
     entete_hud, mods, souci = "", "", None
+    # La lecture des chandeliers coute 9 ms sur dix ans de bougies :
+    # elle peut tourner a chaque page sans qu'on la remarque. Calculee
+    # ICI, hors du bloc des modules, parce que la colonne de droite s'en
+    # sert aussi et qu'une exception sur les modules ne doit pas la
+    # priver de sa carte.
+    chand = None
+    try:
+        from . import chandeliers as _cd
+        chand = _cd.lecture(dj)
+    except Exception:
+        chand = None
     jauges = perf = None
     chance = ""
     try:
         jauges = _jauges(dj, bj)
         perf = _perf_signal(dj, ticker, bj)
-        mods = _modules(jauges, perf, ticker, marche, earn, actus)
+        # La lecture des chandeliers coute 9 ms sur dix ans de
+        # bougies : elle peut tourner a chaque page sans qu'on la
+        # remarque.
+        mods = _modules(jauges, perf, ticker, marche, earn, actus, chand)
         if perf and perf.get("n"):
             w = _wilson(round(perf["taux"] * perf["n"] / 100), perf["n"])
             chance = f"{w[0]:.0f}\u2013{w[2]:.0f} %"
@@ -1350,6 +1405,18 @@ def build_html(brut, ticker, bench_brut, sleeve=8000.0, ccy="",
         traceback.print_exc()
         inter = {"accord": None, "historique": None,
                  "pas_un_avis": it.PAS_UN_AVIS, "rappel": it.RAPPEL_PHASE0}
+
+    # Seules les figures presentes AUJOURD'HUI partent dans la page :
+    # les dix-sept avec leurs quatre horizons feraient un mur que
+    # personne ne lit, et le rapport complet existe en ligne de commande.
+    chand_js = None
+    if chand:
+        chand_js = {
+            "presentes": [f for f in chand["figures"] if f["aujourdhui"]],
+            "comptage": chand.get("comptage"),
+            "rappel": chand.get("rappel", ""),
+            "volume_prix": chand.get("volume_prix", []),
+        }
 
     # Pas d'antislash dans une expression de f-string : interdit avant
     # Python 3.12. On construit la classe a part.
@@ -1452,6 +1519,7 @@ def build_html(brut, ticker, bench_brut, sleeve=8000.0, ccy="",
         "<script>const DATA=__D__;const CHANCE=" + json.dumps(chance)
         + ";const TICKER=" + json.dumps(ticker)
         + ";const INTERET=" + json.dumps(inter, ensure_ascii=False)
+        + ";const CHAND=" + json.dumps(chand_js, ensure_ascii=False)
         + ";" + JS + rg.tiroir_js() + "</script></body></html>"
     ).replace("__D__", json.dumps(data, separators=(",", ":")))
 
@@ -1554,7 +1622,7 @@ def _arc_chance(perf):
               'demontre sur l\'ensemble du systeme.</div></div>')
 
 
-def _modules(g, perf, ticker, marche, earn, actus):
+def _modules(g, perf, ticker, marche, earn, actus, chand=None):
     e = html.escape
     m = []
 
@@ -1648,6 +1716,28 @@ def _modules(g, perf, ticker, marche, earn, actus):
                       f'{e(a.get("quand",""))} {e(a.get("source",""))}{lab}</span></a>')
         m.append('<div class="mod" data-mod="actus" style="grid-column:span 2"><h4>ACTUALITES</h4>'
                  f'<div class="nw2">{liens}</div></div>')
+
+    # --- Lecture des chandeliers -------------------------------------
+    # Deux cartes : ce que la DERNIERE bougie forme, et ce que ces
+    # formes ont ete suivies de SUR CE TITRE. Jamais ce qu'un manuel
+    # affirme qu'elles annoncent.
+    if chand:
+        ici = [f for f in chand.get("figures", []) if f["aujourdhui"]]
+        if ici:
+            k = "".join(
+                f'<div class="kv"><span>{e(f["nom"])}</span></div>'
+                f'<div class="tl" style="margin:-3px 0 8px">{e(f["forme"])}'
+                f'</div>' for f in ici)
+        else:
+            k = ('<div class="tl">Aucune figure repertoriee sur la '
+                 'derniere bougie.</div>')
+        m.append('<div class="mod" data-mod="chandeliers">'
+                 '<h4>CHANDELIERS &mdash; DERNIERE BOUGIE</h4>' + k + '</div>')
+
+        # Le detail de ce qui a suivi va dans la COLONNE DE DROITE :
+        # le bandeau du bas fait 13 % de la hauteur et porte deja dix
+        # cartes. Ici on garde la lecture du jour, qui tient en trois
+        # lignes.
 
     return '<div class="mods">' + "".join(m) + '</div>'
 

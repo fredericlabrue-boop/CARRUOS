@@ -10,7 +10,15 @@ py -m equity_scanner.app          # l'application
 py -m equity_scanner.test_pages   # contrôle des pages générées
 py -m equity_scanner.test_rules   # contrôle des règles
 py -m equity_scanner.test_moteur  # contrôle du moteur
+
+py -m equity_scanner.chandeliers NVDA   # figures, et ce qui a suivi
+py -m equity_scanner.options NVDA       # open interest des OPTIONS
 ```
+
+`MEMO-LECTURE.md` à la racine rassemble **tous les seuils** du
+programme. `test_moteur` vérifie que chaque nombre qui y est cité est
+celui qui tourne réellement : un mémo qui dérive du code est pire
+qu'aucun mémo, il donne confiance dans un chiffre faux.
 
 **Les trois tests doivent passer avant tout commit.**
 
@@ -90,6 +98,29 @@ jeu de paramètres qui ne l'a pas produit.
   de son compte — « IL MANQUE PEU » se vérifie, « ACHETER » non.
   Deux phrases accompagnent la carte à chaque affichage : qu'aucune
   hypothèse n'a passé sa Phase 0, et que ce n'est pas un avis.
+- **Ce qu'une figure de chandelier « annonce ».** `chandeliers.py`
+  détecte dix-sept figures — marteau, pendu, harami, avalement,
+  pénétrante, nuage noir, étoiles, trois soldats — parce qu'une figure
+  est une relation **géométrique**, vérifiable à la règle. Il n'écrit
+  jamais qu'un marteau est haussier : il MESURE ce que la figure a été
+  suivie de **sur ce titre**, et l'affiche à côté du **taux de base**
+  du titre. Sans cette comparaison, « 56 % de hausses après un
+  marteau » ne dit rien sur un titre qui monte 56 % du temps. Quand
+  l'intervalle de Wilson contient le taux de base, la figure est
+  déclarée **indiscernable du hasard**.
+  Et le **piège des comparaisons multiples est affiché, pas tu** :
+  17 figures × 4 horizons ≈ 72 mesures par titre, donc environ 4
+  « écarts nets » sont attendus **par le seul hasard**. Vérifié sur
+  12 univers de bruit pur : 4,5 % des mesures ressortaient nettes,
+  contre 5 % attendus. Un écart net isolé ne vaut rien.
+- **Un open interest sur une action.** Elle n'en a pas : c'est une
+  notion de contrats à terme et d'options, et une action existe en
+  nombre fixe. `options.py` lit celui des **options** du titre (total
+  calls/puts, rapport put/call, strikes les plus chargés) et dit en
+  tête que la photo du jour ne se compare à rien, faute d'historique
+  collecté. Pour l'action elle-même, la notion voisine est le volume
+  rapporté à son habitude, mesuré par `chandeliers.volume_prix()`
+  contre le même taux de base.
 - Une ligne de prédiction de prix. Le cône de dispersion existe : dérive
   fixée à zéro, il donne l'amplitude, jamais le sens.
 - Un take-profit **actif**. Les spécifications 2 et 3 disent « aucun
@@ -141,6 +172,10 @@ jeu de paramètres qui ne l'a pas produit.
 | `short.py` | stratégie 3, vente à découvert — **constantes gelées** |
 | `comparatif.py` | système contre SMH buy & hold net de PFU |
 | `contexte.py` | faits mesurés d'un titre, sans score inventé |
+| `chandeliers.py` | 17 figures détectées géométriquement, et ce qu'elles ont été suivies de **sur ce titre** contre son taux de base |
+| | les seuils de forme sont écrits **avant** toute mesure et épinglés par `test_moteur` ; les déplacer après coup serait la même pêche que sur les paramètres de stratégie |
+| | l'ombre opposée se mesure sur l'**étendue**, pas sur le corps : « ≤ 1 × le corps » exigeait moins de 3 % sur une étoile filante, et le détecteur n'en a jamais trouvé une seule jusqu'à la correction |
+| `options.py` | l'open interest des **options** — une action n'en a pas |
 | `interet.py` | la carte INTÉRÊT : quatre comptes, une échelle de 7 marches |
 | | le verdict de la page graphique en **découle** au lieu d'être calculé à côté : deux échelles parallèles finissent par se contredire |
 | | et cette échelle regarde les **vetos**, ce que l'ancienne ne faisait pas — un titre à 13/13 dont le volume dollar est sous le plancher s'affichait ACHAT, entrée, stop et nombre de titres compris |
