@@ -130,7 +130,9 @@ jeu de paramètres qui ne l'a pas produit.
 | | une unité est identifiée par sa **clé**, jamais par sa règle de rééchantillonnage : 5 ANS et 1 SEMAINE partagent la taille de bougie, et la déduire de la règle donnait à la seconde les longueurs de la première |
 | | la fenêtre affichée sous chaque onglet est **calculée sur les vraies dates** : une constante mentirait dès que l'historique du titre est plus court |
 | | `chart.source_trace()` choisit **côté serveur** où prendre la bibliothèque de tracé : la copie locale (`equity_scanner/statique/lightweight-charts.js`) si elle existe, sinon le CDN. **Une seule balise, bloquante.** Jamais de repli `onerror` : il ajouterait le script de façon asynchrone, le code de la page tournerait avant, et la bibliothèque serait toujours absente |
-| `hud.py` | éléments visuels : cerf, cadrans, rails, radar |
+| `hud.py` | éléments visuels : cerf, cadrans, rails, radar, **icône** |
+| | `hud.icone(trace)` dessine le logo : une seule source pour l'onglet du navigateur, la fenêtre et `carruos.ico` du raccourci — sinon les trois divergent |
+| | le décor de fond est **isolé** (`contain:strict`) et ses tailles sont **plafonnées en pixels** : son coût est proportionnel à la surface, et une taille en `vh` double quand l'écran double |
 | `indicators.py` | indicateurs — **PERIODES gelées** |
 | `rules.py` | les 13 blocs d'entrée et les 4 sorties |
 | `backtest.py` | moteur de simulation, exécution J+1, coûts, **plafond de poids** |
@@ -162,6 +164,7 @@ jeu de paramètres qui ne l'a pas produit.
 | `reglages.py` | **13 thèmes**, 13 effets visuels débrayables |
 | | un thème porte une `forme` : biseau, arrondi, équerres, densité, matière, typographie. Les valeurs par défaut **sont** l'apparence d'origine, donc un thème qui n'en redéfinit aucune ne change rien |
 | | **aucun thème clair** : ce n'est pas au goût du propriétaire, et `test_pages` le vérifie |
+| | **fluidité** : `auto` mesure la cadence réelle sur la machine de l'utilisateur et passe le décor en mode sobre si elle ne suit pas — puis **recommence à chaque redimensionnement**, parce que c'est là que le problème apparaît. `complet` et `sobre` tranchent à la main, et la mesure ne revient jamais sur un choix explicite |
 
 ## Chantiers
 
@@ -259,6 +262,30 @@ jeu de paramètres qui ne l'a pas produit.
   parfaite. C'est exactement ce qui est arrivé. Quand le choix dépend de
   l'environnement, c'est le **serveur** qui tranche à la fabrication de
   la page, pas le navigateur à l'exécution.
+- **Une animation ne doit toucher qu'à `transform` et `opacity` — et le
+  test part d'une liste BLANCHE.** L'ancienne version énumérait les
+  propriétés interdites à la main (`top`, `left`, `width`, `height`,
+  `margin`, `padding`, `background-position`). Elle a laissé passer
+  `letter-spacing` et `text-indent` dans l'animation du titre
+  d'ouverture : sur un titre centré, le mot se recalcule à chaque image
+  et **toute la ligne se déplace de 46 px**, d'autant plus visible que
+  l'écran est grand. C'était le « visuel qui saute » de la première
+  page. Le même effet se fait lettre par lettre en `transform` : la
+  largeur du mot ne change plus jamais. Une liste d'interdits oublie
+  toujours quelque chose ; une liste d'autorisés ne peut rien laisser
+  passer en silence. Le contrôle porte sur les **trois** pages, pas
+  seulement l'accueil.
+- **Le décor coûte cher, et son coût suit la SURFACE de la fenêtre.**
+  Mesuré : 152 ms par image en 1420 de large, 345 ms en 2560 — deux
+  fois pire en plein écran. Le cerf est tracé **cinq fois** et mis à
+  l'échelle à chaque image (61 % du temps), cinq anneaux tournent
+  (41 %). On ne devine pas la machine de l'utilisateur : on la mesure,
+  et le décor se calme tout seul si elle ne suit pas. `contain:strict`
+  sur `.fond` divise le temps par image par deux et n'a **aucun** effet
+  visible — cela se démontre plutôt que de s'espérer : `paint` est
+  redondant avec le découpage déjà en place, `layout` l'est parce que
+  tous les enfants sont absolus, `style` ne concerne que compteurs et
+  guillemets, `size` parce que la taille vient de `inset:0`.
 - **Une comparaison de type qui ne tombe jamais ne se voit pas.**
   `_bloc_etats` rend `'ok'` / `'ko'` / `'na'`, des **chaînes**. Le script
   de la page les comparait à `1` et à `true` : le compteur rendait donc
@@ -273,6 +300,27 @@ jeu de paramètres qui ne l'a pas produit.
   test du repli vérifiait que la fonction était définie avant la balise —
   elle l'était — sans jamais vérifier que la bibliothèque finissait par
   être là. Vérifier le résultat, pas le montage.
+- **Une classe produite sans règle CSS ne plante pas : elle s'affiche
+  en texte brut.** `.mods`, `.mod`, `.hdr2`, `.gg`, `.zone`, `.val`,
+  `.nw2` n'étaient définis **nulle part**. Le bandeau du bas de la page
+  graphique s'affichait donc empilé, libellés collés aux chiffres —
+  « 57RSI 14 zone 40-55 » — pendant que le reste de la page était
+  soigné. Les deux seules règles existantes, `.pil-l .mod` et
+  `.pil-l .kv`, surchargeaient du vide. `test_pages` **relève** les
+  classes que `_modules` produit réellement et exige que chacune
+  apparaisse dans la feuille : aucune liste écrite à la main, donc un
+  module ajouté demain avec une classe nouvelle fait tomber le test.
+- **Une grille pose sa largeur d'après son CONTENEUR, pas d'après la
+  fenêtre.** `.hud-g` était en `1fr auto 1fr` avec un repli en
+  `@media(max-width:900px)`. Ce bandeau est posé dans la colonne gauche
+  de la page graphique, large de 190 px : sur un écran de 1920 la
+  requête ne se déclenchait jamais, les pistes prenaient 332 px et
+  208 px dans une boîte de 192, et **le panneau des seuils et les rails
+  partaient entièrement hors champ**, cachés par le défilement. Sans
+  rien qui le signale. `repeat(auto-fit, minmax(min(100%,190px),1fr))`
+  n'a besoin d'aucune requête. Et `min-width:0` sur les enfants : sans
+  lui, un enfant de grille refuse de descendre sous la taille minimale
+  de son contenu et déborde sa piste en silence.
 - **Le rendu ne suffit pas, il faut regarder.** Trois défauts de thème
   n'ont été vus que sur les captures : des équerres qu'une animation
   rallumait malgré `--equerre:0`, des champs de saisie restés sombres sur
@@ -284,8 +332,14 @@ jeu de paramètres qui ne l'a pas produit.
   vérifie.
 - **Une colonne de grille en `auto` suit son texte.** La première colonne
   des rails était en `auto` : au rafraîchissement, un libellé plus long
-  décalait toute la grille. Largeur fixe, et `tabular-nums` sur les
-  chiffres pour que `0/5` et `12/5` occupent la même place.
+  décalait toute la grille. Elle est désormais en
+  `clamp(78px,44%,128px)` — la largeur ne dépend que du **conteneur**,
+  jamais du contenu — et `tabular-nums` sur les chiffres pour que `0/5`
+  et `12/5` occupent la même place. Le test vérifie la **propriété**
+  (aucune piste en `auto`/`min-content`/`max-content`/`fit-content`) et
+  non plus la chaîne exacte `128px 1fr 62px` : un test qui exige la
+  lettre d'un correctif refuse une bonne solution écrite autrement et
+  laisse passer une mauvaise écrite avec les mêmes chiffres.
 - Toute animation CSS doit porter sur `transform` ou `opacity`. Animer
   `top`, `left`, `width` ou `background-position` fait sauter la page
   entière. `test_pages` le vérifie.

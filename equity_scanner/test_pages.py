@@ -245,14 +245,60 @@ def main() -> int:
         print(f"          -> '{c}' est a la fois un module et une variable")
 
     print("\n  PERFORMANCE D'ANIMATION")
-    mise_en_page = re.compile(r"\b(top|left|right|bottom|width|height|margin"
-                             r"|padding|background-position)\s*:")
-    blocs = re.findall(r"@keyframes\s+(\w+)\s*\{((?:[^{}]|\{[^{}]*\})*)\}", css)
-    fautives = [n for n, b in blocs if mise_en_page.search(b)]
+    # LISTE BLANCHE, pas liste noire. L'ancienne version enumerait les
+    # proprietes interdites a la main : top, left, width, height, margin,
+    # padding, background-position. Elle a laissé passer `letter-spacing`
+    # et `text-indent` dans l'animation du titre d'ouverture pendant tout
+    # ce temps — deux proprietes de mise en page, sur un titre centre,
+    # donc toute la ligne qui se recalcule a chaque image. C'est le saut
+    # que Frederic voyait au lancement, et d'autant plus large que
+    # l'ecran l'est. Une liste d'interdits oublie toujours quelque chose ;
+    # une liste d'autorises ne peut rien laisser passer en silence.
+    PERMISES = {"transform", "opacity", "visibility", "filter", "box-shadow",
+                "color", "background-color", "border-color", "fill",
+                "stroke", "stroke-dashoffset", "text-shadow"}
+
+    def _corps_keyframes(texte):
+        """Chaque @keyframes avec son corps complet, accolades imbriquees
+        comprises. Une expression reguliere a un seul niveau ratait les
+        blocs a plusieurs etapes."""
+        out = []
+        for m in re.finditer(r"@keyframes\s+([\w-]+)\s*\{", texte):
+            i = m.end() - 1
+            prof, j = 0, i
+            while j < len(texte):
+                if texte[j] == "{":
+                    prof += 1
+                elif texte[j] == "}":
+                    prof -= 1
+                    if prof == 0:
+                        break
+                j += 1
+            out.append((m.group(1), texte[i:j + 1]))
+        return out
+
+    # Et sur les TROIS pages, pas seulement l'accueil : le controle ne
+    # regardait que la premiere, donc la page graphique et la page
+    # STRATEGIE pouvaient animer ce qu'elles voulaient.
+    fautives, total_kf = [], 0
+    for nom_page, htm in pages.items():
+        bloc_css = re.search(r"<style>(.*?)</style>", htm, re.S)
+        if not bloc_css:
+            continue
+        blocs = _corps_keyframes(bloc_css.group(1))
+        total_kf += len(blocs)
+        for nom_kf, corps in blocs:
+            props = set(re.findall(r"([a-z-]+)\s*:", corps))
+            # les variables CSS ne sont pas des proprietes animees
+            interdites = sorted(x for x in props - PERMISES
+                                if not x.startswith("--"))
+            if interdites:
+                fautives.append((nom_page, nom_kf, interdites))
     _v(not fautives,
-       f"les {len(blocs)} animations sont composees (transform / opacity)")
-    for n in fautives:
-        print(f"          -> {n} anime une propriete de mise en page")
+       f"les {total_kf} animations des {len(pages)} pages n'animent que des "
+       f"proprietes composees")
+    for nom_page, nom_kf, pr in fautives:
+        print(f"          -> {nom_page} / {nom_kf} anime {', '.join(pr)}")
 
     print("\n  CHARTE VISUELLE")
     _v(css.count("clip-path:polygon") >= 3,
@@ -422,8 +468,23 @@ def main() -> int:
     _v(not nus, f"aucune transition sans nom de propriete ({len(nus)})")
     # La premiere colonne des rails en `auto` suivait le texte : un
     # libelle plus long au rafraichissement decalait toute la grille.
-    _v("grid-template-columns:128px1fr62px" in css.replace(" ", ""),
-       "la colonne des rails a une largeur fixe")
+    # On verifie la PROPRIETE, pas la lettre du correctif. L'ancienne
+    # version exigeait la chaine exacte « 128px 1fr 62px » : elle aurait
+    # refuse une largeur tout aussi independante du texte mais ecrite
+    # autrement, et n'aurait rien dit d'une largeur dependante du texte
+    # ecrite avec les memes chiffres. Ce qui compte, c'est qu'aucune
+    # piste ne se regle sur son CONTENU.
+    m_rail = re.search(r"\.rail\{[^}]*grid-template-columns:([^;]+);",
+                       css.replace("\n", " "))
+    _v(bool(m_rail), "la grille des rails est declaree")
+    if m_rail:
+        pistes = m_rail.group(1)
+        suit_texte = [k for k in ("auto", "min-content", "max-content",
+                                  "fit-content")
+                      if re.search(r"\b" + k + r"\b", pistes)]
+        _v(not suit_texte,
+           "aucune colonne de rail ne se regle sur son texte"
+           + (f" ({', '.join(suit_texte)})" if suit_texte else ""))
     _v("tabular-nums" in css,
        "les chiffres des rails ont une chasse fixe : 0/5 et 12/5 "
        "occupent la meme largeur")
@@ -656,6 +717,144 @@ def main() -> int:
     from . import hud as _hd
     _v("var(--acc)" in _hd.CSS and "#22d3ee" not in _hd.CSS,
        "les jauges du HUD suivent la couleur du theme")
+
+    print("\n  BANDEAU DES MODULES")
+    # Le defaut trouve : `.mods`, `.mod`, `.hdr2`, `.gg`, `.zone`, `.val`,
+    # `.nw2`... n'etaient definis NULLE PART. Le bandeau du bas de la page
+    # graphique s'affichait en texte brut empile pendant que tout le reste
+    # de la page etait soigne, et les deux seules regles existantes —
+    # `.pil-l .mod` et `.pil-l .kv` — surchargeaient du vide.
+    #
+    # On ne verifie donc pas une liste de noms ecrite a la main : on
+    # RELEVE les classes que le generateur produit vraiment, et on exige
+    # que chacune existe dans la feuille de style. Un module ajoute
+    # demain avec une classe nouvelle fera tomber ce test.
+    from . import chart as _ch4
+    _g = {"rsi": 49.0, "rvol": 0.88, "atr": 3.0, "atr_pct": 2.8,
+          "ema20": {"pct": 1.2, "atr": 0.3}, "sma50": {"pct": -2.1, "atr": -0.5},
+          "sma200": {"pct": -8.0, "atr": -1.9}, "h52": 10, "b52": 5,
+          "d_h52": -17.4, "d_b52": 18.5, "squeeze": 85,
+          "p1m": {"titre": 1.2, "ecart": 0.4},
+          "p3m": {"titre": -3.0, "ecart": -1.1},
+          "p6m": {"titre": 9.0, "ecart": 2.0},
+          "p12m": {"titre": -12.0, "ecart": -4.0}}
+    _perf = {"n": 11, "gagnants": 5, "taux": 45, "evR": -0.05, "pf": 0.64,
+             "duree": 9, "derniers": [{"d": "03/25", "R": -1.0, "m": "stop"}]}
+    _actus = [{"titre": "Un titre d'actualite", "source": "Reuters",
+               "quand": "il y a 2 h", "url": "https://exemple.invalid",
+               "score": 0.3}]
+    mods = _ch4._modules(_g, _perf, "SMH", "us",
+                         {"date": "date inconnue", "jours": None}, _actus)
+    produites = set()
+    for att in re.findall(r'class="([^"]+)"', mods):
+        produites.update(att.split())
+    css_g = re.search(r"<style>(.*?)</style>", pages["graphique"], re.S).group(1)
+    sans_style = sorted(c for c in produites
+                        if not re.search(r"\." + re.escape(c) + r"[^a-zA-Z0-9_-]",
+                                         css_g))
+    _v(not sans_style,
+       f"aucune des {len(produites)} classes du bandeau n'est orpheline"
+       + (f" (absentes de la feuille : {', '.join(sans_style)})"
+          if sans_style else ""))
+    # Et le bandeau doit se replier sur sa largeur, pas s'etaler en une
+    # ligne illisible sur un ecran large.
+    m_mods = re.search(r"\.mods\{[^}]*\}", css_g.replace("\n", " "))
+    _v(bool(m_mods) and "auto-fit" in m_mods.group(0),
+       "le bandeau se replie sur la largeur disponible")
+
+    print("\n  COLONNE GAUCHE DE LA PAGE GRAPHIQUE")
+    from . import hud as _hd4
+    # Le bandeau HUD est pose dans une colonne de 190 px. Sa grille
+    # etait en `1fr auto 1fr` avec un repli en `@media(max-width:900px)` :
+    # la requete regarde la FENETRE, pas le conteneur, donc sur un grand
+    # ecran elle ne se declenchait jamais et deux blocs entiers — les
+    # seuils et les rails — partaient HORS CHAMP, invisibles.
+    m_hg = re.search(r"\.hud-g\{[^}]*\}", _hd4.CSS.replace("\n", " "))
+    _v(bool(m_hg) and "auto-fit" in m_hg.group(0),
+       "la grille du HUD se replie sur la largeur de son CONTENEUR")
+    _v("@media(max-width:900px){.hud-g" not in _hd4.CSS.replace(" ", ""),
+       "elle ne depend plus d'une requete sur la taille de la fenetre")
+    _v("min-width:0" in _hd4.CSS,
+       "les enfants de grille peuvent descendre sous leur contenu")
+    # Un SVG avec width="104" en attribut garde ses 104 px dans une
+    # piste plus etroite et deborde sans rien dire.
+    _v(".cad svg{width:100%" in _hd4.CSS.replace(" ", "").replace(
+           ".cadsvg{", ".cad svg{"),
+       "les cadrans se mettent a l'echelle de leur piste")
+    _v("width:min(100%,250px)" in _hd4.CSS.replace(" ", ""),
+       "le noyau ne deborde plus sa colonne")
+    # Un guillemet orphelin s'affichait sous la note des seuils :
+    # `'</div>")'.replace('")', '"')` rend `</div>"`.
+    jauges = {"rsi": 49.0, "rvol": 0.88, "atr_pct": 2.8,
+              "sma200": {"atr": -1.0}, "ema20": {"pct": 1, "atr": .2},
+              "sma50": {"pct": 1, "atr": .3}, "h52": 10, "b52": 5,
+              "d_h52": -2, "d_b52": 3, "squeeze": 36, "atr": 3.0,
+              "p3m": {"titre": 1, "ecart": 2}}
+    tete = _hd4.entete("SMH", jauges, "AUCUN - 8/13 BLOCS", {"n": 0},
+                       _hd4.TRACE, "USD")
+    orphelins = re.findall(r">\s*[\"\']\s*<", tete)
+    _v(not orphelins,
+       f"aucun guillemet orphelin dans le HUD ({len(orphelins)})")
+
+    print("\n  LOGO ET ICONES")
+    from . import hud as _hd3
+    for nom_page, htm in pages.items():
+        _v('rel="icon"' in htm and "/carruos.svg" in htm,
+           f"{nom_page} : le logo est declare pour l'onglet")
+    _v("/favicon.ico" in pages["accueil"],
+       "une icone de repli est declaree pour les navigateurs anciens")
+    ico = Path(_app.__file__).resolve().parent.parent / "carruos.ico"
+    _v(ico.exists(), "carruos.ico existe a cote de Carruos.vbs")
+    if ico.exists():
+        import struct
+        brut = ico.read_bytes()
+        res, typ, nimg = struct.unpack("<HHH", brut[:6])
+        _v(res == 0 and typ == 1 and nimg >= 5,
+           f"carruos.ico est un vrai fichier d'icone ({nimg} tailles)")
+        tailles, coherent = [], True
+        for i in range(nimg):
+            o = 6 + 16 * i
+            w, _h, _c, _r, _pl, _bc, taille, dec = struct.unpack(
+                "<BBBBHHII", brut[o:o + 16])
+            tailles.append(w or 256)
+            if dec + taille > len(brut):
+                coherent = False
+        _v(coherent, "chaque image de l'icone tient dans le fichier")
+        # 16 px, c'est la barre des taches et l'onglet ; 256, l'affichage
+        # en grandes icones de l'explorateur. Sans les deux, Windows
+        # reechantillonne et le cerf devient une tache.
+        _v(16 in tailles and 256 in tailles,
+           f"les tailles 16 et 256 sont presentes ({sorted(tailles)})")
+    # Une seule source pour l'onglet et pour le raccourci : le meme trace.
+    _v("<svg" in _hd3.icone(_app.TRACE_D)
+       and _app.TRACE_D[:40] in _hd3.icone(_app.TRACE_D),
+       "l'icone est dessinee a partir du trace du cerf, pas recopiee")
+
+    print("\n  FLUIDITE")
+    from . import reglages as _rg3
+    _v(_rg3.DEFAUTS.get("fluidite") == "auto",
+       "la fluidite est automatique par defaut")
+    for v, att in (("auto", "auto"), ("sobre", "sobre"),
+                   ("complet", "complet"), ("n importe quoi", "auto")):
+        _v(f'data-fluidite="{att}"' in _rg3.corps_attrs({"fluidite": v}),
+           f"le reglage {v!r} donne data-fluidite={att!r}")
+    for nom_page, htm in pages.items():
+        _v("data-fluidite=" in htm,
+           f"{nom_page} : la consigne de fluidite est posee sur <body>")
+        _v("CARRUOS_FLUIDITE" in _scripts(htm),
+           f"{nom_page} : la sonde de cadence est embarquee")
+    # Le decor est dimensionne en vh : sans plafond son cout double quand
+    # l'ecran double, et c'est exactement le symptome decrit.
+    for sel in ("fond-anneaux", "fond-cerf", "fond-lueur"):
+        bloc = re.search(r"\." + sel + r"\{[^}]*\}", _hd3.FOND_CSS)
+        _v(bool(bloc) and "px)" in bloc.group(0),
+           f".{sel} a une taille plafonnee en pixels")
+    _v("contain:strict" in _hd3.FOND_CSS,
+       "le decor est isole du reste de la page")
+    _v(".fluide-sobre" in _hd3.FOND_CSS,
+       "un mode sobre existe pour les machines qui ne suivent pas")
+    _v("prefers-reduced-motion" in _hd3.FOND_CSS,
+       "le reglage systeme d'animations reduites est respecte")
 
     print("\n  CARTE INTERET")
     import json as _js

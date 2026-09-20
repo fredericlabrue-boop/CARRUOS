@@ -18,6 +18,7 @@ automatiquement, consomme par la fenetre. Rien n'est expose a l'exterieur.
 from __future__ import annotations
 
 import datetime as _dt
+import html
 import http.server
 import json
 import socket
@@ -392,10 +393,24 @@ body{background:var(--fond);color:var(--txt);
 @keyframes up{from{transform:translateY(800px)}to{transform:translateY(0)}}
 #splash .rule{width:120px;height:1px;background:#c9b28a;opacity:.4;
  animation:fade .9s ease 1.5s backwards}
+/* LE SAUT DE LA PREMIERE PAGE VENAIT D'ICI.
+   L'ouverture animait `letter-spacing` et `text-indent` de 1,1em a
+   0,52em. Ce sont deux proprietes de MISE EN PAGE : le navigateur
+   recalcule la largeur du mot a chaque image, et comme le titre est
+   centre, toute la ligne se deplace. En 1280 de large le mouvement
+   passait inapercu ; en plein ecran il fait plusieurs dizaines de
+   pixels, d'un coup, a l'ouverture — c'est le « visuel qui saute ».
+   Le meme effet, lettre par lettre, en `transform` : chaque lettre
+   part ecartee du centre et revient. La largeur du mot ne change
+   jamais, donc plus rien ne se recalcule. */
 #splash h1{font-size:23px;font-weight:300;color:#c9b28a;letter-spacing:.52em;
- text-indent:.52em;animation:nm 1.1s cubic-bezier(.25,0,.15,1) 1.5s backwards}
-@keyframes nm{from{opacity:0;letter-spacing:1.1em;text-indent:1.1em}
- to{opacity:1;letter-spacing:.52em;text-indent:.52em}}
+ text-indent:.52em}
+#splash h1 i{display:inline-block;font-style:normal;opacity:0;
+ will-change:transform,opacity;
+ animation:lettre 1.05s cubic-bezier(.25,0,.15,1) forwards;
+ animation-delay:calc(1.5s + var(--i,0) * .045s)}
+@keyframes lettre{from{opacity:0;transform:translateX(calc(var(--d,0) * 1em))}
+ to{opacity:1;transform:translateX(0)}}
 #splash p{font-size:10px;letter-spacing:.34em;color:#6d675f;text-indent:.34em;
  animation:fade .9s ease 1.9s backwards}
 .load{width:120px;height:1px;background:#1a1d22;margin-top:5px;border-radius:2px;overflow:hidden}
@@ -2049,19 +2064,34 @@ BARRE = ('<div style="margin-bottom:15px"><button onclick="location.href=\'/\'" 
          '&#8592; Retour</button></div>')
 
 
+def _lettres(mot: str) -> str:
+    """Le mot, une balise par lettre, chacune avec son decalage de depart.
+
+    `--i` cadence l'entree, `--d` dit de combien la lettre part ecartee
+    du centre : negatif a gauche, positif a droite. Tout est anime en
+    `transform`, donc la largeur du mot ne bouge jamais.
+    """
+    n = len(mot)
+    return "".join(
+        f'<i style="--i:{i};--d:{round((i - (n - 1) / 2) * 0.62, 3)}">'
+        f"{html.escape(c)}</i>"
+        for i, c in enumerate(mot))
+
+
 def _accueil(splash: bool = True) -> str:
     reg = rg.charge()
     ouverture = (
         f'<div id="splash">{CERF.format(300, 316)}<div class="rule"></div>'
-        f"<h1>{NOM}</h1>"
+        f"<h1>{_lettres(NOM)}</h1>"
         '<p>REPLI EN TENDANCE</p><div class="load"><i></i></div></div>'
     ) if splash else ""
 
     return ('<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width,initial-scale=1">'
+            '<link rel="icon" type="image/svg+xml" href="/carruos.svg"><link rel="alternate icon" href="/favicon.ico">'
             f"<title>{TITRE}</title>"
             f"<style>{rg.variables(reg)}{CSS}</style></head>"
-            f'<body class="{rg.classes(reg)}">'
+            f'<body class="{rg.classes(reg)}"{rg.corps_attrs(reg)}>'
             + rg.tiroir_html(reg)
             + ouverture
             + hd.fond(TRACE_D)
@@ -2247,6 +2277,23 @@ class Bruce(http.server.BaseHTTPRequestHandler):
     # des dossiers et de lire n'importe quel fichier de la machine.
     STATIQUES = {"lightweight-charts.js": "application/javascript"}
 
+    def _favicon(self):
+        """carruos.ico, s'il est la. Le navigateur demande /favicon.ico
+        tout seul ; pywebview aussi pour l'icone de la fenetre."""
+        f = Path(__file__).resolve().parent.parent / "carruos.ico"
+        try:
+            brut = f.read_bytes()
+        except OSError:
+            # Pas d'icone binaire : le SVG de l'onglet suffit, on ne
+            # renvoie surtout pas une page HTML a la place d'une image.
+            return self._envoie("", code=404)
+        self.send_response(200)
+        self.send_header("Content-Type", "image/vnd.microsoft.icon")
+        self.send_header("Content-Length", str(len(brut)))
+        self.send_header("Cache-Control", "max-age=86400")
+        self.end_headers()
+        self.wfile.write(brut)
+
     def _statique(self, nom: str):
         genre = self.STATIQUES.get(nom)
         if genre is None:
@@ -2276,6 +2323,11 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                 return self._json({"res": _find(q.get("q", ""))})
             if u.path == "/api/analyse":
                 return self._json(_verifie(q.get("ticker", "")))
+            if u.path == "/carruos.svg":
+                return self._envoie(hd.icone(TRACE_D),
+                                    "image/svg+xml")
+            if u.path == "/favicon.ico":
+                return self._favicon()
             if u.path.startswith("/statique/"):
                 return self._statique(u.path[len("/statique/"):])
             if u.path == "/graphique":
@@ -3074,9 +3126,10 @@ def _page_strategie() -> str:
     return (
         '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<link rel="icon" type="image/svg+xml" href="/carruos.svg"><link rel="alternate icon" href="/favicon.ico">'
         f"<title>{NOM} - strategie</title>"
         f"<style>{rg.variables(reg)}{CSS}{CSS_FICHE}{CSS_STRAT}</style></head>"
-        f'<body class="{rg.classes(reg)}">'
+        f'<body class="{rg.classes(reg)}"{rg.corps_attrs(reg)}>'
         + rg.tiroir_html(reg)
         + hd.fond(TRACE_D)
         + '<div class="app strat-page">'

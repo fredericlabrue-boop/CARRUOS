@@ -580,7 +580,62 @@ body{background:var(--fond);color:var(--txt);
  display:flex;flex-direction:column;gap:5px}
 /* Chaque chiffre porte son seuil : on ne lit plus "38" sans savoir ce que
    38 vaut. */
-.pil-l .mod{padding:8px 10px}
+/* --- LE BANDEAU DES MODULES ------------------------------------
+   Il n'avait AUCUN style. `.mods`, `.mod`, `.hdr2`, `.bar`, `.neu`
+   et `.arc` n'etaient definis nulle part : les seules regles
+   existantes, `.pil-l .mod` et `.pil-l .kv`, surchargeaient du vide.
+   Le bandeau du bas s'affichait donc en texte brut empile — les
+   libelles colles aux chiffres, « 57RSI 14 zone 40-55 » — pendant
+   que tout le reste de la page etait soigne. */
+.mods{display:grid;gap:11px;align-items:start;
+ grid-template-columns:repeat(auto-fit,minmax(min(100%,208px),1fr))}
+.mod{background:#0d1219;border:1px solid #1a2330;border-radius:11px;
+ padding:11px 13px;min-width:0}
+.mod h4{font:500 8.5px ui-monospace,Consolas,monospace;letter-spacing:.2em;
+ color:#475a72;margin:0 0 8px}
+/* Le chiffre et son libelle sur la meme ligne, le libelle en retrait :
+   sans cela ils se collaient en un seul mot. */
+.mod .hdr2{display:flex;align-items:baseline;gap:8px;margin-bottom:5px}
+.mod .hdr2 b{font:500 17px ui-monospace,Consolas,monospace;color:#e2eaf3;
+ font-variant-numeric:tabular-nums}
+.mod .hdr2 span{font-size:10px;color:#475a72;letter-spacing:.06em}
+.mod .kv{display:flex;align-items:baseline;justify-content:space-between;
+ gap:8px;font-size:11.5px;line-height:1.85;color:#64748b}
+/* `color` sur `b` en general, mais JAMAIS sur un `b` qui porte deja
+   son signe : `.mod .kv b` et `.mod .pos` ont la meme specificite, et
+   c'est la derniere declaree qui gagne. Celles-ci viennent apres. */
+.mod .kv b{font-weight:500;color:#cbd5e1;font-variant-numeric:tabular-nums}
+/* La petite jauge : bande sombre = zone recherchee, trait clair = valeur.
+   Les noms viennent du HTML produit par `_modules`, releves dessus. */
+.mod .gg{position:relative;height:4px;border-radius:2px;background:#182230;
+ margin:1px 0 9px}
+.mod .gg .zone{position:absolute;top:0;bottom:0;background:#134a56;
+ border-radius:2px}
+.mod .gg .val{position:absolute;top:-3px;width:2px;height:10px;margin-left:-1px;
+ background:#e2eaf3;border-radius:1px}
+.mod .pos{color:var(--pos)}
+.mod .neg{color:var(--neg)}
+.mod .neu{color:#7f93ab}
+.mod .dot{display:inline-block;width:6px;height:6px;border-radius:50%;
+ background:currentColor;margin-right:6px;flex:none}
+.mod .off{opacity:.45}
+.mod .tl{font-size:10.5px;color:#64748b;line-height:1.6}
+.mod .ex{font-size:10px;color:#475a72;line-height:1.65;margin-top:7px}
+.mod .clk{cursor:pointer}
+.mod .clk:hover{color:var(--acc)}
+.mod svg{display:block;margin:0 auto;max-width:100%;height:auto}
+/* Les actualites : des liens, pas un pave. Sans regle ils heritaient du
+   bleu souligne du navigateur et debordaient leur carte. */
+.mod .nw2{display:flex;flex-direction:column;gap:9px}
+.mod .nw2 a{color:#cbd5e1;text-decoration:none;font-size:11.5px;
+ line-height:1.45;display:block;overflow-wrap:anywhere}
+.mod .nw2 a:hover{color:var(--acc)}
+.mod .nw2 .m{font-size:9.5px;color:#475a72;letter-spacing:.04em}
+/* Une DATE n'est pas un nombre : dans le creneau des grands chiffres,
+   « date inconnue » s'affichait en 17 px et ecrasait sa carte. */
+.mod[data-mod=resultats] .hdr2 b{font-size:13px;letter-spacing:.02em}
+.pil-l .mod{padding:8px 10px;background:none;border:0}
+.pil-l .mods{grid-template-columns:1fr;gap:6px}
 .pil-l .mod h4{font-size:7.5px;letter-spacing:.2em;margin-bottom:5px}
 .pil-l .kv{padding:2px 0;font-size:10.5px;line-height:1.25}
 .pil-l .kv b{font-size:11px}
@@ -1273,9 +1328,10 @@ def build_html(brut, ticker, bench_brut, sleeve=8000.0, ccy="",
     doc = (
         '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<link rel="icon" type="image/svg+xml" href="/carruos.svg"><link rel="alternate icon" href="/favicon.ico">'
         f"<title>{e(ticker)} &mdash; Carruos</title>"
         f"<style>{rg.variables(reg)}{CSS}</style></head>"
-        f'<body class="{rg.classes(reg)}">'
+        f'<body class="{rg.classes(reg)}"{rg.corps_attrs(reg)}>'
         + rg.tiroir_html(reg)
         + '<div class="wrap">'
         # --- barre superieure ---

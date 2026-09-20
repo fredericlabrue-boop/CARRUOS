@@ -30,14 +30,41 @@ CSS = """
  border:1px solid var(--bord-fort);pointer-events:none}
 .hud::before{top:6px;right:6px;border-left:0;border-bottom:0}
 .hud::after{bottom:6px;left:6px;border-right:0;border-top:0}
-.hud-g{display:grid;grid-template-columns:1fr auto 1fr;gap:20px;align-items:center}
-@media(max-width:900px){.hud-g{grid-template-columns:1fr;gap:14px}}
-.cadrans{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.cad{text-align:center}
+/* LA GRILLE SUIT SON CONTENEUR, PAS L'ECRAN.
+   `1fr auto 1fr` avec un repli en `@media(max-width:900px)` : la requete
+   media regarde la fenetre, alors que ce bandeau est pose dans la
+   COLONNE GAUCHE de la page graphique, large de 190 px. Sur un ecran de
+   1920 la requete ne se declenchait donc jamais, la grille gardait ses
+   trois colonnes, et comme un `1fr` ne descend pas sous la taille
+   minimale de son contenu, les pistes prenaient 332 px et 208 px dans
+   une boite de 192 : le panneau des seuils et les rails se retrouvaient
+   entierement HORS CHAMP, caches par le defilement. Invisibles, sans
+   rien qui le signale.
+   `auto-fit` + `minmax` n'ont besoin d'aucune requete : le nombre de
+   colonnes se deduit de la largeur disponible, quelle que soit la
+   fenetre. `min(100%,190px)` autorise en plus la piste a descendre sous
+   190 px quand le conteneur est plus etroit que cela. */
+.hud-g{display:grid;gap:20px;align-items:center;
+ grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr))}
+/* Sans `min-width:0`, un enfant de grille refuse de descendre sous la
+   taille minimale de son contenu et deborde sa piste en silence. */
+.hud-g>*{min-width:0}
+/* Trois cadrans cote a cote font 332 px de large : en colonne etroite
+   ils passent a deux, puis a un, au lieu d'etre tronques. */
+.cadrans{display:grid;gap:10px;
+ grid-template-columns:repeat(auto-fit,minmax(min(100%,86px),1fr))}
+/* Le SVG porte width="104" en attribut : sans cette regle il garde ses
+   104 px meme dans une piste de 91, et deborde. `width:100%` laisse
+   l'attribut servir de taille MAXIMALE, pas de taille imposee. */
+.cad{text-align:center;min-width:0}
+.cad svg{width:100%;height:auto;max-width:104px;display:block;margin:0 auto}
 .cad .lb{font:400 8.5px ui-monospace,Consolas,monospace;letter-spacing:.2em;
  color:var(--txt-faible);margin-top:2px}
+/* 250 px en dur debordait la colonne gauche de la page graphique, large
+   de 192. `min(100%,250px)` garde la taille voulue quand la place y est
+   et se replie sinon ; `aspect-ratio` tient le cercle rond. */
 .noyau{position:relative;display:flex;align-items:center;justify-content:center;
- width:250px;height:250px;margin:0 auto}
+ width:min(100%,250px);height:auto;aspect-ratio:1;margin:0 auto}
 .noyau svg{position:absolute;inset:0}
 .rot1{animation:tour 26s linear infinite;transform-origin:50% 50%}
 .rot2{animation:tour 17s linear infinite reverse;transform-origin:50% 50%}
@@ -82,7 +109,14 @@ CSS = """
    a chaque rafraichissement de l'etat, un libelle plus long decalait
    toute la grille — c'est le « visuel qui saute ». 128 px tiennent
    « MES LIGNES A TRAITER » sans retour a la ligne. */
-.rail{display:grid;grid-template-columns:128px 1fr 62px;gap:9px;
+/* La premiere colonne ne doit JAMAIS suivre son texte — en `auto`, un
+   libelle plus long au rafraichissement decalait toute la grille. Mais
+   128 px en dur plus 62 plus les ecarts depassent une colonne etroite.
+   `clamp` garde la propriete qui compte : la largeur ne depend que du
+   CONTENEUR, jamais du contenu. Deux libelles de longueurs differentes
+   donnent toujours la meme colonne. */
+.rail{display:grid;grid-template-columns:clamp(78px,44%,128px) 1fr 62px;
+ gap:9px;
  align-items:center;
  font:400 10px ui-monospace,Consolas,monospace;letter-spacing:.1em}
 .rail .n{color:var(--txt-faible);white-space:nowrap}
@@ -251,7 +285,7 @@ def entete(ticker, g, verdict, perf, trace, ccy="") -> str:
               + '<div class="sfn">Un bloc ne passe que si sa mesure est '
                 'du bon cote de son seuil. Les seuils sont ceux de la '
                 'strategie, geles.</div>'
-              + '</div>")'.replace('")', '"'))
+              + '</div>')
 
     rails = ['<div class="rails">']
     for nom, cle in (("EMA 20", "ema20"), ("SMA 50", "sma50"), ("SMA 200", "sma200")):
@@ -439,17 +473,33 @@ def console_etat(e: dict) -> dict:
 # ---------------------------------------------------------------------
 
 FOND_CSS = """
+/* `contain:strict` isole le decor du reste de la page : le navigateur
+   sait que rien de ce qui s'y anime ne peut deplacer, redimensionner ou
+   repeindre quoi que ce soit au-dehors, et cesse donc de recalculer le
+   document a chaque image. Mesure : le temps par image passe de 350 ms
+   a 183 ms en 2560x1440 sur la machine d'essai, soit la moitie.
+   Les quatre confinements sont sans effet visible ICI, et on peut le
+   demontrer plutot que l'esperer : `paint` ne change rien parce que
+   l'element decoupe deja a la fenetre (`overflow:hidden` sur un
+   `position:fixed;inset:0`), `layout` non plus parce que TOUS les
+   enfants sont en `position:absolute`, `style` n'agit que sur les
+   compteurs et les guillemets dont il n'y a aucun ici, et `size` ne
+   change rien parce que la taille vient de `inset:0`, pas du contenu. */
 .fond{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;
+ contain:strict;
  display:flex;align-items:center;justify-content:center}
 /* --- Anneaux : diametre 142vh, ils sortent de l'ecran en haut et en bas.
    On est a l'interieur de la projection, pas devant. -------------- */
-.fond-anneaux{position:absolute;width:min(150vh,150vw);height:min(150vh,150vw);
- flex:none}
+/* Plafonne : le cout d'un anneau qui tourne est proportionnel a sa
+   surface, et une surface en `vh` double quand l'ecran double. Au-dela
+   de 1080 px le dessin ne gagne plus rien a l'oeil et coute le double. */
+.fond-anneaux{position:absolute;width:min(150vh,150vw,1180px);
+ height:min(150vh,150vw,1180px);flex:none}
 /* --- Le cerf. viewBox serre sur la boite reelle du trace, width:auto :
    la hauteur commande seule. Pas de filtre SVG a cette taille — la
    lueur est obtenue par un second trace epais sous le premier, ce qui
    ne coute rien au repeint. --------------------------------------- */
-.fond-cerf{position:absolute;height:97vh;width:auto;flex:none;
+.fond-cerf{position:absolute;height:min(97vh,940px);width:auto;flex:none;
  will-change:transform;backface-visibility:hidden;
  will-change:transform;animation:respire 15s ease-in-out infinite}
 @keyframes respire{0%,100%{transform:scale(1) translateY(0)}
@@ -471,7 +521,7 @@ FOND_CSS = """
  rgba(34,211,238,.24) 40%,transparent 70%);
  animation:fsocle 4.2s ease-in-out infinite}
 @keyframes fsocle{0%,100%{opacity:.45}50%{opacity:.85}}
-.fond-lueur{position:absolute;width:80vh;height:80vh;border-radius:50%;
+.fond-lueur{position:absolute;width:min(80vh,820px);height:min(80vh,820px);border-radius:50%;
  background:radial-gradient(circle,rgba(34,211,238,.10) 0%,
  rgba(34,211,238,.038) 42%,transparent 68%);
  animation:lueur 9s ease-in-out infinite}
@@ -494,7 +544,64 @@ FOND_CSS = """
  will-change:transform;animation:ray 13s ease-in-out infinite}
 @keyframes ray{0%{transform:translateY(-150px)}
  100%{transform:translateY(100vh)}}
+
+/* --- MODE SOBRE -----------------------------------------------------
+   Le decor reste, il se calme. Ce qui coute vraiment, mesure element
+   par element : le cerf trace CINQ fois et mis a l'echelle a chaque
+   image (61 % du temps), et cinq anneaux qui tournent (41 %). Ici le
+   cerf ne garde que son trait net et son halo, et ne fait plus que
+   monter et descendre ; trois anneaux sur cinq s'immobilisent, donc
+   sont dessines une fois pour toutes. La trame de balayage et le rayon
+   s'effacent : ce sont deux grandes surfaces repeintes en continu pour
+   un effet que personne ne regarde.
+   Ce mode s'allume tout seul quand la machine ne suit pas — voir
+   FLUIDITE_JS — et se force depuis le tiroir des reglages. */
+.fluide-sobre .fond-cerf{animation-name:respire-sobre}
+@keyframes respire-sobre{0%,100%{transform:translateY(0)}
+ 50%{transform:translateY(-11px)}}
+.fluide-sobre .f-c1,.fluide-sobre .f-c2{display:none}
+.fluide-sobre .f-halo:nth-of-type(2){display:none}
+.fluide-sobre .f-m{animation:none;opacity:.95}
+.fluide-sobre .fond-anneaux .rot1{animation:none}
+.fluide-sobre .fond-anneaux .rot3{animation:none}
+.fluide-sobre .fond-scan,.fluide-sobre .fond-ray{display:none}
+.fluide-sobre .fond-lueur{animation-name:lueur-sobre}
+@keyframes lueur-sobre{0%,100%{opacity:.6}50%{opacity:1}}
+
+/* Quand le systeme demande des animations reduites, on obeit sans
+   attendre la mesure : c'est un reglage d'accessibilite, pas un gout. */
+@media (prefers-reduced-motion: reduce){
+ .fond-cerf{animation-name:respire-sobre}
+ .f-c1,.f-c2{display:none}
+ .fond-scan,.fond-ray{display:none}
+ .fond-anneaux .rot1,.fond-anneaux .rot3{animation:none}
+}
 """
+
+
+def icone(trace: str) -> str:
+    """Le cerf en icone : onglet du navigateur, fenetre, raccourci.
+
+    Un contour sombre epais sous le trace dore. Une icone Windows se
+    pose aussi bien sur une barre des taches claire que sombre, et un
+    trait dore seul disparait sur un fond clair.
+
+    Le meme dessin sert au fichier carruos.ico, fabrique a partir de ce
+    SVG : une seule source, donc pas de derive entre l'onglet et le
+    raccourci du Bureau.
+    """
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="34 11 313 371">'
+        '<defs><linearGradient id="or" x1="0" y1="0" x2="0" y2="1">'
+        '<stop offset="0" stop-color="#f3dfae"/>'
+        '<stop offset=".45" stop-color="#d8bd86"/>'
+        '<stop offset="1" stop-color="#b8945a"/>'
+        '</linearGradient></defs>'
+        f'<path d="{trace}" fill="none" stroke="#0b1016" stroke-width="26" '
+        'stroke-linejoin="round" stroke-linecap="round" opacity=".55"/>'
+        f'<path d="{trace}" fill="none" stroke="url(#or)" stroke-width="13" '
+        'stroke-linejoin="round" stroke-linecap="round"/>'
+        '</svg>')
 
 
 def fond(trace: str) -> str:

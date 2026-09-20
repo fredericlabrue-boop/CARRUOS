@@ -288,6 +288,10 @@ DEFAUTS = {
                 "actus": True, "cadrans": True, "rails": True,
                 "hologramme": True, "bandeau": True},
     "densite": "normale",
+    # « auto » mesure la cadence reelle et calme le decor si la machine
+    # ne suit pas. « complet » et « sobre » tranchent a la main, et la
+    # mesure ne revient jamais sur un choix explicite.
+    "fluidite": "auto",
     "grille": True,
 }
 
@@ -430,6 +434,19 @@ def variables(r: dict) -> str:
             f"--titre-casse:{f['titre_casse']};"
             f"--corps-police:{f['corps_police']};"
             f"--champ-fond:{f['champ_fond']}}}")
+
+
+def corps_attrs(r: dict) -> str:
+    """Les attributs de <body> qui ne sont pas des classes.
+
+    `data-fluidite` dit a la sonde si l'utilisateur a tranche. On ne
+    passe pas par une classe : une classe decrit un ETAT visuel, alors
+    qu'ici il s'agit d'une consigne donnee au script.
+    """
+    f = r.get("fluidite", "auto")
+    if f not in ("auto", "complet", "sobre"):
+        f = "auto"
+    return f' data-fluidite="{f}"'
 
 
 def classes(r: dict) -> str:
@@ -957,6 +974,8 @@ TIROIR_CSS = """
  font-size:11px;color:#3f5168;line-height:1.8}
 #tiroir .raz{width:100%;margin-top:10px;background:#121a24;border:1px solid #223044;
  color:var(--txt);border-radius:7px;padding:9px;font-size:12px;cursor:pointer}
+#tiroir .aide{font-size:11px;color:#3f5168;line-height:1.75;margin-top:8px}
+#tiroir .aide b{color:#7f93ab;font-weight:500}
 """
 
 
@@ -982,6 +1001,14 @@ def tiroir_html(r: dict) -> str:
         for d, lab in
         (("compacte", "Compacte"), ("normale", "Normale"), ("large", "Large")))
 
+    flu = "".join(
+        f'<button data-flu="{d}"'
+        + (' class="sel"' if r.get("fluidite", "auto") == d else '')
+        + f'>{lab}</button>'
+        for d, lab in
+        (("auto", "Automatique"), ("complet", "Decor complet"),
+         ("sobre", "Sobre")))
+
     themes = "".join(
         f'<button data-theme="{k}"'
         + (' class="sel"' if r.get("theme", "carruos") == k else '')
@@ -998,6 +1025,13 @@ def tiroir_html(r: dict) -> str:
         f'<div class="pal">{pal}</div>'
         '<h3>DENSITE</h3>'
         f'<div class="dens">{dens}</div>'
+        '<h3>FLUIDITE</h3>'
+        f'<div class="dens flu">{flu}</div>'
+        '<p class="aide">Le decor est dimensionne a la fenetre : en '
+        'plein ecran il demande deux fois plus de travail. En '
+        '<b>automatique</b>, Carruos mesure la cadence reelle et calme '
+        'le decor si la machine ne suit pas &mdash; puis recommence '
+        'chaque fois que vous redimensionnez.</p>'
         + sect("EFFETS VISUELS", LIB_EFFETS, "effets")
         + sect("INDICATEURS", LIB_INDICS, "indics")
         + sect("MODULES", LIB_MODULES, "modules")
@@ -1013,7 +1047,9 @@ def tiroir_js() -> str:
     rechargement ; la recopier a la main serait la garantie qu'un jour
     les deux divergent.
     """
-    return TIROIR_JS.replace("__THEMES__", json.dumps(
+    # La sonde de fluidite voyage avec le tiroir : les deux touchent a
+    # l'apparence, et les trois pages incluent deja celui-ci.
+    return FLUIDITE_JS + TIROIR_JS.replace("__THEMES__", json.dumps(
         {k: {c: t[c] for c in ("accent", "marque", "fond", "pos", "neg",
                                "holo")}
          for k, t in THEMES.items()}))
@@ -1047,6 +1083,14 @@ TIROIR_JS = """
    document.documentElement.style.setProperty('--ech',v[0]);
    document.documentElement.style.setProperty('--police',v[1]);
    envoie({densite:b.dataset.dens});
+  };});
+ document.querySelectorAll('.flu button').forEach(function(b){
+  b.onclick=function(){
+   document.querySelectorAll('.flu button').forEach(function(x){
+    x.classList.remove('sel');});
+   b.classList.add('sel');
+   if(window.CARRUOS_FLUIDITE) window.CARRUOS_FLUIDITE(b.dataset.flu);
+   envoie({fluidite:b.dataset.flu});
   };});
  // Theme : les couleurs s'appliquent en direct par variables CSS, et la
  // classe sur <body> bascule les regles propres au theme. Aucun
@@ -1086,5 +1130,66 @@ TIROIR_JS = """
   fetch('/api/reglages?raz=1',{method:'POST',headers:{'Content-Type':'application/json'},
    body:'{}'}).then(function(){location.reload();});
  };
+})();
+"""
+
+
+# ---------------------------------------------------------------------
+# La sonde de fluidite
+# ---------------------------------------------------------------------
+#
+# Le decor coute cher, et son cout est proportionnel a la SURFACE de la
+# fenetre : le cerf et les anneaux sont dimensionnes en `vh`. Passer en
+# plein ecran double la surface, donc le travail — c'est la raison pour
+# laquelle le visuel saccadait en grand et pas en petit.
+#
+# On ne devine pas la machine de l'utilisateur : on la MESURE. La sonde
+# compte le temps entre deux images pendant une seconde, et si la
+# moitie des images depasse 26 ms — moins de 38 images par seconde — elle
+# pose `fluide-sobre` sur <body>. Le decor se calme, il ne disparait pas.
+#
+# Et elle recommence apres chaque redimensionnement, parce que c'est
+# exactement la que le probleme apparait : une fenetre qu'on agrandit
+# peut faire basculer une machine qui tenait la cadence. Le retour a une
+# petite fenetre rend le decor complet.
+#
+# Le reglage « fluidite » du tiroir tranche quand il vaut autre chose
+# que `auto` : la mesure ne revient jamais sur un choix explicite.
+FLUIDITE_JS = """
+(function(){
+ // 26 ms = moins de 38 images par seconde. En dessous, l'oeil voit
+ // les a-coups. MINI=4 : sous quatre images en une seconde on ne peut
+ // rien mediane de sense, et de toute facon la machine ne suit pas.
+ var SEUIL=26, MINI=4, corps=document.body;
+ if(!corps) return;
+ function choix(){ return corps.dataset.fluidite || 'auto'; }
+ function mesure(suite){
+  var t=[], prec=performance.now(), fin=prec+1000;
+  function tic(n){
+   t.push(n-prec); prec=n;
+   if(n<fin) requestAnimationFrame(tic);
+   else{ t.sort(function(a,b){return a-b;});
+         suite(t.length<MINI ? 999 : t[Math.floor(t.length/2)]); }
+  }
+  requestAnimationFrame(tic);
+ }
+ function applique(){
+  if(choix()==='complet'){ corps.classList.remove('fluide-sobre'); return; }
+  if(choix()==='sobre'){ corps.classList.add('fluide-sobre'); return; }
+  // En mode sobre la mesure serait faussee : on rend d'abord le decor
+  // complet, sinon on ne saurait jamais que la machine peut le tenir.
+  corps.classList.remove('fluide-sobre');
+  mesure(function(median){
+   if(median>SEUIL) corps.classList.add('fluide-sobre');
+   corps.dataset.cadence=Math.round(median);
+  });
+ }
+ // On laisse l'ouverture se terminer : mesurer pendant l'animation
+ // d'entree donnerait un mauvais chiffre a toutes les machines.
+ var lance=null;
+ function relance(d){ clearTimeout(lance); lance=setTimeout(applique,d); }
+ relance(3200);
+ addEventListener('resize', function(){ relance(700); });
+ window.CARRUOS_FLUIDITE=function(v){ corps.dataset.fluidite=v; applique(); };
 })();
 """
