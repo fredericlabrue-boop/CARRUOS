@@ -311,6 +311,39 @@ produit `HOOD.MC` (`.MC` est le suffixe de Madrid).
 
 ---
 
+## 5 ter. Poser une question en français
+
+Le majordome (le disque en bas à droite) comprend des questions sur un
+titre. Il ne réfléchit pas : il **reconnaît ce qui est demandé** et va
+chercher la section de faits correspondante.
+
+| Ce que vous tapez | Ce qu'il sort |
+|---|---|
+| *que penses-tu de TLX* | la fiche complète — blocs, manques chiffrés, conditions de sortie |
+| *je sors quand sur TLX* | les 4 conditions de sortie et leur état, le stop, le coût fiscal |
+| *je peux renforcer ?* | les 13 blocs, ce qui manque, les vetos, la taille de ligne |
+| *combien je peux perdre sur COIN* | entrée, stop, risque par titre, nombre de titres, perte en euros |
+| *une figure sur HOOD ?* | les figures de la dernière bougie et ce qu'elles ont été suivies de |
+| *ça bouge combien* | l'amplitude par horizon, sans direction |
+| *les données sont fiables ?* | le verdict du contrôle qualité et ses motifs |
+| *à quelle heure ferme la bourse* | les horaires de la place du titre |
+
+> **« Que penses-tu de » ne rend pas un avis.** C'est le piège de ce
+> genre d'outil : la question invite à inventer. Ici l'intention *avis*
+> rend la **fiche complète**, et chaque réponse se termine par le rappel
+> qu'aucune hypothèse n'a passé sa Phase 0.
+
+**La règle qui rend la chose honnête :** rien n'est *rédigé* à la
+volée. Les phrases sont des gabarits remplis avec les chiffres du
+dossier, et le dossier ne contient que ce que les autres modules ont
+déjà calculé. **Si un chiffre n'est pas dans le dossier, aucune phrase
+ne peut le sortir** — et `test_moteur` le vérifie en passant un dossier
+vide à chaque section.
+
+Si vous ne nommez pas de titre, celui du champ ANALYSER sert de défaut.
+
+---
+
 ## 6. Ce que le programme refuse d'afficher
 
 Rappel, parce que c'est la colonne vertébrale du projet :

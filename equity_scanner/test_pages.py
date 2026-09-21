@@ -776,6 +776,27 @@ def main() -> int:
     _v(bool(m_box) and "flex" in m_box.group(0),
        "la boite donne au trace une hauteur definie, en colonne flex")
 
+    print("\n  MAJORDOME : LA PORTE EN FRANCAIS")
+    from . import dossier as _ds
+    ja = _scripts(pages["accueil"])
+    _v("async function majDossier" in ja,
+       "le majordome sait ouvrir le dossier d'un titre")
+    _v("/api/dossier" in ja, "il interroge la route dediee")
+    _v("if(await majDossier(q)) return;" in ja.replace("  ", " "),
+       "il l'essaie AVANT de dire qu'il n'a pas compris")
+    # La reconnaissance du ticker se fait cote SERVEUR : le navigateur
+    # n'a pas les donnees pour trancher quel mot est un ticker.
+    _v("comprend" not in ja,
+       "le navigateur ne devine pas le ticker : le serveur tranche")
+    _v("je sors quand" in pages["accueil"],
+       "les exemples de questions sont proposes sous le champ")
+    # Le rappel doit voyager jusqu'a l'ecran, sinon la fiche ressemble
+    # a un avis.
+    _v("j.rappel" in ja, "le rappel de Phase 0 est affiche avec la reponse")
+    _v("j.voix" in ja, "la voix lit la tete du dossier")
+    _v("_dossier" in open(_app.__file__, encoding="utf-8").read(),
+       "la route a sa fonction dediee cote serveur")
+
     print("\n  PAGE MA LISTE")
     from . import palmares as _pm
     hm = pages["maliste"]

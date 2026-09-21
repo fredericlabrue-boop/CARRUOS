@@ -13,6 +13,8 @@ py -m equity_scanner.test_moteur  # contrôle du moteur
 
 py -m equity_scanner.chandeliers NVDA   # figures, et ce qui a suivi
 py -m equity_scanner.options NVDA       # open interest des OPTIONS
+py -m equity_scanner.palmares COIN HOOD TLX.DE   # les 13 blocs, classés
+py -m equity_scanner.dossier "je sors quand sur TLX.DE"
 ```
 
 `MEMO-LECTURE.md` à la racine rassemble **tous les seuils** du
@@ -137,6 +139,20 @@ jeu de paramètres qui ne l'a pas produit.
   **réellement rendu sur ce titre** : gagnants sur trades, intervalle de
   Wilson, R moyen, profit factor. Un relevé, pas une promesse, et sur
   une hypothèse qui a rendu NO-GO.
+- **Un avis, même quand la question en demande un.** « Que penses-tu de
+  TLX ? » est une invitation directe, et une IA branchée sur des cours y
+  répond en inventant : *« bien orienté, momentum qui se retourne,
+  sortie vers 380 »*. Aucun de ces mots ne vient d'une mesure.
+  Le majordome répond par `dossier.py`, et l'intention `avis` ne rend
+  **pas** un avis : elle rend la fiche complète — les 13 blocs et leurs
+  manques chiffrés, les 4 conditions de sortie et leur état, le stop,
+  l'historique du signal avec son intervalle — suivie du rappel
+  qu'aucune hypothèse n'a passé sa Phase 0.
+  La règle qui rend cela tenable : **l'IA ne voit jamais les cours**.
+  Elle reçoit un dossier de faits déjà calculés et ne fait que le
+  router. Si l'on ajoute un jour un modèle de langage, c'est ce contrat
+  qu'il faut préserver : router et mettre en phrases, jamais produire un
+  chiffre.
 - Une ligne de prédiction de prix. Le cône de dispersion existe : dérive
   fixée à zéro, il donne l'amplitude, jamais le sens.
 - Un take-profit **actif**. Les spécifications 2 et 3 disent « aucun
@@ -192,6 +208,10 @@ jeu de paramètres qui ne l'a pas produit.
 | | les seuils de forme sont écrits **avant** toute mesure et épinglés par `test_moteur` ; les déplacer après coup serait la même pêche que sur les paramètres de stratégie |
 | | l'ombre opposée se mesure sur l'**étendue**, pas sur le corps : « ≤ 1 × le corps » exigeait moins de 3 % sur une étoile filante, et le détecteur n'en a jamais trouvé une seule jusqu'à la correction |
 | `options.py` | l'open interest des **options** — une action n'en a pas |
+| `dossier.py` | la **porte en français** du majordome : une question, une intention, une section de faits |
+| | aucune phrase n'est *générée*. `constitue()` rassemble ce que les autres modules ont déjà calculé, `intention()` reconnaît ce qui est demandé par une table de motifs écrite d'avance, et les réponses sont des gabarits remplis avec les chiffres du dossier |
+| | conséquence tenue **par construction** : si un chiffre n'est pas dans le dossier, aucune phrase ne peut le sortir. `test_moteur` le vérifie en passant un dossier VIDE à chaque section et en exigeant qu'aucun nombre n'en sorte |
+| | quel mot est un ticker se tranche **côté serveur, en interrogeant les données** : « QUE PENSE TU DE TLX » ne donne aucun autre indice |
 | `palmares.py` | **MA LISTE** : des titres collés à la main, passés aux 13 blocs, groupés et triés |
 | | un jeton à points multiples (`COIN.HOOD.MC.PA`) est découpé en **demandant aux données** si chaque morceau existe, jamais par une règle syntaxique : `.MC` est le suffixe de Madrid, donc `HOOD.MC` est plausible alors que le lecteur voulait `HOOD` puis `MC.PA`. C'est un découpage de mots résolu par le dictionnaire |
 | | aucun score composite : le tri par défaut est celui de la spécification, les autres portent sur un fait unique |

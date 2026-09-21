@@ -1991,6 +1991,223 @@ def test_palmares() -> None:
                                   "* 0.25 +", "* 0.3 +")))
 
 
+def test_dossier() -> None:
+    """Le majordome : il route une question, il n'invente jamais."""
+    from . import dossier as ds
+
+    print("\n— Dossier d'un titre : la porte en francais —")
+
+    # --- la reconnaissance d'intention
+    CAS = [
+        ("QUE PENSE TU DE TLX", "avis"),
+        ("je sors quand sur TLX.DE", "sortie"),
+        ("JE SORS SOUS QUELLE CONDITION", "sortie"),
+        ("je vends quand", "sortie"),
+        ("je peux renforcer ?", "entree"),
+        ("je rentre sur COIN ?", "entree"),
+        ("combien je peux perdre", "risque"),
+        ("quel stop sur COIN", "risque"),
+        ("y a t il une figure sur la derniere bougie", "bougies"),
+        ("un marteau sur HOOD ?", "bougies"),
+        ("ca bouge combien", "horizon"),
+        ("les donnees sont fiables ?", "donnees"),
+        ("a quelle heure ferme la bourse", "seance"),
+    ]
+    faux = [(q, ds.intention(q), att) for q, att in CAS
+            if ds.intention(q) != att]
+    ok(f"les {len(CAS)} questions sont reconnues", not faux)
+    for q, eu, att in faux:
+        print(f"          -> {q!r} : {eu} au lieu de {att}")
+
+    # Les mots de la question ne doivent jamais passer pour des tickers.
+    bruit = []
+    for q, _a in CAS:
+        for j in ds.jetons_tickers(q):
+            if ds.normalise(j) in ("sors", "vends", "perdre", "figure",
+                                   "bouge", "donnees", "heure", "stop",
+                                   "renforcer", "condition", "marteau"):
+                bruit.append((q, j))
+    ok("aucun mot de la question ne se presente comme un ticker",
+       not bruit)
+    for q, j in bruit[:3]:
+        print(f"          -> {q!r} propose {j!r}")
+
+    # --- le ticker est tranche PAR LES DONNEES, pas par la forme du mot
+    REELS = {"TLX.DE", "COIN", "HOOD", "NVDA"}
+    demandes = []
+
+    def existe(t):
+        demandes.append(t)
+        return t in REELS
+
+    ok("le titre nomme dans la question est retrouve",
+       ds.comprend("je sors quand sur TLX.DE", existe)[1] == "TLX.DE")
+    ok("sans titre nomme, le titre courant sert de defaut",
+       ds.comprend("je sors quand", existe, "COIN")[1] == "COIN")
+    ok("et il a fallu interroger les donnees, pas deviner", demandes)
+    ok("un titre inconnu ne produit pas de reponse inventee",
+       ds.comprend("que penses-tu de ZZZZ", existe)[1] is None)
+
+    # --- une section par intention, aucune orpheline
+    ok("chaque intention a sa section",
+       {c for c, _m in ds.INTENTIONS} <= set(ds.SECTIONS))
+    ok("et chaque section sait se fabriquer",
+       all(callable(f) for _t, f in ds.SECTIONS.values()))
+
+    # --- LE POINT QUI COMPTE : TOUT chiffre affiche vient du dossier
+    #
+    # Premiere version de ce controle : passer un dossier VIDE et
+    # exiger qu'aucun nombre n'en sorte. Elle ne valait rien — un
+    # dossier vide sort par les chemins de repli (« indisponible »), et
+    # le code qui met les chiffres en forme n'est jamais atteint. Le
+    # test passait meme apres avoir glisse « Objectif suggere :
+    # +12,50 % » dans une section.
+    #
+    # Le vrai controle : un dossier REMPLI, et chaque nombre affiche doit
+    # se retrouver soit dans les valeurs du dossier, soit parmi les
+    # nombres ecrits en dur dans les gabarits du module. Rien d'autre
+    # n'a le droit d'apparaitre.
+    import re as _re
+
+    src_ds = open(ds.__file__, encoding="utf-8").read()
+    # Les nombres qui appartiennent aux phrases elles-memes : « 1 % du
+    # sleeve », « ATR 14 », « 25 % par ligne »... On les releve dans le
+    # source au lieu de les recopier, sinon la liste derive.
+    en_dur = set(_re.findall(r"\d+(?:[.,]\d+)?", src_ds))
+
+    def _valeurs(o, acc):
+        if isinstance(o, dict):
+            for v in o.values():
+                _valeurs(v, acc)
+        elif isinstance(o, (list, tuple)):
+            for v in o:
+                _valeurs(v, acc)
+        elif isinstance(o, bool):
+            pass
+        elif isinstance(o, (int, float)):
+            for f in (f"{o:g}", f"{o:.0f}", f"{o:.1f}", f"{o:.2f}"):
+                acc.add(f)
+                acc.add(f.replace(".", ","))
+        elif isinstance(o, str):
+            for n in _re.findall(r"\d+(?:[.,]\d+)?", o):
+                acc.add(n)
+                acc.add(n.replace(",", "."))
+                acc.add(n.replace(".", ","))
+        return acc
+
+    # Des cours synthetiques a la place du reseau. `data.loader()`
+    # resout la fonction a l'appel, donc la substitution prend.
+    from . import data as _dl
+    _vrai = _dl.load_yf
+
+    def _faux(tk, years=3, **_kw):
+        import zlib
+        g = zlib.crc32(tk.encode()) % 9999
+        return serie(n=1400, seed=g % 500, derive=0.0005,
+                     debut=(pd.bdate_range(
+                         end=pd.Timestamp.today().normalize(),
+                         periods=1400)[0]).date().isoformat())
+
+    _dl.load_yf = _faux
+    try:
+        d_plein = ds.constitue("AAA")
+    finally:
+        _dl.load_yf = _vrai
+    ok("un dossier se constitue sur les donnees d'essai",
+       bool(d_plein.get("ok")))
+    if not d_plein.get("ok"):
+        print(f"          -> {d_plein.get('erreur')}")
+    if d_plein.get("ok"):
+        connus = _valeurs(d_plein, set()) | en_dur
+        inventes = {}
+        for cle in ds.SECTIONS:
+            rep = ds.repond({"sortie": "je sors quand", "entree": "je rentre",
+                             "risque": "combien je perds",
+                             "bougies": "une figure ?", "horizon": "ca bouge",
+                             "donnees": "fiable ?", "seance": "quelle heure",
+                             "avis": "que penses-tu"}[cle], d_plein)
+            txt = " ".join(rep["lignes"])
+            hors = sorted({n for n in _re.findall(r"\d+(?:[.,]\d+)?", txt)
+                           if n not in connus
+                           and n.replace(",", ".") not in connus})
+            if hors:
+                inventes[cle] = hors
+        ok("aucun chiffre affiche ne vient d'ailleurs que du dossier",
+           not inventes)
+        for cle, n in inventes.items():
+            print(f"          -> {cle} sort {n[:4]} qui n'est pas au dossier")
+
+    # CE QUE LE CONTROLE CI-DESSUS NE PEUT PAS VOIR, et le controle qui
+    # le complete.
+    #
+    # Un nombre ECRIT EN DUR dans un gabarit est indiscernable d'une
+    # constante legitime : « ATR 14 » et « Objectif suggere : +12,50 % »
+    # se ressemblent pour une expression reguliere. Verifie : glisser un
+    # objectif invente dans une section ne fait PAS tomber le test
+    # ci-dessus.
+    #
+    # Ce qui se verifie par construction, en revanche, c'est qu'aucune
+    # section ne CALCULE. Une phrase a le droit de lire `n['stop']` ;
+    # elle n'a pas le droit d'ecrire `n['entree'] - n['stop']`. C'etait
+    # le vrai defaut : le risque par titre etait calcule au moment
+    # d'ecrire la phrase, donc il n'etait nulle part au dossier.
+    import ast as _ast
+
+    arbre = _ast.parse(src_ds)
+    noms_sections = {f.__name__ for _t, f in ds.SECTIONS.values()}
+    calculs = []
+    for noeud in _ast.walk(arbre):
+        if not isinstance(noeud, _ast.FunctionDef):
+            continue
+        if noeud.name not in noms_sections:
+            continue
+        for inner in _ast.walk(noeud):
+            if not isinstance(inner, _ast.BinOp):
+                continue
+            # Une operation dont l'un des cotes lit le dossier.
+            cotes = [inner.left, inner.right]
+            if any(isinstance(x, _ast.Subscript) for x in cotes):
+                calculs.append(
+                    f"{noeud.name} ligne {inner.lineno} : "
+                    f"{_ast.unparse(inner)[:60]}")
+    ok("aucune section ne CALCULE : elles lisent le dossier, "
+       "elles ne l'arithmetisent pas", not calculs)
+    for c in calculs:
+        print(f"          -> {c}")
+
+    # Et le dossier vide ne doit rien fabriquer non plus, ni planter.
+    vide = {"ok": True, "ticker": "X", "rappel": ds.RAPPEL}
+    casse = []
+    for cle in ds.SECTIONS:
+        try:
+            ds.repond("que penses-tu", vide)
+            ds.repond({"sortie": "je sors quand", "entree": "je rentre",
+                       "risque": "combien je perds", "bougies": "une figure ?",
+                       "horizon": "ca bouge", "donnees": "fiable ?",
+                       "seance": "quelle heure", "avis": "que penses-tu"}[cle],
+                      vide)
+        except Exception as exc:
+            casse.append(f"{cle}: {type(exc).__name__}")
+    ok("un dossier vide ne fait planter aucune section", not casse)
+    for c in casse:
+        print(f"          -> {c}")
+
+    # --- le rappel voyage avec chaque reponse
+    rep = ds.repond("je sors quand", vide)
+    ok("chaque reponse porte le rappel de Phase 0",
+       "Phase 0" in rep["rappel"] and "pas un avis" in rep["rappel"])
+    ok("l'intention « avis » ne rend PAS un avis mais la fiche",
+       ds.SECTIONS["avis"][0] == "LA FICHE COMPLÈTE")
+    # Aucun mot d'ordre nulle part dans les gabarits.
+    src = open(ds.__file__, encoding="utf-8").read().lower()
+    ok("aucun imperatif d'achat ou de vente dans les gabarits",
+       not any(w in src for w in ("achetez", "vendez", "il faut acheter",
+                                  "il faut vendre", "je conseille",
+                                  "je recommande")))
+    ok("la voix rend une phrase, pas un tableau",
+       isinstance(ds.phrase(rep), str) and "\n" not in ds.phrase(rep))
+
+
 def test_memo() -> None:
     """Le memo cite des seuils : ils doivent etre ceux qui tournent.
 
@@ -2116,6 +2333,7 @@ def main() -> int:
     test_chandeliers()
     test_options()
     test_palmares()
+    test_dossier()
     test_memo()
 
     print()

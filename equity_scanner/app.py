@@ -1085,8 +1085,47 @@ async function majExec(txt){
   $('tk').value=t; go();
   return;
  }
- majDit('Je n\'ai pas compris. Essayez : analyse Sanofi, '
-  +'scan Cac 40, etat du marche, mes positions, ou actualise.');
+ // Avant d'abandonner : la question porte peut-etre sur un TITRE.
+ // C'est le serveur qui tranche quel mot est un ticker — il a les
+ // donnees, le navigateur non.
+ if(await majDossier(q)) return;
+
+ majDit('Je n\'ai pas compris. Essayez : je sors quand sur TLX, '
+  +'combien je peux perdre sur Coin, que penses-tu de Nvidia, '
+  +'analyse Sanofi, scan Cac 40, etat du marche, ou mes positions.');
+}
+
+// --- Le dossier d'un titre -------------------------------------------
+//
+// Rien n'est genere ici. Le serveur rend des LIGNES deja ecrites a
+// partir des chiffres des modules ; le majordome les affiche et en lit
+// les premieres a voix haute. Si un chiffre n'est pas dans le dossier,
+// aucune phrase ne peut le sortir.
+async function majDossier(q){
+ var dflt = '';
+ try{ dflt = ($('tk') && $('tk').value ? $('tk').value.trim() : ''); }catch(e){}
+ try{
+  majDit('Je regarde.', false);
+  var j = await (await fetch('/api/dossier?q=' + encodeURIComponent(q)
+    + '&ticker=' + encodeURIComponent(dflt))).json();
+  if(!j.ok){
+   if(j.intention){ majDit(j.erreur || 'Titre non reconnu.'); return true; }
+   return false;
+  }
+  var h = '<b>' + j.ticker + '</b> &mdash; ' + j.titre
+    + (j.cours ? ' &middot; ' + j.cours + ' ' + (j.devise||'') : '')
+    + '<br><br>';
+  j.lignes.forEach(function(l){
+   if(!l){ h += '<br>'; return; }
+   // Les lignes d'etat des sorties portent leur puce : on les garde
+   // telles quelles, elles se lisent comme une liste.
+   h += l.replace(/</g,'&lt;') + '<br>';
+  });
+  h += '<br><span style="color:var(--txt-faible)">' + j.rappel + '</span>';
+  $('majr').innerHTML = h;
+  majDit(j.voix || j.titre, false);
+  return true;
+ }catch(e){ return false; }
 }
 
 async function ouvrirWeb(){
@@ -2178,8 +2217,11 @@ def _accueil(splash: bool = True) -> str:
               '<button class="sec" onclick="majDiag()">DIAGNOSTIC</button>'
               '<button class="sec" onclick="ouvrirWeb()">EDGE</button>'
               '</div>'
-              '<div class="maje">analyse sanofi &middot; scan cac 40 &middot; '
-              'etat du marche &middot; mes positions &middot; actualise</div>'
+              '<div class="maje">je sors quand sur TLX &middot; '
+              'combien je peux perdre sur Coin &middot; '
+              'que penses-tu de Nvidia &middot; une figure sur Hood ? '
+              '&middot; analyse sanofi &middot; scan cac 40 &middot; '
+              'etat du marche &middot; mes positions</div>'
               '</div>'
             + '<div id="voile" onclick="voileClic(event)">'
               '<div id="detail"><div class="tete"><h2 id="dtitre"></h2>'
@@ -2394,6 +2436,8 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                 return self._envoie(_page_graphique(q.get("ticker", "")))
             if u.path == "/palmares":
                 return self._envoie(_page_palmares())
+            if u.path == "/api/dossier":
+                return self._json(_dossier(q))
             if u.path == "/api/palmares":
                 return self._json(_palmares(q))
             if u.path == "/strategie":
@@ -3347,6 +3391,59 @@ def _page_palmares() -> str:
           '<div id="pres"></div>'
           '</div></div>'
         + f"<script>{JS_PALM}{rg.tiroir_js()}</script></body></html>")
+
+
+def _dossier(q: dict) -> dict:
+    """Une question en francais -> la section du dossier qui y repond.
+
+    La reconnaissance se fait ICI, cote serveur, parce que trancher
+    quel mot est un ticker demande d'interroger les donnees : « QUE
+    PENSE TU DE TLX » ne contient aucun autre indice.
+    """
+    from . import cache as ch
+    from . import dossier as ds
+
+    question = (q.get("q") or "").strip()
+    defaut = (q.get("ticker") or "").strip().upper() or None
+    if not question and not defaut:
+        return {"ok": False, "erreur": "Posez une question : « je sors "
+                                       "quand sur TLX », « combien je peux "
+                                       "perdre sur COIN »."}
+
+    def existe(t):
+        try:
+            ch.charge(t, annees=1)
+            return True
+        except Exception:
+            return False
+
+    try:
+        inten, tk = ds.comprend(question, existe, defaut)
+    except Exception as exc:
+        traceback.print_exc()
+        return {"ok": False, "erreur": f"{type(exc).__name__}: {exc}"}
+    if not tk:
+        return {"ok": False, "intention": inten,
+                "erreur": "Je n'ai pas reconnu de titre dans la question. "
+                          "Nommez-le : « je sors quand sur TLX.DE »."}
+
+    # Si la ligne est au registre, ses VRAIS chiffres comptent — pas un
+    # prix d'entree fabrique pour combler le trou.
+    pos = next((l for l in ps.charge()
+                if l.get("ticker", "").upper() == tk), None)
+    try:
+        d = ds.constitue(tk, av_key=cle_av(),
+                         sleeve=float(REGLAGES.get("sleeve") or 8000),
+                         position=pos)
+        rep = ds.repond(question, d)
+        rep["voix"] = ds.phrase(rep)
+        rep["cours"] = d.get("cours")
+        rep["devise"] = d.get("devise", "")
+        rep["date"] = d.get("date", "")
+        return rep
+    except Exception as exc:
+        traceback.print_exc()
+        return {"ok": False, "erreur": f"{type(exc).__name__}: {exc}"}
 
 
 def _palmares(q: dict) -> dict:

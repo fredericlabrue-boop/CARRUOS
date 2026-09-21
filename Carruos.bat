@@ -49,6 +49,7 @@ echo      B.  Lecture des chandeliers - figures et ce qui a suivi
 echo      I.  Open interest des OPTIONS d'un titre
 echo      M.  Ouvrir le memo des seuils  (MEMO-LECTURE.md)
 echo      L.  Ma liste - passer des titres aux 13 blocs et les classer
+echo      D.  Poser une question sur un titre  (je sors quand, etc.)
 echo.
 echo      --- COMPTE IBKR (lecture seule) ---
 echo      7.  Portefeuille - TWS papier        (7497)
@@ -86,6 +87,7 @@ if /i "%CHOIX%"=="B" goto bougies
 if /i "%CHOIX%"=="I" goto oi
 if /i "%CHOIX%"=="M" goto memo
 if /i "%CHOIX%"=="L" goto maliste
+if /i "%CHOIX%"=="D" goto question
 if "%CHOIX%"=="9" goto tests
 if "%CHOIX%"=="0" exit /b 0
 goto menu
@@ -266,6 +268,23 @@ set OT=
 set /p OT=   Ticker :
 if "%OT%"=="" goto menu
 %PY% -m equity_scanner.options %OT%
+echo. & pause & goto menu
+
+:question
+echo.
+echo   Pose une question en francais sur un titre. Exemples :
+echo      je sors quand sur TLX.DE
+echo      combien je peux perdre sur COIN
+echo      que penses-tu de NVDA
+echo      une figure sur HOOD ?
+echo.
+echo   Rien n'est redige a la volee : les phrases sont remplies avec les
+echo   chiffres deja calcules par les modules. Aucun avis n'en sort.
+echo.
+set QD=
+set /p QD=   Ta question :
+if "%QD%"=="" goto menu
+%PY% -m equity_scanner.dossier "%QD%"
 echo. & pause & goto menu
 
 :maliste
