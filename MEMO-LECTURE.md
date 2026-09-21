@@ -257,6 +257,60 @@ séparément — voir `options.py`.
 
 ---
 
+## 5 bis. MA LISTE — comment le classement est fait
+
+Vous collez des tickers, chacun passe les **13 blocs** et les **vetos**,
+puis se range dans son groupe : *les 13 blocs passent*, *il manque un ou
+deux blocs*, *signal absent*, *conditions de sortie actives*, *hors
+critères*, *données insuffisantes*, *données refusées*, *non lisibles*.
+
+### L'ordre à l'intérieur d'un groupe
+
+| Tri | Sur quoi il range |
+|---|---|
+| **spécification** (défaut) | force relative à 6 mois — c'est `rules.rank()` |
+| blocs | le plus de blocs remplis d'abord |
+| risque | le risque le plus faible d'abord |
+| mesure | le R moyen mesuré sur ce titre, le plus élevé d'abord |
+| alphabétique | par ticker |
+
+> Le tri par défaut porte son propre avertissement, écrit dans le code
+> de la spécification : c'est un **départage**, pas un signal validé, et
+> il ajoute un degré de liberté qui n'a pas passé la Phase 0. Chacun des
+> quatre autres range sur **un seul fait**. Aucun n'additionne des
+> critères pondérés : un tri sur un fait se vérifie, une somme de poids
+> inventés non.
+
+### Le « ratio risque / gain »
+
+**Il n'existe pas**, et ce n'est pas un oubli : la spécification n'a
+**aucun objectif de gain**, elle dit « aucun take-profit ». Il n'y a
+donc pas de numérateur à mettre au-dessus du risque.
+
+Ce qui est affiché à la place, et qui se vérifie :
+
+| Côté risque | Côté résultat |
+|---|---|
+| `(entrée − stop) / entrée` en % | gagnants / trades **sur ce titre** |
+| le nombre de titres et le montant | l'intervalle de Wilson de ce taux |
+| la perte en euros si le stop saute | le R moyen et le profit factor |
+
+Le côté droit est un **relevé du passé sur une hypothèse qui a rendu
+NO-GO en Phase 0**. Il est là parce qu'il est vérifiable, pas parce
+qu'il est encourageant.
+
+### Le découpage des tickers
+
+`COIN HOOD TLX.DE` et `COIN.TLX.HOOD.EPXD` marchent tous les deux. Le
+point est ambigu — il sépare dans le second cas mais fait partie du
+ticker dans `MC.PA`. Le programme ne devine pas : il **demande aux
+données** si chaque découpage possible existe, et garde celui dont tous
+les morceaux se chargent. `COIN.HOOD.MC.PA.TLX.DE` donne bien
+`COIN`, `HOOD`, `MC.PA`, `TLX.DE` — alors qu'une règle syntaxique aurait
+produit `HOOD.MC` (`.MC` est le suffixe de Madrid).
+
+---
+
 ## 6. Ce que le programme refuse d'afficher
 
 Rappel, parce que c'est la colonne vertébrale du projet :

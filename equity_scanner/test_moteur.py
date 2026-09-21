@@ -1886,6 +1886,111 @@ def test_options() -> None:
             sys.modules.pop("yfinance", None)
 
 
+def test_palmares() -> None:
+    """MA LISTE : le decoupage des tickers, les groupes, et l'ordre."""
+    from . import palmares as pm
+
+    print("\n— Ma liste : decoupage et classement —")
+
+    # --- le decoupage ne coupe QUE sur les separateurs
+    ok("les espaces, virgules et points-virgules separent",
+       pm.decoupe("COIN, HOOD ; TLX.DE") == ["COIN", "HOOD", "TLX.DE"])
+    ok("un point ne separe pas tout seul : MC.PA reste entier",
+       pm.decoupe("MC.PA OR.PA") == ["MC.PA", "OR.PA"])
+    ok("les doublons partent, l'ordre de saisie reste",
+       pm.decoupe("hood COIN hood") == ["HOOD", "COIN"])
+
+    # --- l'eclatement demande AUX DONNEES, il ne devine pas
+    REELS = {"COIN", "HOOD", "EPXD", "TLX", "TLX.DE", "MC.PA", "OR.PA"}
+    vus = []
+
+    def existe(t):
+        vus.append(t)
+        return t in REELS
+
+    ok("un jeton qui EST un ticker n'est pas touche",
+       pm.eclate("MC.PA", existe) == ["MC.PA"])
+    ok("un collage de tickers se coupe",
+       pm.eclate("COIN.TLX.HOOD.EPXD", existe)
+       == ["COIN", "TLX", "HOOD", "EPXD"])
+    # LE cas qui a fait echouer la premiere version : « .MC » est le
+    # suffixe de Madrid, donc « HOOD.MC » est plausible — et pourtant
+    # Frederic voulait « HOOD » puis « MC.PA ». Seules les donnees
+    # tranchent.
+    ok("« COIN.HOOD.MC.PA.TLX.DE » rend COIN, HOOD, MC.PA, TLX.DE",
+       pm.eclate("COIN.HOOD.MC.PA.TLX.DE", existe)
+       == ["COIN", "HOOD", "MC.PA", "TLX.DE"])
+    vus.clear()
+    pm.eclate("COIN.HOOD.MC.PA.TLX.DE", existe)
+    ok(f"et il a fallu interroger les donnees ({len(vus)} fois), "
+       f"pas deviner", 0 < len(vus) <= 12)
+    ok("un jeton entierement inconnu se coupe quand meme",
+       pm.eclate("ZZZZ.YYYY", existe) == ["ZZZZ", "YYYY"])
+    ok("un jeton sans point n'interroge rien",
+       pm.eclate("COIN", lambda _t: (_ for _ in ()).throw(
+           AssertionError("ne doit pas etre appele"))) == ["COIN"])
+
+    # --- les tris portent chacun sur UN fait, jamais sur une somme
+    ok("cinq tris proposes, tous decrits",
+       set(pm.TRIS) == {"spec", "blocs", "risque", "mesure", "alpha"}
+       and all(isinstance(v[0], str) and v[0] for v in pm.TRIS.values()))
+    ok("le tri par defaut est celui de la specification",
+       pm.TRI_DEFAUT == "spec"
+       and "force relative" in pm.TRIS["spec"][0])
+    faux = [
+        {"ticker": "B", "rs_6m": 0.5, "ok": 13,
+         "niveaux": {"risque": 2.0}, "histo": {"evR": 0.1}},
+        {"ticker": "A", "rs_6m": 1.5, "ok": 9,
+         "niveaux": {"risque": 5.0}, "histo": {"evR": -0.3}},
+        {"ticker": "C", "rs_6m": None, "ok": 11,
+         "niveaux": None, "histo": None},
+    ]
+    attendu = {
+        "spec": ["A", "B", "C"],      # force relative decroissante
+        "blocs": ["B", "C", "A"],     # le plus de blocs d'abord
+        "risque": ["B", "A", "C"],    # le risque le plus faible d'abord
+        "mesure": ["B", "A", "C"],    # le R moyen le plus eleve d'abord
+        "alpha": ["A", "B", "C"],
+    }
+    mauvais = []
+    for cle, att in attendu.items():
+        got = [x["ticker"] for x in sorted(faux, key=pm.TRIS[cle][1])]
+        if got != att:
+            mauvais.append(f"{cle}: {got} au lieu de {att}")
+    ok("chaque tri range comme il l'annonce", not mauvais)
+    for m in mauvais:
+        print(f"          -> {m}")
+    # Un tri doit etre STABLE : deux titres a egalite sortent toujours
+    # dans le meme ordre, sinon la page change a chaque rafraichissement.
+    ega = [{"ticker": "Z", "rs_6m": 1.0, "ok": 5, "niveaux": None,
+            "histo": None},
+           {"ticker": "A", "rs_6m": 1.0, "ok": 5, "niveaux": None,
+            "histo": None}]
+    ok("a egalite, le ticker departage : l'ordre ne bouge plus",
+       [x["ticker"] for x in sorted(ega, key=pm.TRIS["spec"][1])] == ["A", "Z"])
+
+    # --- les groupes couvrent toutes les marches de l'echelle d'interet
+    from . import interet as it
+    cles = {g for g, _ in pm.GROUPES}
+    ok("un groupe existe pour chaque marche d'interet, plus les illisibles",
+       set(it.TITRES) | {"erreur"} == cles)
+    ok("le groupe des 13 blocs vient en premier",
+       pm.GROUPES[0][0] == "complet")
+
+    # --- et les deux avertissements, sans lesquels la page ment
+    ok("la page dit qu'il n'y a PAS de ratio risque/gain, et pourquoi",
+       "aucun objectif de gain" in pm.AVERTISSEMENT_RATIO
+       and "take-profit" in pm.AVERTISSEMENT_RATIO)
+    ok("et que le tri de la specification est un departage non valide",
+       "DÉPARTAGE" in pm.AVERTISSEMENT_TRI
+       and "Phase 0" in pm.AVERTISSEMENT_TRI)
+    # Aucun score composite nulle part.
+    src = open(pm.__file__, encoding="utf-8").read().lower()
+    ok("aucune ponderation dans le module",
+       not any(w in src for w in ("poids =", "score =", "note =",
+                                  "* 0.25 +", "* 0.3 +")))
+
+
 def test_memo() -> None:
     """Le memo cite des seuils : ils doivent etre ceux qui tournent.
 
@@ -2010,6 +2115,7 @@ def main() -> int:
     test_interet()
     test_chandeliers()
     test_options()
+    test_palmares()
     test_memo()
 
     print()

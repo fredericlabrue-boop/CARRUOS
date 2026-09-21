@@ -173,7 +173,8 @@ def main() -> int:
         from . import app
         pages = {"accueil": app._accueil(splash=False),
                  "graphique": app._page_graphique("AAA"),
-                 "strategie": app._page_strategie()}
+                 "strategie": app._page_strategie(),
+                 "maliste": app._page_palmares()}
     finally:
         dl.load_yf = vrai
 
@@ -774,6 +775,41 @@ def main() -> int:
     m_box = re.search(r"\.pil-c \.box\{[^}]*\}", css5.replace("\n", " "))
     _v(bool(m_box) and "flex" in m_box.group(0),
        "la boite donne au trace une hauteur definie, en colonne flex")
+
+    print("\n  PAGE MA LISTE")
+    from . import palmares as _pm
+    hm = pages["maliste"]
+    jm = _scripts(hm)
+    _v('id="ptitres"' in hm and 'id="ptri"' in hm and 'id="psleeve"' in hm,
+       "les champs de saisie sont presents")
+    _v("classe()" in hm and "function classe" in jm,
+       "le bouton CLASSER est relie a sa fonction")
+    _v("MA LISTE" in pages["accueil"] and "/palmares" in pages["accueil"],
+       "l'accueil porte le bouton vers la page")
+    # Les cinq tris doivent etre proposes, avec leur libelle.
+    manque_tri = [k for k in _pm.TRIS if f'value="{k}"' not in hm]
+    _v(not manque_tri, f"les {len(_pm.TRIS)} tris sont proposes ({manque_tri})")
+    # LES DEUX AVERTISSEMENTS. Sans eux la page laisse croire a un
+    # classement valide et a un ratio risque/gain qui n'existe pas.
+    _v("avertissement_ratio" in jm and "avertissement_tri" in jm,
+       "les deux avertissements sont affiches avec les resultats")
+    # Le piege documente du projet : une apostrophe echappee dans une
+    # chaine Python NON brute devient une apostrophe nue et tue tout le
+    # script. C'est arrive ici, sur un onclick en ligne.
+    _v("onclick=\"ouvre(" not in jm,
+       "plus d'onclick en ligne avec un ticker entre apostrophes")
+    _v("data-tk" in jm, "le ticker voyage dans un attribut, pas dans du code")
+    _v("closest('.tk[data-tk]')" in jm,
+       "un seul ecouteur delegue ouvre le graphique")
+    _v("_page_palmares" in open(_app.__file__, encoding="utf-8").read(),
+       "la page a sa fonction dediee")
+    # Et la grille de saisie ne doit pas se regler sur son contenu.
+    cssm = re.sub(r"/\*.*?\*/", " ",
+                  re.search(r"<style>(.*?)</style>", hm, re.S).group(1),
+                  flags=re.S)
+    m_sai = re.search(r"\.palm \.saisie\{[^}]*\}", cssm.replace("\n", " "))
+    _v(bool(m_sai) and "minmax" in m_sai.group(0),
+       "la grille de saisie a des colonnes bornees, pas fixes")
 
     print("\n  LECTURE DES CHANDELIERS DANS LA PAGE")
     from . import chandeliers as _cd2

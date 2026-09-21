@@ -121,6 +121,22 @@ jeu de paramètres qui ne l'a pas produit.
   collecté. Pour l'action elle-même, la notion voisine est le volume
   rapporté à son habitude, mesuré par `chandeliers.volume_prix()`
   contre le même taux de base.
+- **Un classement « des plus pertinentes aux moins »**, s'il vient d'une
+  somme de critères pondérés. La page **MA LISTE** (`palmares.py`) range
+  des titres collés à la main, et son tri par défaut est celui que la
+  **spécification écrit déjà** — `rules.rank()`, force relative 6 mois —
+  avec l'avertissement que ce code porte lui-même : c'est un
+  **départage**, pas un signal validé, et il ajoute un degré de liberté
+  qui n'a pas passé la Phase 0. Les quatre autres tris portent **chacun
+  sur un seul fait** (blocs remplis, risque, R mesuré, alphabétique) :
+  un tri sur un fait se vérifie, une somme pondérée non.
+- **Un « ratio risque / gain ».** Il n'y en a pas, parce que la
+  spécification **n'a aucun objectif de gain** : elle dit « aucun
+  take-profit ». Ce que MA LISTE affiche en face du risque — défini par
+  la spec, `(entrée − stop) / entrée` — c'est ce que ce signal a
+  **réellement rendu sur ce titre** : gagnants sur trades, intervalle de
+  Wilson, R moyen, profit factor. Un relevé, pas une promesse, et sur
+  une hypothèse qui a rendu NO-GO.
 - Une ligne de prédiction de prix. Le cône de dispersion existe : dérive
   fixée à zéro, il donne l'amplitude, jamais le sens.
 - Un take-profit **actif**. Les spécifications 2 et 3 disent « aucun
@@ -176,6 +192,9 @@ jeu de paramètres qui ne l'a pas produit.
 | | les seuils de forme sont écrits **avant** toute mesure et épinglés par `test_moteur` ; les déplacer après coup serait la même pêche que sur les paramètres de stratégie |
 | | l'ombre opposée se mesure sur l'**étendue**, pas sur le corps : « ≤ 1 × le corps » exigeait moins de 3 % sur une étoile filante, et le détecteur n'en a jamais trouvé une seule jusqu'à la correction |
 | `options.py` | l'open interest des **options** — une action n'en a pas |
+| `palmares.py` | **MA LISTE** : des titres collés à la main, passés aux 13 blocs, groupés et triés |
+| | un jeton à points multiples (`COIN.HOOD.MC.PA`) est découpé en **demandant aux données** si chaque morceau existe, jamais par une règle syntaxique : `.MC` est le suffixe de Madrid, donc `HOOD.MC` est plausible alors que le lecteur voulait `HOOD` puis `MC.PA`. C'est un découpage de mots résolu par le dictionnaire |
+| | aucun score composite : le tri par défaut est celui de la spécification, les autres portent sur un fait unique |
 | `interet.py` | la carte INTÉRÊT : quatre comptes, une échelle de 7 marches |
 | | le verdict de la page graphique en **découle** au lieu d'être calculé à côté : deux échelles parallèles finissent par se contredire |
 | | et cette échelle regarde les **vetos**, ce que l'ancienne ne faisait pas — un titre à 13/13 dont le volume dollar est sous le plancher s'affichait ACHAT, entrée, stop et nombre de titres compris |

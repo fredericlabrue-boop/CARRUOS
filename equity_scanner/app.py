@@ -1902,6 +1902,64 @@ function detailTechnique(r, tenu){
 # --- Page STRATEGIE ---------------------------------------------------
 # Deux colonnes : a gauche de l'arithmetique, a droite des faits mesures.
 # Aucune animation de mise en page : uniquement transform et opacity.
+CSS_PALM = """
+.palm{max-width:1180px;margin:0 auto;padding:0 4px 40px}
+.palm .saisie{display:grid;gap:11px;align-items:end;margin-bottom:14px;
+ grid-template-columns:minmax(min(100%,240px),1fr) minmax(118px,150px)
+ minmax(118px,150px)}
+.palm .saisie>div{min-width:0}
+.palm textarea{width:100%;min-height:74px;resize:vertical;
+ background:var(--champ-fond,#0a1620);border:1px solid #22303f;
+ color:var(--txt);border-radius:9px;padding:11px 13px;
+ font:400 13px ui-monospace,Consolas,monospace;line-height:1.6}
+.palm textarea:focus{outline:0;border-color:var(--acc)}
+.palm label{display:block;font-size:10px;letter-spacing:.16em;
+ color:#475a72;margin-bottom:5px}
+.palm select,.palm input[type=number]{width:100%;
+ background:var(--champ-fond,#0a1620);border:1px solid #22303f;
+ color:var(--txt);border-radius:9px;padding:9px 11px;font:400 13px inherit}
+.palm .go{width:100%;background:#0e2b34;border:1px solid var(--acc);
+ color:var(--txt-fort);border-radius:9px;padding:10px;cursor:pointer;
+ font:500 13px inherit;letter-spacing:.1em}
+.palm .go:hover{background:#123a46}
+/* Un groupe = une marche de l'echelle d'interet. Le titre du groupe dit
+   POURQUOI les titres y sont, pas s'ils sont bons. */
+.palm .grp{margin-top:20px}
+.palm .grp>h3{font:500 10px ui-monospace,Consolas,monospace;
+ letter-spacing:.2em;color:#475a72;margin:0 0 9px;padding-bottom:6px;
+ border-bottom:1px solid #1a2330}
+.palm .li{background:#0d1219;border:1px solid #1a2330;border-radius:11px;
+ padding:12px 15px;margin-bottom:9px}
+.palm .li .tete{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.palm .li .tk{font:500 17px ui-monospace,Consolas,monospace;
+ color:var(--txt-fort);letter-spacing:.06em;cursor:pointer}
+.palm .li .tk:hover{color:var(--acc)}
+.palm .li .cpt{font:500 13px ui-monospace,monospace;
+ font-variant-numeric:tabular-nums}
+.palm .li .px{margin-left:auto;font:400 13px ui-monospace,monospace;
+ color:#94a3b8;font-variant-numeric:tabular-nums}
+/* Colonnes FIXES : un libelle plus long ne doit pas decaler la grille. */
+.palm .faits{display:grid;gap:5px 16px;margin-top:9px;
+ grid-template-columns:repeat(auto-fit,minmax(min(100%,168px),1fr))}
+.palm .faits div{font-size:11.5px;color:#64748b;min-width:0}
+.palm .faits b{color:#cbd5e1;font-weight:500;
+ font-variant-numeric:tabular-nums}
+.palm .mq{margin-top:9px;font-size:11.5px;line-height:1.5}
+.palm .mq b{display:block;color:#fca5a5;font-weight:500}
+.palm .mq i{font-style:normal;color:#64748b;
+ font-variant-numeric:tabular-nums}
+.palm .veto{margin-top:8px;font-size:11px;color:#c4a5e4;
+ border-left:2px solid #4a3a63;padding-left:9px;line-height:1.55}
+.palm .refus{border-left-color:#7d2530;color:#fca5a5}
+.palm .av{margin-top:18px;font-size:11.5px;color:#475a72;line-height:1.75;
+ border-top:1px solid #1a2330;padding-top:13px}
+.palm .av b{color:#94a3b8;font-weight:500}
+.g-complet{color:var(--pos)}.g-proche{color:#fbbf24}.g-loin{color:#7c8ba1}
+.g-sortie{color:var(--neg)}.g-hors{color:#c4a5e4}.g-na{color:#a78bfa}
+.g-refus{color:var(--neg)}.g-erreur{color:#7c8ba1}
+"""
+
+
 CSS_STRAT = """
 /* .app attend TROIS rangees (barre, console, grille). Cette page n'en a
    que deux : sans gabarit propre, les panneaux tombaient dans la rangee
@@ -2133,6 +2191,8 @@ def _accueil(splash: bool = True) -> str:
             '<span class="sep"></span>'
             '<button class="raf" id="raf" onclick="toutRafraichir()">'
             '&#8635; ACTUALISER</button>'
+            '<button class="raf" onclick="location.href=&#39;/palmares&#39;">'
+            'MA LISTE</button>'
             '<button class="raf" onclick="location.href=&#39;/strategie&#39;">'
             'STRATEGIE</button>'
             '<span class="etat" id="horloge">&mdash;</span></div>'
@@ -2332,6 +2392,10 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                 return self._statique(u.path[len("/statique/"):])
             if u.path == "/graphique":
                 return self._envoie(_page_graphique(q.get("ticker", "")))
+            if u.path == "/palmares":
+                return self._envoie(_page_palmares())
+            if u.path == "/api/palmares":
+                return self._json(_palmares(q))
             if u.path == "/strategie":
                 return self._envoie(_page_strategie())
             if u.path == "/api/projection":
@@ -3117,6 +3181,203 @@ def _revue_titre(q: dict) -> dict:
         r["horizons"], r["objectifs"] = [], {"erreur": str(exc)}
 
     return {"ok": True, "revue": r}
+
+
+JS_PALM = r"""
+function $p(i){return document.getElementById(i);}
+
+function echappe(t){
+ return String(t==null?'':t).replace(/[&<>"]/g, function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});
+}
+
+function ligne(t){
+ if(t.groupe==='erreur'){
+  return '<div class="li"><div class="tete"><span class="tk">'
+   + echappe(t.ticker) + '</span><span class="px">'
+   + echappe(t.motif||'illisible') + '</span></div></div>';
+ }
+ var n = t.niveaux || {}, h = t.histo || {};
+ var g = '<div class="li"><div class="tete">'
+  + '<span class="tk" data-tk="' + echappe(t.ticker) + '">'
+  + echappe(t.ticker) + '</span>'
+  + '<span class="cpt g-' + t.groupe + '">' + echappe(t.compte) + '</span>'
+  + '<span class="px">' + t.cours + '</span></div>';
+
+ var f = [];
+ if(n.risque != null)
+  f.push('<div>risque <b>' + n.risque.toFixed(2) + ' %</b></div>');
+ if(n.titres)
+  f.push('<div><b>' + n.titres + '</b> titre(s) pour <b>' + n.montant
+         + '</b></div>',
+         '<div>perte si le stop saute <b>' + n.risque_eur + '</b></div>',
+         '<div>entrée <b>' + n.entree + '</b> · stop <b>'
+         + n.stop + '</b></div>');
+ if(t.rs_6m != null)
+  f.push('<div>force relative 6 mois <b>'
+         + (t.rs_6m>0?'+':'') + t.rs_6m.toFixed(2) + '</b></div>');
+ if(f.length) g += '<div class="faits">' + f.join('') + '</div>';
+
+ // Ce que ce signal a REELLEMENT rendu sur ce titre. Jamais un taux nu.
+ if(h.n){
+  g += '<div class="faits"><div style="grid-column:1/-1">'
+    + 'ce signal sur ce titre : <b>' + h.gagnants + ' / ' + h.n
+    + '</b> gagnants (intervalle <b>' + h.bas + '–' + h.haut
+    + ' %</b>), R moyen <b>' + (h.evR>0?'+':'') + h.evR.toFixed(2)
+    + '</b>' + (h.pf==null?'':', profit factor <b>' + h.pf + '</b>')
+    + '</div></div>';
+ }else if(t.histo){
+  g += '<div class="faits"><div style="grid-column:1/-1">ce signal n’a '
+    + 'jamais été pris sur ce titre : aucune référence '
+    + 'propre</div></div>';
+ }
+
+ (t.vetos||[]).forEach(function(v){
+  g += '<div class="veto">VETO : ' + echappe(v) + '</div>';});
+ (t.refus_motifs||[]).forEach(function(v){
+  g += '<div class="veto refus">DONNÉES REFUSÉES : '
+       + echappe(v) + '</div>';});
+ if((t.groupe==='proche'||t.groupe==='loin') && (t.manquants||[]).length){
+  t.manquants.slice(0,4).forEach(function(m){
+   g += '<div class="mq"><b>' + echappe(m.nom) + '</b><i>'
+        + echappe(m.texte) + '</i></div>';});
+ }
+ return g + '</div>';
+}
+
+// Un seul ecouteur, delegue. L'ancienne version posait un `onclick` en
+// ligne avec le ticker entre apostrophes : c'est le piege documente du
+// projet — une apostrophe echappee dans une chaine Python NON brute
+// devient une apostrophe nue et tue tout le script de la page. Ici il
+// n'y a plus une seule apostrophe a echapper.
+document.addEventListener('click', function(ev){
+ var el = ev.target.closest ? ev.target.closest('.tk[data-tk]') : null;
+ if(!el) return;
+ location.href = '/graphique?ticker=' + encodeURIComponent(el.dataset.tk);
+});
+
+async function classe(){
+ var t = $p('ptitres').value.trim();
+ if(!t){ $p('pres').innerHTML = '<div class="msg">Collez vos tickers.</div>';
+         return; }
+ $p('pres').innerHTML = '<div class="msg">Chargement de dix ans de cours '
+   + 'par titre… la première fois est la plus longue.</div>';
+ var q = 'titres=' + encodeURIComponent(t)
+   + '&tri=' + encodeURIComponent($p('ptri').value)
+   + '&marche=' + encodeURIComponent($p('pmarche').value)
+   + '&sleeve=' + encodeURIComponent($p('psleeve').value);
+ try{
+  var j = await (await fetch('/api/palmares?' + q)).json();
+  if(!j.ok){ $p('pres').innerHTML = '<div class="msg err">'
+             + echappe(j.erreur||'') + '</div>'; return; }
+  var h = '';
+  j.groupes.forEach(function(g){
+   h += '<div class="grp"><h3 class="g-' + g.cle + '">' + echappe(g.titre)
+     + '</h3>';
+   g.lignes.forEach(function(t){ h += ligne(t); });
+   h += '</div>';
+  });
+  if(j.inconnus && j.inconnus.length)
+   h += '<div class="av">Introuvables : ' + echappe(j.inconnus.join(', '))
+      + '</div>';
+  h += '<div class="av"><b>' + echappe(j.avertissement_ratio) + '</b></div>'
+    + '<div class="av">' + echappe(j.avertissement_tri) + '</div>';
+  $p('pres').innerHTML = h;
+ }catch(e){
+  $p('pres').innerHTML = '<div class="msg err">Erreur : ' + e + '</div>';
+ }
+}
+"""
+
+
+def _page_palmares() -> str:
+    """MA LISTE : des titres colles a la main, passes aux 13 blocs.
+
+    Le tri par defaut est celui de la SPECIFICATION — force relative a
+    6 mois — et la page affiche l'avertissement que ce tri porte dans
+    son propre code. Les autres tris portent chacun sur UN fait. Aucun
+    score composite : c'est ce que le projet refuse depuis le debut.
+    """
+    from . import palmares as pm
+
+    reg = rg.charge()
+    tris = "".join(
+        f'<option value="{k}"'
+        + (" selected" if k == pm.TRI_DEFAUT else "")
+        + f">{html.escape(v)}</option>"
+        for k, v in {k: v[0] for k, v in pm.TRIS.items()}.items())
+    sleeve = int(REGLAGES.get("sleeve") or 8000)
+    return (
+        '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<link rel="icon" type="image/svg+xml" href="/carruos.svg">'
+        '<link rel="alternate icon" href="/favicon.ico">'
+        f"<title>{NOM} - ma liste</title>"
+        f"<style>{rg.variables(reg)}{CSS}{CSS_FICHE}{CSS_PALM}</style></head>"
+        f'<body class="{rg.classes(reg)}"{rg.corps_attrs(reg)}>'
+        + rg.tiroir_html(reg)
+        + hd.fond(TRACE_D)
+        + '<div class="app">'
+          f'<div class="bar">{CERF_FIXE.format(28, 30)}'
+          f'<h1>{NOM}</h1><span class="sst">MA LISTE</span>'
+          '<span class="sep"></span>'
+          '<button class="raf" onclick="location.href=&#39;/&#39;">'
+          '&#8592; ACCUEIL</button></div>'
+          '<div class="palm">'
+          '<p class="ex">Collez vos tickers &mdash; <b>COIN HOOD TLX.DE '
+          'MC.PA</b> &mdash; séparés par des espaces ou des '
+          'virgules. Chacun passe les <b>13 blocs</b> de la '
+          'spécification et ses <b>vetos</b>, puis se range dans son '
+          'groupe. Cliquez un ticker pour ouvrir son graphique.</p>'
+          '<div class="saisie">'
+          '<div><label>TITRES</label>'
+          '<textarea id="ptitres" placeholder="COIN HOOD TLX.DE MC.PA">'
+          '</textarea></div>'
+          f'<div><label>TRI</label><select id="ptri">{tris}</select></div>'
+          '<div><label>INDICE DE RÉFÉRENCE</label>'
+          '<select id="pmarche"><option value="us">S&amp;P 500 (US)</option>'
+          '<option value="europe">STOXX 600 (Europe)</option></select></div>'
+          '</div>'
+          '<div class="saisie" style="grid-template-columns:1fr 150px 150px">'
+          '<div></div>'
+          '<div><label>SLEEVE</label>'
+          f'<input id="psleeve" type="number" value="{sleeve}"></div>'
+          '<div><button class="go" onclick="classe()">CLASSER</button></div>'
+          '</div>'
+          '<div id="pres"></div>'
+          '</div></div>'
+        + f"<script>{JS_PALM}{rg.tiroir_js()}</script></body></html>")
+
+
+def _palmares(q: dict) -> dict:
+    """Une liste de titres passee aux 13 blocs, groupee et triee."""
+    from . import palmares as pm
+
+    saisie = (q.get("titres") or "").strip()
+    if not saisie:
+        return {"ok": False, "erreur": "Collez vos tickers : COIN HOOD "
+                                       "TLX.DE, separes par des espaces "
+                                       "ou des virgules."}
+    jetons = pm.decoupe(saisie)
+    if not jetons:
+        return {"ok": False, "erreur": "Aucun ticker lisible dans la saisie."}
+    if len(jetons) > 40:
+        return {"ok": False,
+                "erreur": f"{len(jetons)} titres d'un coup, c'est trop : "
+                          f"chacun demande dix ans de cours. Quarante au "
+                          f"maximum."}
+    try:
+        sleeve = float(q.get("sleeve") or REGLAGES.get("sleeve") or 8000)
+    except (TypeError, ValueError):
+        sleeve = float(REGLAGES.get("sleeve") or 8000)
+    marche = "europe" if (q.get("marche") == "europe") else "us"
+    tri = q.get("tri") or pm.TRI_DEFAUT
+    try:
+        return pm.evalue(jetons, sleeve, marche, tri, av_key=cle_av(),
+                         journal=lambda _m: None)
+    except Exception as exc:
+        traceback.print_exc()
+        return {"ok": False, "erreur": f"{type(exc).__name__}: {exc}"}
 
 
 def _page_strategie() -> str:

@@ -48,6 +48,7 @@ echo      O.  Horaires des places europeennes et americaines
 echo      B.  Lecture des chandeliers - figures et ce qui a suivi
 echo      I.  Open interest des OPTIONS d'un titre
 echo      M.  Ouvrir le memo des seuils  (MEMO-LECTURE.md)
+echo      L.  Ma liste - passer des titres aux 13 blocs et les classer
 echo.
 echo      --- COMPTE IBKR (lecture seule) ---
 echo      7.  Portefeuille - TWS papier        (7497)
@@ -84,6 +85,7 @@ if /i "%CHOIX%"=="O" goto places
 if /i "%CHOIX%"=="B" goto bougies
 if /i "%CHOIX%"=="I" goto oi
 if /i "%CHOIX%"=="M" goto memo
+if /i "%CHOIX%"=="L" goto maliste
 if "%CHOIX%"=="9" goto tests
 if "%CHOIX%"=="0" exit /b 0
 goto menu
@@ -264,6 +266,23 @@ set OT=
 set /p OT=   Ticker :
 if "%OT%"=="" goto menu
 %PY% -m equity_scanner.options %OT%
+echo. & pause & goto menu
+
+:maliste
+echo.
+echo   Colle tes tickers - COIN HOOD TLX.DE MC.PA - separes par des
+echo   espaces. Chacun passe les 13 blocs et les vetos, puis se range
+echo   dans son groupe.
+echo.
+echo   Le tri par defaut est celui de la SPECIFICATION : force relative
+echo   a 6 mois. Son propre code le dit : c'est un DEPARTAGE, pas un
+echo   signal valide. Il n'y a PAS de ratio risque/gain, parce que la
+echo   specification n'a aucun objectif de gain.
+echo.
+set ML=
+set /p ML=   Tickers :
+if "%ML%"=="" goto menu
+%PY% -m equity_scanner.palmares %ML%
 echo. & pause & goto menu
 
 :memo
