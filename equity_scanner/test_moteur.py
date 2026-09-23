@@ -2225,6 +2225,11 @@ def test_memo() -> None:
     from . import rules as R
     from .indicators import PERIODES
 
+    from . import carnet as cn
+    from . import cerveau as cv
+    from . import objectif as ob
+    from . import profil as pr
+    from . import strategie as sg
     print("\n— Memo de lecture —")
     f = Path(__file__).resolve().parent.parent / "MEMO-LECTURE.md"
     ok("MEMO-LECTURE.md existe a la racine", f.exists())
@@ -2285,6 +2290,25 @@ def test_memo() -> None:
         ("barre etroite %",
          f"**{_fr(cd.SEUILS['etendue_mini_pct'] * 100, 2)} %**"),
         ("cas minimum", f"**moins de {cd.MINI_CAS} cas**"),
+        # --- profil.py : les bandes d'amplitude, ecrites avant mesure
+        ("seances par an", f"racine de **{pr.SEANCES_AN}** séances"),
+        ("barres minimum du profil", f"Sous **{pr.MINI_BARRES}** barres"),
+        ("bande tres calme", f"sous **{pr.BANDES[0][1] * 100:.0f} %**"),
+        ("bande calme", f"**{pr.BANDES[1][0] * 100:.0f}** à "
+                        f"**{pr.BANDES[1][1] * 100:.0f} %**"),
+        ("bande moyenne", f"**{pr.BANDES[2][0] * 100:.0f}** à "
+                          f"**{pr.BANDES[2][1] * 100:.0f} %**"),
+        ("bande agitee", f"**{pr.BANDES[3][0] * 100:.0f}** à "
+                         f"**{pr.BANDES[3][1] * 100:.0f} %**"),
+        ("bande tres agitee", f"**{pr.BANDES[4][0] * 100:.0f}** à "
+                              f"**{pr.BANDES[4][1] * 100:.0f} %**"),
+        ("bande extreme", f"au-delà de **{pr.BANDES[4][1] * 100:.0f} %**"),
+        # --- objectif.py
+        ("prelevement forfaitaire", f"**{sg.PFU * 100:.0f} %** sur le gain"),
+        ("plafond de recherche", f"**{ob.MOIS_MAX}** mois"),
+        # --- carnet.py et cerveau.py
+        ("plafond du carnet", f"**{cn.MAX_ENTREES}** entrées"),
+        ("plafond du dossier", f"**{cv.MAX_DOSSIER}** caractères"),
     ]
     absents = [(nom, val) for nom, val in ATTENDU if val not in m]
     ok(f"les {len(ATTENDU)} seuils cites dans le memo sont ceux qui "

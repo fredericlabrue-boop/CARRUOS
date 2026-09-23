@@ -344,6 +344,150 @@ Si vous ne nommez pas de titre, celui du champ ANALYSER sert de défaut.
 
 ---
 
+## 5 quater. Le profil d'un instrument — `profil.py`
+
+Une action et un ETF monde ne se lisent pas pareil, et la différence se
+**mesure**. Aucun de ces chiffres n'est un avis, et aucun n'est résumé
+en un score.
+
+| Mesure | Ce que c'est |
+|---|---|
+| Volatilité annualisée | écart-type des rendements quotidiens, multiplié par la racine de **252** séances |
+| Écart quotidien ordinaire | la volatilité ramenée à un jour. Deux séances sur trois tiennent dedans — arithmétique, pas prévision |
+| ATR 14 rapporté au cours | l'amplitude moyenne d'une séance, en pourcentage |
+| Pire recul depuis un sommet | sa profondeur, sa date, et **le temps qu'il a mis à être rattrapé** — ou qu'il n'a pas encore mis |
+| Séances à plus de 5 % | combien, sur combien |
+| Bêta et corrélation au repère | les deux ensemble : un bêta de 1,2 avec une corrélation de 0,2 veut dire « bouge fort ET ailleurs » |
+| Durée mesurée des positions | les règles de la spécification rejouées sur tout l'historique, et la durée des trades obtenus |
+
+Les bandes d'amplitude sont écrites **avant** toute mesure, et chaque
+nom décrit ce qui a été mesuré — jamais ce qu'il faudrait en faire :
+
+| Volatilité annualisée | Bande |
+|---|---|
+| sous **8 %** | TRÈS CALME |
+| **8** à **16 %** | CALME |
+| **16** à **25 %** | AMPLITUDE MOYENNE |
+| **25** à **40 %** | AGITÉ |
+| **40** à **65 %** | TRÈS AGITÉ |
+| au-delà de **65 %** | AMPLITUDE EXTRÊME |
+
+Sous **120** barres, aucune volatilité n'est affichée : un écart-type
+sur trente points est lui-même trop imprécis pour valoir un chiffre.
+
+Le type — action, ETF, indice — est **déclaré** par la source de
+données, et le rapport le dit. Un ETF mal étiqueté reste mal étiqueté ;
+les mesures, elles, ne dépendent d'aucun libellé.
+
+**L'horizon n'est pas un choix.** C'est une conséquence des quatre
+conditions de sortie : sur un instrument calme elles se déclenchent
+rarement, donc les positions durent ; sur un instrument à forte
+amplitude elles se déclenchent vite. C'est ce que la ligne « durée
+mesurée » rapporte, et c'est la seule réponse honnête à « court ou long
+terme ? ».
+
+---
+
+## 5 quinquies. Un objectif chiffré — `objectif.py`
+
+**L'arithmétique ne dit jamais « impossible ». Elle dit ce que ça
+demande.**
+
+Pour aller d'un capital à une cible il n'existe que trois leviers : le
+capital, le versement, et le taux avec le temps qu'on lui laisse. Deux
+sont fixés, le troisième se résout — exactement, parce que c'est une
+équation.
+
+| Sortie | Ce que c'est |
+|---|---|
+| Sans aucune croissance | la durée par les seuls versements. **Le seul chiffre qui ne dépende d'aucune hypothèse.** |
+| Taux exigé | ce que l'équation réclame pour tenir la date. Pas ce qu'un placement va rendre, et le programme ne dit pas où le trouver |
+| Taux exigé net d'impôt | pour que la cible **reste** après le prélèvement forfaitaire de **30 %** sur le gain |
+| Versement exigé | à 4, 7, 10 et 15 % par an posés en hypothèse |
+| Durée au taux posé | votre hypothèse, ses conséquences |
+
+Le taux net **ne se déduit pas** d'une division par (1 − 30 %) : le
+prélèvement frappe le gain **une fois, à la sortie**, pas chaque année.
+Sur un exemple mesuré — 8 000 € de capital, 300 € par mois, 50 000 € en
+trois ans — l'équation donne **66,9 %** par an là où le raccourci
+donnait 74,2 %. Et ce chiffre est un **plancher** : il suppose un seul
+dénouement à la fin, alors que revendre souvent coûte plus.
+
+Le versement est fait en **début de mois**, donc il travaille le mois
+même — c'est la convention d'un virement programmé. Le taux mensuel est
+celui qui vérifie (1 + m)¹² = 1 + a : diviser par douze serait faux, et
+l'erreur grandit avec le taux.
+
+Au-delà de **1200** mois, la réponse utile n'est plus un nombre
+d'années : c'est « ces leviers-là n'y mènent pas », et les leviers se
+changent.
+
+La **fréquence historique** confronte le taux exigé à l'historique d'un
+titre : quelle part des fenêtres de même durée l'ont atteint, avec son
+intervalle de Wilson. Les fenêtres glissent, donc elles se recouvrent
+presque entièrement — le nombre de périodes **indépendantes** est bien
+plus petit, il est affiché, et c'est lui qui porte l'information. Une
+fréquence passée n'est pas une probabilité future.
+
+---
+
+## 5 sexies. Le carnet — `carnet.py`
+
+Deux choses distinctes, qui ne se mélangent pas.
+
+**Vos notes.** Du texte libre, daté, rattachable à un titre. Le
+programme n'y touche pas, ne les interprète pas, ne les résume pas, et
+ne dira jamais « vous aviez raison ce jour-là » : comparer une intention
+à un résultat demanderait de décider ce qui compte comme réussite, ce
+qui est un avis.
+
+**Vos relevés.** Une photo datée de ce que le moteur mesurait à
+l'instant où vous l'avez figée. Elle est calculée **côté serveur** :
+prise dans le navigateur, elle photographierait ce que la page
+*affichait* au lieu de ce que le moteur a *mesuré*.
+
+Rangé dans `~/.carruos/carnet.json`, le seul endroit qui survive à une
+mise à jour du programme. Écriture par fichier temporaire puis
+remplacement : une coupure au milieu d'une sauvegarde laisse l'ancien
+carnet entier. Plafond de **12000** entrées, la plus ancienne partant la
+première — à une note par jour, trente ans.
+
+---
+
+## 5 septies. Le cerveau — `cerveau.py`
+
+Le majordome peut parler à un modèle de langage. Le contrat est le même
+que partout ici : **il met en phrases, il ne produit aucun chiffre.**
+
+Trois garde-fous, dans cet ordre.
+
+1. **Les faits d'abord.** La réponse déterministe est calculée **avant**
+   tout appel réseau et s'affiche quoi qu'il arrive : clé absente, API
+   en panne, réponse de travers. Le modèle ajoute de la prose
+   par-dessus ; il ne remplace jamais les faits.
+2. **Le modèle ne voit jamais les cours.** Il reçoit un dossier de faits
+   déjà calculés, donc il ne *peut* pas « lire le graphique ».
+3. **Les chiffres sont tracés.** Chaque nombre de la réponse est
+   confronté au dossier envoyé, et ceux qui n'y figurent pas sont
+   **nommés** à l'écran. Ce n'est pas un filtre : c'est une étiquette.
+
+La tolérance de cette comparaison vaut **une demi-unité du dernier
+chiffre écrit** : « 12 % » peut venir de 11,83 %, « 11,8 % » ne peut
+venir que d'entre 11,75 et 11,85. C'est exactement ce que veut dire
+arrondir.
+
+**Aucune clé n'est embarquée**, et le programme ne peut pas en fabriquer
+une. C'est la vôtre, prise chez le fournisseur, rangée dans
+`~/.carruos/ia.json` — jamais dans le code, jamais dans le dépôt, jamais
+dans l'archive. Le dossier envoyé est plafonné à **24000** caractères :
+un modèle qui reçoit trente pages répond moins bien, plus lentement et
+plus cher.
+
+Sans clé, le majordome répond quand même. Tout ce qui précède est
+calculé en local.
+
+---
+
 ## 6. Ce que le programme refuse d'afficher
 
 Rappel, parce que c'est la colonne vertébrale du projet :

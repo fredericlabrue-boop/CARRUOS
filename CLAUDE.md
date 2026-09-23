@@ -153,6 +153,57 @@ jeu de paramètres qui ne l'a pas produit.
   router. Si l'on ajoute un jour un modèle de langage, c'est ce contrat
   qu'il faut préserver : router et mettre en phrases, jamais produire un
   chiffre.
+- **Un chiffre produit par le modèle de langage.** Le cerveau
+  (`cerveau.py`) **met en phrases et route**, il ne calcule rien. La
+  version précédente de ce module *demandait* au modèle de ne rien
+  inventer ; demander ne suffit pas. Trois garde-fous, dans cet ordre :
+  les **faits d'abord** — `dossier.py` calcule la réponse déterministe
+  AVANT tout appel réseau, et elle s'affiche quoi qu'il arrive au
+  modèle, clé absente, API en panne ou réponse de travers ; le modèle
+  **ne voit jamais les cours**, seulement un dossier de faits déjà
+  calculés, donc il ne *peut* pas « lire le graphique » ; et
+  `verifie_chiffres()` confronte chaque nombre de la réponse au dossier
+  envoyé et **nomme** ceux qui n'y figurent pas. Ce n'est pas un filtre,
+  c'est une étiquette : le lecteur voit ce qui remonte à une mesure.
+  Le modèle ajoute de la prose par-dessus les faits ; il ne les
+  remplace jamais.
+- **Aucune clé API dans le programme.** CARRUOS n'en embarque aucune et
+  ne peut pas en fabriquer. Celle du cerveau est celle du propriétaire,
+  prise chez le fournisseur, rangée dans `~/.carruos/ia.json` en 0600 —
+  jamais dans le code, jamais dans le dépôt, jamais dans l'archive
+  livrée. Elle ne repart jamais vers la page, et `test_pages` le
+  vérifie.
+- **Un avis sur le type d'un instrument.** « Une action Tesla ne se
+  traite pas comme un ETF monde » est vrai, donc ça se **mesure**.
+  `profil.py` donne l'amplitude, l'écart quotidien ordinaire, le pire
+  recul et le temps de retour, le bêta et la corrélation — et surtout
+  la **durée réelle** des positions que les règles de la spécification
+  produisent sur ce titre. L'horizon n'est pas un choix qu'on fait :
+  c'est une **conséquence** des quatre conditions de sortie. Le type
+  déclaré par la source de données est signalé comme une *déclaration*,
+  pas comme une mesure ; les autres lignes ne dépendent d'aucun
+  libellé. Aucun score composite ne les résume : chaque mesure se lit
+  seule.
+- **Le mot « impossible » devant un objectif chiffré.** L'arithmétique
+  ne dit jamais impossible, elle dit **ce que ça demande**.
+  `objectif.py` fixe deux leviers sur trois — capital, versement, taux
+  et temps — et résout le troisième exactement. Il rend le taux exigé,
+  le versement exigé, la durée au taux posé en hypothèse, et le seul
+  chiffre qui ne dépende d'aucune hypothèse : la durée par les seuls
+  versements. Le taux exigé est ce que l'équation réclame, **jamais ce
+  qu'un placement va rendre**, et le programme ne dit pas où le
+  trouver. Le taux net d'impôt se **résout**, il ne se déduit pas d'une
+  division par (1 − PFU) : le prélèvement frappe le gain une fois, à la
+  sortie, et le raccourci surestime l'effort.
+- **Une note du carnet interprétée.** `carnet.py` range ce que le
+  propriétaire écrit et n'y touche pas. Un **relevé** est autre chose :
+  une photo datée de ce que le moteur mesurait à l'instant où elle a
+  été figée, calculée **côté serveur**. Prise dans le navigateur, elle
+  photographierait ce que la PAGE affichait au lieu de ce que le moteur
+  a MESURÉ — et c'est exactement la confusion qu'un carnet doit
+  empêcher. Le carnet ne dit jamais « vous aviez raison ce jour-là » :
+  comparer une intention à un résultat demanderait de décider ce qui
+  compte comme réussite, ce qui est un avis, pas une mesure.
 - Une ligne de prédiction de prix. Le cône de dispersion existe : dérive
   fixée à zéro, il donne l'amplitude, jamais le sens.
 - Un take-profit **actif**. Les spécifications 2 et 3 disent « aucun
@@ -235,6 +286,13 @@ jeu de paramètres qui ne l'a pas produit.
 | `seance.py` | horaires des 9 places, fériés **calculés**, heure d'été suivie |
 | `strategie.py` | projection de réinvestissement, revue de ligne |
 | | la projection sépare **ce que vous versez** de **ce que le fonds capitalise tout seul**, année par année, et donne l'année où le second dépasse le premier |
+| `cerveau.py` | le modèle de langage du majordome, **sous contrat vérifié** |
+| | les faits d'abord, la prose ensuite ; le modèle ne voit jamais les cours ; chaque nombre de sa réponse est confronté au dossier envoyé et ceux qui n'y sont pas sont **nommés** à l'écran |
+| | la tolérance de cette comparaison vaut une **demi-unité du dernier chiffre écrit** : « 12 % » peut venir de 11,83 %, « 11,8 % » ne peut venir que d'entre 11,75 et 11,85. Une première version arrondissait les deux côtés à zéro décimale — 0,38 et 0,62 s'écrasaient sur 0 et 1, et « 73 % » tombait sur le même 1 que 0,62. Le contrôle validait un chiffre inventé |
+| `profil.py` | ce qui distingue une action d'un ETF monde, **mesuré** |
+| | la durée de détention n'est pas déclarée, elle est **rejouée** : les règles de la spécification tournent sur tout l'historique et on relève la durée des trades obtenus |
+| `objectif.py` | une cible chiffrée, résolue par l'arithmétique, jamais refusée |
+| `carnet.py` | vos notes, et des relevés datés de ce que le moteur mesurait |
 | `reglages.py` | **13 thèmes**, 13 effets visuels débrayables |
 | | un thème porte une `forme` : biseau, arrondi, équerres, densité, matière, typographie. Les valeurs par défaut **sont** l'apparence d'origine, donc un thème qui n'en redéfinit aucune ne change rien |
 | | **aucun thème clair** : ce n'est pas au goût du propriétaire, et `test_pages` le vérifie |
@@ -417,6 +475,43 @@ jeu de paramètres qui ne l'a pas produit.
 - Toute animation CSS doit porter sur `transform` ou `opacity`. Animer
   `top`, `left`, `width` ou `background-position` fait sauter la page
   entière. `test_pages` le vérifie.
+- **Un nom de classe par intention, et jamais celui d'une carte dans la
+  barre.** L'horloge portait `class="etat"` — le nom déjà pris par une
+  CARTE de l'accueil, qui vaut marge 10/12 px, écart intérieur 13 px et
+  une bordure. `.bar .etat` ne surchargeait que la police, donc la barre
+  héritait de la boîte d'une carte : **61 px de haut au lieu de 30**, et
+  ces 31 px étaient pris à la grille de contenu à chaque ouverture de
+  page. C'est le « mal dimensionné » signalé, et rien dans le rendu ne
+  le disait. `test_pages` compare les classes posées **dans** la barre à
+  celles posées ailleurs, et ne retient que les noms qu'une règle **sans
+  ancêtre** atteint des deux côtés — sans cette nuance il refuserait des
+  noms qui ne se rencontrent jamais, et un test qui crie pour rien finit
+  par ne plus être lu.
+- **Une règle CSS posée dans la feuille d'une AUTRE page ne s'applique
+  nulle part, et la page se dessine quand même.** `.app.crn-page` avait
+  atterri dans `CSS_STRAT`, que la page CARNET ne charge pas : les deux
+  panneaux se calaient sur leur contenu et un tiers de l'écran restait
+  vide sous eux. `test_pages` compare désormais, pour chaque page, les
+  classes de sa **coquille** (`<body>` et `.app`) aux règles de **sa**
+  feuille. Les classes `theme-…` en sont exemptées : un thème qui ne
+  redéfinit rien n'a légitimement aucune règle.
+- **Une grille dimensionne ses enfants par ses lignes EXPLICITES.**
+  Ajouter un panneau à une grille qui n'en déclarait qu'une envoie le
+  nouveau dans une ligne implicite calée sur son contenu. Sur la page
+  STRATEGIE, MES LIGNES partait ainsi sous le pli — et
+  `body{overflow:hidden}` le rendait **inatteignable**, pas seulement
+  mal placé.
+- **Un `except` muet efface une carte sans un mot.** La carte PROFIL
+  cherchait la série dans `data["jour"]`, qui porte les tableaux déjà
+  mis en forme pour le navigateur et non la colonne `close`.
+  L'exception tombait dans le `except` et la carte disparaissait en
+  silence. Le `except` trace, et le test regarde ce que la page
+  **produit** — la charge, ses lignes, son rappel — au lieu de se
+  contenter de voir la fonction définie.
+- **Une page absente du test n'a aucun défaut.** CARNET n'était pas
+  dans la liste de `test_pages`, donc ni son script mort ni sa grille
+  de travers ne pouvaient être vus. Toute page servie entre dans la
+  liste.
 - Les chaînes JavaScript dans le code Python doivent être des chaînes
   **brutes** (`r"""`). Sinon `\'` devient une apostrophe nue et casse
   tout le script de la page.
