@@ -1,210 +1,155 @@
-"""Portefeuille IBKR, en LECTURE SEULE.
+"""Le compte IBKR en ligne de commande, en LECTURE SEULE.
 
-Connexion a TWS ou IB Gateway via ib_insync.
+    py -m equity_scanner.portefeuille               # TWS, simulation
+    py -m equity_scanner.portefeuille --port 7496   # TWS, compte reel
+    py -m equity_scanner.portefeuille --mode gateway-papier
 
-    py -m pip install ib_insync
+Ce module ne parle PAS a IBKR lui-meme. Il passe par `ibkr.py`, la seule
+porte du programme vers le compte — et une porte qui ne s'ouvre qu'en
+lecture. Il en avait une autre, a lui, jusqu'a cette version ; elle
+etait bien en `readonly=True`, mais deux portes font deux verrous a
+surveiller, et `test_moteur` refuse desormais toute seconde porte.
 
-Dans TWS : Global Configuration > API > Settings > Enable ActiveX and
-Socket Clients. Ports :
+La reecriture a corrige deux defauts de l'ancienne version, trouves en
+la relisant pour la brancher :
 
-    7497  compte PAPIER   <- commence par la, toujours
-    7496  compte REEL
+- une place absente de sa petite table retombait sur un ticker SANS
+  suffixe, c'est-a-dire americain : une ligne cotee sur une place non
+  prevue devenait un autre titre, et son controle de sortie portait sur
+  le mauvais cours. `ibkr.vers_ticker()` ne devine pas, il le dit ;
+- le libelle du compte se deduisait du port — 7497 « PAPIER », tout le
+  reste « REEL » — si bien qu'IB Gateway en simulation (port 4002)
+  s'affichait REEL. Il se lit maintenant sur le numero de compte, qui
+  est la seule source sure.
 
-CE MODULE NE PASSE AUCUN ORDRE. La connexion est ouverte en readonly=True,
-ce qui interdit l'envoi cote IBKR lui-meme et pas seulement dans ce code.
-Un systeme non valide qui place des ordres tout seul est la facon la plus
-rapide de perdre de l'argent ; le jour ou l'execution automatique aura du
-sens, ce sera une decision separee et explicite.
-
-Ce module n'a PAS pu etre teste ici : il faut TWS en face. Lance-le d'abord
-sur le compte papier.
+Et une troisieme chose, qui n'etait pas un defaut de code mais de
+principe : chaque ligne portait un verdict CONSERVER / SURVEILLER /
+SORTIE. C'est exactement l'avis « garder / vendre » que le projet
+refuse d'afficher. Le rapport donne maintenant le COMPTE — combien des
+quatre conditions de sortie de la specification sont actives, et
+lesquelles — et rappelle que la specification ferme a la premiere
+atteinte. Citer sa propre regle n'est pas un verdict ; ecrire « vends »
+en serait un.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import time
 
-# TWS et IB Gateway n'ecoutent PAS sur les memes ports. C'est la cause
-# numero un des echecs de connexion.
-PORT_PAPIER = 7497          # TWS papier
-PORT_REEL = 7496            # TWS reel
-PORT_GW_PAPIER = 4002       # IB Gateway papier
-PORT_GW_REEL = 4001         # IB Gateway reel
+from . import ibkr as ik
 
-PORTS = {"tws-papier": PORT_PAPIER, "tws-reel": PORT_REEL,
-         "gateway-papier": PORT_GW_PAPIER, "gateway-reel": PORT_GW_REEL}
+PORTS = {"tws-papier": 7497, "tws-reel": 7496,
+         "gateway-papier": 4002, "gateway-reel": 4001}
+
+# Le temps laisse a TWS pour ouvrir la session et livrer le portefeuille.
+ATTENTE_MAX = 20.0
 
 
-@dataclass
-class Position:
-    ticker: str
-    quantite: float
-    prix_moyen: float
-    cours: float
-    devise: str
-    valeur: float
-    pnl: float
-    pnl_pct: float
-    sorties: dict = field(default_factory=dict)
-    erreur: str = ""
+def lit_compte(port: int, hote: str = "127.0.0.1", client: int = 72) -> dict:
+    """Ouvre une session en lecture seule, attend la premiere photo, ferme.
 
-    @property
-    def n_sorties(self) -> int:
-        return sum(1 for v in self.sorties.values() if v)
-
-    @property
-    def verdict(self) -> str:
-        if self.erreur:
-            return "DONNEES INDISPONIBLES"
-        n = self.n_sorties
-        if n >= 2:
-            return "SORTIE"
-        if n == 1:
-            return "SURVEILLER"
-        return "CONSERVER"
+    Numero de client distinct de celui de l'onglet IBKR (71) : les deux
+    peuvent tourner en meme temps sans que TWS refuse le second.
+    """
+    liaison = ik.Liaison()
+    liaison.demarre(hote, port, client)
+    t0, photo = time.time(), liaison.photo()
+    try:
+        while time.time() - t0 < ATTENTE_MAX:
+            time.sleep(0.25)
+            photo = liaison.photo()
+            if photo.get("etat") == "connecte" and photo.get("quand"):
+                break
+            if photo.get("etat") == "erreur" and time.time() - t0 > 3:
+                break
+    finally:
+        liaison.arrete()
+    return photo
 
 
-def connecte(port=PORT_PAPIER, host="127.0.0.1", cid=23):
-    from ib_insync import IB
-    ib = IB()
-    # readonly=True : IBKR refusera tout ordre venant de cette session.
-    ib.connect(host, port, clientId=cid, readonly=True, timeout=12)
-    return ib
+def conditions_sortie(lignes: list[dict]) -> dict:
+    """L'etat des quatre conditions de sortie, ligne par ligne.
 
+    Rend, pour chaque ticker CARRUOS, les conditions et leur etat — ou
+    le motif pour lequel on n'a pas pu les evaluer. Jamais de verdict.
+    """
+    from . import cache as ch
+    from .indicators import enrich
+    from .rules import evaluate_exit, market_regime_ok
 
-def resume_compte(ib) -> dict:
-    vals = {}
-    for v in ib.accountSummary():
-        if v.tag in ("NetLiquidation", "TotalCashValue", "AvailableFunds",
-                     "GrossPositionValue", "UnrealizedPnL", "RealizedPnL"):
-            try:
-                vals[v.tag] = float(v.value)
-            except ValueError:
-                pass
-        if v.tag == "NetLiquidation":
-            vals["devise"] = v.currency
-    return vals
-
-
-def positions(ib) -> list[Position]:
-    from ib_insync import util
-    out = []
-    for p in ib.portfolio():
-        c = p.contract
-        if c.secType != "STK":
+    out = {}
+    try:
+        bench_brut = ch.charge("SPY", annees=3)
+        marche_ok = bool(market_regime_ok(enrich(bench_brut)))
+    except Exception as exc:
+        return {"_erreur": f"indice de reference indisponible : {exc}"}
+    for l in lignes:
+        tk = l.get("ticker")
+        if not tk:
             continue
-        suf = {"SBF": ".PA", "IBIS": ".DE", "AEB": ".AS", "BVME": ".MI",
-               "BM": ".MC", "LSE": ".L", "EBS": ".SW"}.get(
-                   c.primaryExchange or "", "")
-        moyen = float(p.averageCost or 0)
-        cours = float(p.marketPrice or 0)
-        out.append(Position(
-            ticker=(c.symbol + suf).upper(),
-            quantite=float(p.position), prix_moyen=round(moyen, 2),
-            cours=round(cours, 2), devise=c.currency,
-            valeur=round(float(p.marketValue), 2),
-            pnl=round(float(p.unrealizedPNL or 0), 2),
-            pnl_pct=round((cours / moyen - 1) * 100, 2) if moyen else 0.0))
-    util  # silence linter
+        try:
+            d = enrich(ch.charge(tk, annees=3),
+                       bench_close=bench_brut["close"])
+            if len(d) < 220:
+                out[tk] = {"erreur": f"historique trop court ({len(d)} séances)"}
+                continue
+            out[tk] = {"conditions": evaluate_exit(d, marche_ok)}
+        except Exception as exc:
+            out[tk] = {"erreur": f"{type(exc).__name__}: {exc}"}
     return out
 
 
-def controle_sorties(pos: list[Position], charge_fn, bench_tk="SPY") -> list[Position]:
-    """Passe chaque ligne detenue au crible des regles de sortie.
-
-    C'est le seul usage vraiment utile du portefeuille tant que la Phase 0
-    n'a rien valide : Carruos ne te dit pas quoi acheter, il te dit si une
-    ligne que tu detiens deja a declenche une condition de sortie.
-    """
-    from .indicators import enrich
-    from .rules import evaluate_exit, market_regime_ok
-    try:
-        bench_brut = charge_fn(bench_tk)
-        bench = enrich(bench_brut)
-        marche_ok = bool(market_regime_ok(bench))
-    except Exception as exc:
-        for p in pos:
-            p.erreur = f"indice indisponible : {exc}"
-        return pos
-
-    for p in pos:
-        try:
-            d = enrich(charge_fn(p.ticker), bench_close=bench_brut["close"])
-            if len(d) < 220:
-                p.erreur = f"historique trop court ({len(d)} seances)"
-                continue
-            p.sorties = evaluate_exit(d, marche_ok)
-        except Exception as exc:
-            p.erreur = f"{type(exc).__name__}: {exc}"
-    return pos
-
-
-def etat(port=PORT_PAPIER, charge_fn=None) -> dict:
-    """Point d'entree unique : ouvre, lit, ferme."""
-    from . import data as dl
-    charge_fn = charge_fn or (lambda tk: dl.load_yf(tk, years=3))
-    ib = connecte(port)
-    try:
-        compte = resume_compte(ib)
-        pos = controle_sorties(positions(ib), charge_fn)
-    finally:
-        ib.disconnect()
-    return {"compte": compte, "positions": pos,
-            "mode": "PAPIER" if port == PORT_PAPIER else "REEL"}
-
-
-def rapport(port=PORT_PAPIER) -> None:
-    """    py -m equity_scanner.portefeuille"""
-    try:
-        e = etat(port)
-    except Exception as exc:
-        print(f"\n  Connexion impossible sur le port {port} : "
-              f"{type(exc).__name__}: {exc}")
-        print("\n  A verifier, dans l'ordre :")
-        print("    1. TWS ou IB Gateway est bien LANCE et connecte")
-        print("    2. l'API est activee (Settings > API > Enable Socket Clients)")
-        print("    3. le port correspond au programme utilise :")
-        print("         TWS         papier 7497   reel 7496")
-        print("         IB Gateway  papier 4002   reel 4001")
-        print("       -> py -m equity_scanner.portefeuille --port 4002")
+def rapport(port: int) -> None:
+    photo = lit_compte(port)
+    if photo.get("etat") != "connecte":
+        print(f"\n  {photo.get('message') or 'Connexion impossible.'}\n")
         return
 
-    c = e["compte"]
-    dev = c.get("devise", "")
-    print(f"\n  COMPTE {e['mode']}")
-    print(f"    valeur nette      {c.get('NetLiquidation', 0):,.0f} {dev}")
-    print(f"    liquidites        {c.get('TotalCashValue', 0):,.0f} {dev}")
-    print(f"    disponible        {c.get('AvailableFunds', 0):,.0f} {dev}")
-    print(f"    plus-value latente {c.get('UnrealizedPnL', 0):+,.0f} {dev}")
+    print(f"\n  COMPTE {photo.get('numero')} — "
+          f"{'SIMULATION' if photo.get('simulation') else 'RÉEL'}")
+    lib = dict(ik.CHAMPS_COMPTE)
+    for cle, v in (photo.get("compte") or {}).items():
+        dev = "" if v.get("devise") == "BASE" else v.get("devise", "")
+        if v.get("valeur") is not None:
+            print(f"    {lib.get(cle, cle):<24}{v['valeur']:>14,.0f} {dev}")
 
-    pos = e["positions"]
-    if not pos:
-        print("\n  Aucune position en actions.\n")
+    lignes = photo.get("lignes") or []
+    if not lignes:
+        print("\n  Aucune position.\n")
         return
-    print(f"\n  {len(pos)} POSITION(S)")
-    print(f"    {'TITRE':<12}{'QTE':>7}{'MOYEN':>10}{'COURS':>10}"
-          f"{'P&L':>11}{'':>3}VERDICT")
-    for p in sorted(pos, key=lambda x: -x.n_sorties):
-        print(f"    {p.ticker:<12}{p.quantite:>7.0f}{p.prix_moyen:>10.2f}"
-              f"{p.cours:>10.2f}{p.pnl_pct:>10.1f}%   {p.verdict}")
-        actives = [k for k, v in p.sorties.items() if v]
-        if actives:
-            print(f"                 -> {', '.join(actives)}")
-        if p.erreur:
-            print(f"                 -> {p.erreur}")
-    print("\n  Lecture seule. Aucun ordre n'est passe par ce programme.\n")
+    etats = conditions_sortie(lignes)
+    print(f"\n  {len(lignes)} POSITION(S)")
+    print(f"    {'TITRE':<12}{'QTÉ':>7}{'PRU':>10}{'COURS':>10}  "
+          f"{'TYPE DE COURS':<16}CONDITIONS DE SORTIE")
+    for l in lignes:
+        nom = l.get("ticker") or l.get("libelle", "?")
+        e = etats.get(l.get("ticker") or "", {})
+        if e.get("conditions"):
+            actives = [k for k, v in e["conditions"].items() if v]
+            etat = f"{len(actives)} sur {len(e['conditions'])} actives"
+        elif e.get("erreur"):
+            actives, etat = [], e["erreur"]
+        else:
+            actives, etat = [], "sans correspondance sûre avec un ticker"
+        print(f"    {nom:<12}{(l.get('quantite') or 0):>7.0f}"
+              f"{(l.get('prix_revient') or 0):>10.2f}"
+              f"{(l.get('cours') or 0):>10.2f}  "
+              f"{l.get('type_cours_libelle', ''):<16}{etat}")
+        for a in actives:
+            print(f"                 · {a}")
+    if etats.get("_erreur"):
+        print(f"\n  {etats['_erreur']}")
+    print("\n  La spécification ferme à la PREMIÈRE condition atteinte.")
+    print(f"  {ik.RAPPEL}\n")
 
 
 if __name__ == "__main__":
     import argparse
-    a = argparse.ArgumentParser()
-    a.add_argument("--mode", choices=list(PORTS), default="tws-papier",
-                   help="quel programme et quel compte")
+    a = argparse.ArgumentParser(description="Le compte IBKR, en lecture seule")
+    a.add_argument("--mode", choices=list(PORTS), default="tws-papier")
     a.add_argument("--port", type=int, default=None,
                    help="port explicite, prioritaire sur --mode")
-    a.add_argument("--reel", action="store_true", help="raccourci pour tws-reel")
     o = a.parse_args()
-    port = o.port or (PORT_REEL if o.reel else PORTS[o.mode])
-    print(f"  Connexion sur le port {port} "
-          f"({'REEL' if port in (PORT_REEL, PORT_GW_REEL) else 'PAPIER'})")
-    rapport(port)
+    p = o.port or PORTS[o.mode]
+    print(f"  Connexion sur le port {p} ({ik.libelle_port(p)})")
+    rapport(p)

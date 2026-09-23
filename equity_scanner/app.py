@@ -2096,6 +2096,74 @@ function detailTechnique(r, tenu){
 # --- Page STRATEGIE ---------------------------------------------------
 # Deux colonnes : a gauche de l'arithmetique, a droite des faits mesures.
 # Aucune animation de mise en page : uniquement transform et opacity.
+CSS_IBKR = """
+.app.ibk-page{grid-template-rows:auto minmax(0,1fr)}
+.ibk{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);
+ grid-template-rows:minmax(0,1fr);gap:var(--gap);min-height:0;overflow:hidden}
+@media(max-width:1000px){.ibk{grid-template-columns:minmax(0,1fr);
+ grid-template-rows:auto minmax(0,1fr)}}
+.ibk>section{min-width:0;min-height:0;display:flex;flex-direction:column}
+.ibk .corps{overflow:auto;min-height:0}
+.ibk input,.ibk select{background:#070d13;border:1px solid var(--bord);
+ color:var(--txt-fort);padding:7px 9px;font:400 12px inherit;min-width:0}
+.ibk .lg{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.ibk .lg>input,.ibk .lg>select{flex:1 1 110px}
+.ibk .lg button{flex:0 1 auto;white-space:nowrap}
+.ibk label.ck{display:flex;gap:7px;align-items:center;font-size:11px;
+ color:var(--txt-doux);margin:4px 0 10px}
+/* L'etat de la liaison. Le compte REEL est signale a part : se croire
+   sur le compte de simulation en regardant le reel est l'erreur a
+   rendre impossible. */
+.ibk-etat{padding:11px 12px;border:1px solid var(--bord);margin-bottom:11px;
+ font:500 11px ui-monospace,monospace;letter-spacing:.12em;line-height:1.55}
+.ibk-etat .m{display:block;margin-top:5px;font:400 11px/1.55 inherit;
+ letter-spacing:0;color:var(--txt-doux);text-transform:none}
+.ibk-etat.connecte{border-color:var(--bord-fort);color:var(--acc)}
+.ibk-etat.reel{border-color:#c9b28a;color:#c9b28a;background:rgba(40,32,14,.35)}
+.ibk-etat.erreur{border-color:#7d2530;color:#f0a0a8;background:rgba(40,10,14,.35)}
+.ibk-etat.connexion{color:var(--txt-faible)}
+.ibk-tuiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,135px),1fr));
+ gap:7px;margin-bottom:10px}
+.ibk-tuiles>div{min-width:0;border:1px solid var(--bord);padding:7px 9px}
+.ibk-tuiles .n{font:400 8px ui-monospace,monospace;letter-spacing:.18em;
+ color:var(--txt-faible);text-transform:uppercase}
+.ibk-tuiles .v{margin-top:3px;font:500 14px ui-monospace,monospace;
+ color:var(--txt-fort);font-variant-numeric:tabular-nums;white-space:nowrap;
+ overflow:hidden;text-overflow:ellipsis}
+.ibk-tuiles .v.pos{color:var(--pos)}.ibk-tuiles .v.neg{color:var(--neg)}
+.ibk-alerte{border:1px solid #7d2530;border-left:3px solid var(--neg);
+ background:rgba(40,10,14,.42);padding:9px 11px;margin-bottom:10px;
+ font-size:12px;line-height:1.6;color:#f5c2c7}
+.ibk-alerte b{color:#fff}
+.ibk-note{border:1px dashed var(--bord);padding:7px 10px;margin-bottom:10px;
+ font-size:11px;line-height:1.55;color:var(--txt-faible)}
+table.ibk-t{width:100%;border-collapse:collapse;font:400 12px ui-monospace,monospace;
+ font-variant-numeric:tabular-nums}
+.ibk-t th{text-align:right;padding:6px 7px;font-weight:500;font-size:8.5px;
+ letter-spacing:.16em;color:var(--txt-faible);border-bottom:1px solid var(--bord);
+ white-space:nowrap}
+.ibk-t td{text-align:right;padding:6px 7px;border-bottom:1px solid #0b2028;
+ white-space:nowrap}
+.ibk-t th:first-child,.ibk-t td:first-child{text-align:left}
+.ibk-t td.tk{color:var(--acc);cursor:pointer}
+.ibk-t td.tk.sans{color:var(--txt-faible);cursor:default}
+.ibk-t td.pos{color:var(--pos)}.ibk-t td.neg{color:var(--neg)}
+.ibk-t tr.sous td{background:rgba(40,10,14,.35)}
+/* Le type de cours, colle au chiffre : un cours differe qui ne le dit
+   pas est un mensonge sur la seule chose qui compte ici. */
+.tc{display:inline-block;margin-left:6px;padding:1px 5px;
+ font:500 7.5px ui-monospace,monospace;letter-spacing:.14em;
+ border:1px solid var(--bord);color:var(--txt-faible);vertical-align:1px}
+.tc.reel{color:var(--pos);border-color:rgba(52,211,153,.45)}
+.tc.differe,.tc.differe_fige{color:#c9b28a;border-color:rgba(201,178,138,.45)}
+.tc.fige{color:var(--txt-doux)}
+.ibk-maj{margin-top:8px;font:400 9px ui-monospace,monospace;letter-spacing:.14em;
+ color:var(--txt-faible)}
+.ibk-rap li{margin:3px 0;font-size:12px;color:var(--txt-doux)}
+.ibk-rap ul{margin:4px 0 9px 16px;padding:0}
+.ibk-rap .ok{color:var(--pos);font-size:12px}
+"""
+
 CSS_CARNET = """
 /* Cette page n'a que deux enfants dans `.app` : la barre et la grille.
    Le gabarit de base en declare trois, et la troisieme piste — vide —
@@ -2625,7 +2693,7 @@ class Bruce(http.server.BaseHTTPRequestHandler):
         if u.path not in ("/api/reglages", "/api/positions",
                           "/api/cle", "/api/validation", "/api/phase0",
                           "/api/carnet", "/api/cerveau",
-                          "/api/cerveau/config"):
+                          "/api/cerveau/config", "/api/ibkr"):
             return self._envoie("<h1>404</h1>", code=404)
         try:
             n = int(self.headers.get("Content-Length") or 0)
@@ -2636,6 +2704,8 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                 return self._json(_carnet_ecrit(corps))
             if u.path == "/api/cerveau":
                 return self._json(_cerveau(corps))
+            if u.path == "/api/ibkr":
+                return self._json(_ibkr_commande(corps))
             if u.path == "/api/cerveau/config":
                 return self._json(_cerveau_config(corps))
             if u.path == "/api/cle":
@@ -2728,6 +2798,10 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                 return self._envoie(_page_palmares())
             if u.path == "/carnet":
                 return self._envoie(_page_carnet())
+            if u.path == "/ibkr":
+                return self._envoie(_page_ibkr())
+            if u.path == "/api/ibkr":
+                return self._json(_ibkr_etat())
             if u.path == "/api/carnet":
                 return self._json(_carnet(q))
             if u.path == "/api/cerveau/etat":
@@ -3792,6 +3866,17 @@ def _mes_lignes() -> list:
     fige un releve est un titre qu'il suit.
     """
     vus, out = set(), []
+    # Le compte IBKR d'abord, s'il est branche : c'est la verite sur ce
+    # qui est detenu, le registre local n'en est qu'une copie.
+    try:
+        from . import ibkr as ik
+        for l in ik.LIAISON.photo().get("lignes", []):
+            t = l.get("ticker")
+            if t and t.upper() not in vus:
+                vus.add(t.upper())
+                out.append(t.upper())
+    except Exception:
+        pass
     try:
         for t in ps.tickers():
             if t and t.upper() not in vus:
@@ -3892,6 +3977,317 @@ def _objectif(q: dict) -> dict:
             out["frequence"] = {"assez": False,
                                 "erreur": f"{type(exc).__name__}: {exc}"}
     return out
+
+
+# ---------------------------------------------------------------------
+# IBKR : le compte en direct, en lecture seule
+# ---------------------------------------------------------------------
+
+JS_IBKR = r"""
+function $(i){ return document.getElementById(i); }
+function e(s){ return (s==null?'':String(s))
+ .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function nb(x, d){
+ if(x==null || !isFinite(x)) return '—';
+ return Number(x).toLocaleString('fr-FR',{minimumFractionDigits:d==null?2:d,
+   maximumFractionDigits:d==null?2:d});
+}
+function sg(x){ return (x==null||!isFinite(x)) ? '' : (x>=0 ? 'pos' : 'neg'); }
+var IBK_TITRE = document.title, IBK_CFG_POSEE = false;
+
+function ibkCfg(j){
+ // Les champs ne se remplissent qu'une fois : sinon chaque
+ // rafraichissement ecraserait ce qu'on est en train de taper.
+ if(IBK_CFG_POSEE || !j.config) return;
+ IBK_CFG_POSEE = true;
+ // Session ouverte : les champs montrent CELLE-CI, pas le dernier
+ // reglage enregistre.
+ var port = (j.etat==='connecte' && j.port) ? j.port : j.config.port;
+ $('ihote').value = (j.etat==='connecte' && j.hote) ? j.hote : j.config.hote;
+ var o = '';
+ (j.ports||[]).forEach(function(p){
+  o += '<option value="'+p.port+'"'+(p.port==port?' selected':'')
+     +'>'+p.port+' — '+e(p.libelle)+'</option>'; });
+ $('iport').innerHTML = o;
+ $('iclient').value = j.config.client;
+ $('iauto').checked = !!j.config.auto;
+}
+
+function ibkEtat(j){
+ var b = $('ietat'), cls = j.etat || 'deconnecte', txt;
+ if(j.etat==='connecte'){
+  txt = (j.simulation ? 'CONNECTÉ — COMPTE DE SIMULATION' : 'CONNECTÉ — COMPTE RÉEL')
+      + ' · ' + e(j.numero);
+  if(!j.simulation) cls += ' reel';
+ }else if(j.etat==='connexion'){ txt = 'CONNEXION EN COURS';
+ }else if(j.etat==='erreur'){ txt = 'PAS DE CONNEXION';
+ }else{ txt = 'DÉCONNECTÉ'; }
+ b.className = 'ibk-etat ' + cls;
+ var m = j.message || '';
+ if(j.etat==='connecte' && j.port) m += ' ' + (j.libelle_port||'') + '.';
+ // Le reglage affiche doit etre celui de la session en cours. S'ils
+ // different — reglage retouche sans reconnecter — on le dit.
+ var sel = $('iport');
+ if(j.etat==='connecte' && sel && sel.value && Number(sel.value)!==Number(j.port))
+  m += ' Attention : le port choisi ci-dessous ('+sel.value+') n\'est pas '
+     + 'celui de la session en cours ('+j.port+'). Il ne servira qu\'à la '
+     + 'prochaine connexion.';
+ b.innerHTML = txt + (m ? '<span class="m">'+e(m)+'</span>' : '');
+}
+
+function ibkCompte(j){
+ var h = '', c = j.compte || {};
+ (j.champs||[]).forEach(function(f){
+  var v = c[f.cle]; if(!v) return;
+  h += '<div><div class="n">'+e(f.libelle)+'</div><div class="v">'
+     + nb(v.valeur, 0)+' '+(v.devise==='BASE'?'':e(v.devise))+'</div></div>';
+ });
+ var p = j.pnl || {};
+ [['P&L du jour', p.jour], ['Latent', p.latent], ['Réalisé', p.realise]]
+  .forEach(function(x){
+   if(x[1]==null) return;
+   h += '<div><div class="n">'+e(x[0])+'</div><div class="v '+sg(x[1])+'">'
+      + (x[1]>=0?'+':'')+nb(x[1], 0)+'</div></div>'; });
+ $('icompte').innerHTML = h || '<p class="ex">Le compte s\'affichera '
+   + 'une fois la connexion établie.</p>';
+}
+
+function ibkLignes(j){
+ var L = j.lignes || [], st = j.stops || {}, h = '';
+ // Les franchissements d'abord : c'est pour eux qu'on ouvre l'onglet.
+ var F = j.franchissements || [];
+ if(F.length){
+  h += '<div class="ibk-alerte">';
+  F.forEach(function(f){
+   h += '<b>'+e(f.ticker)+'</b> : cours '+nb(f.cours)+' — sous le stop que '
+      + 'vous avez inscrit, '+nb(f.stop)+' ('+(f.ecart_pct>0?'+':'')
+      + nb(f.ecart_pct)+' %). Cours '+e(f.type_cours).toLowerCase()+'.<br>'; });
+  h += 'Ce sont des faits. La décision se prend sur IBKR.</div>';
+ }
+ var nf = j.sans_fraicheur || [];
+ if(L.length && nf.length){
+  h += '<div class="ibk-note">Pas en temps réel : '+e(nf.join(', '))
+     + '. Sans l\'abonnement de données de la place, IBKR donne un cours '
+     + 'différé de 15 à 20 minutes — chaque cours porte son type ci-dessous.</div>';
+ }
+ if(!L.length){
+  h += (j.etat==='connecte')
+   ? '<p class="ex">Aucune position ouverte sur ce compte.</p>'
+   : '<p class="ex">Les positions s\'afficheront ici, en direct, une fois '
+     + 'TWS ou IB Gateway connecté.</p>';
+  $('ilignes').innerHTML = h; return;
+ }
+ h += '<table class="ibk-t"><thead><tr><th>TITRE</th><th>QTÉ</th><th>PRU</th>'
+    + '<th>COURS</th><th>VALEUR</th><th>LATENT</th><th>JOUR</th>'
+    + '<th>STOP INSCRIT</th><th>ÉCART</th></tr></thead><tbody>';
+ L.forEach(function(l){
+  var s = l.ticker ? st[l.ticker] : null;
+  var ec = (s && l.cours) ? (l.cours/s - 1)*100 : null;
+  var sous = (s && l.cours && ((l.quantite>=0 && l.cours<=s)
+             || (l.quantite<0 && l.cours>=s)));
+  h += '<tr'+(sous?' class="sous"':'')+'>'
+     + (l.ticker
+        ? '<td class="tk" data-vers="/graphique?ticker='+encodeURIComponent(l.ticker)
+          +'" data-fen="carruos-'+e(l.ticker)+'" title="'+e(l.libelle)+'">'
+          + e(l.ticker)+'</td>'
+        : '<td class="tk sans" title="Aucune correspondance sûre avec un '
+          +'ticker CARRUOS : la place n\'est pas dans la table.">'
+          + e(l.libelle)+'</td>')
+     + '<td>'+nb(l.quantite, 0)+'</td>'
+     + '<td>'+nb(l.prix_revient)+'</td>'
+     + '<td>'+nb(l.cours)+'<span class="tc '+e(l.type_cours)+'">'
+       + e(l.type_cours_libelle)+'</span></td>'
+     + '<td>'+nb(l.valeur, 0)+' '+e(l.devise)+'</td>'
+     + '<td class="'+sg(l.latent)+'">'+(l.latent>=0?'+':'')+nb(l.latent, 0)+'</td>'
+     + '<td class="'+sg(l.pnl_jour)+'">'+(l.pnl_jour==null?'—'
+       :(l.pnl_jour>=0?'+':'')+nb(l.pnl_jour, 0))+'</td>'
+     + '<td>'+(s?nb(s):'—')+'</td>'
+     + '<td class="'+sg(ec)+'">'+(ec==null?'—':(ec>=0?'+':'')+nb(ec)+' %')+'</td>'
+     + '</tr>';
+ });
+ h += '</tbody></table>';
+ h += '<div class="ibk-maj">MIS À JOUR À '+e(j.quand||'—')+'</div>';
+ $('ilignes').innerHTML = h;
+}
+
+function ibkRap(j){
+ var r = j.rapprochement || {}, h = '';
+ if(!(j.lignes||[]).length){ $('irap').innerHTML =
+   '<p class="ex">Rien à rapprocher tant que le compte n\'est pas lu.</p>'; return; }
+ if(r.accord){ h = '<p class="ok">Le registre de CARRUOS et le compte IBKR '
+   + 'contiennent les mêmes lignes, en mêmes quantités.</p>'; }
+ else{
+  if((r.absents_registre||[]).length)
+   h += 'Au compte, absents du registre :<ul>'
+      + r.absents_registre.map(function(t){return '<li>'+e(t)+'</li>';}).join('')
+      + '</ul>';
+  if((r.absents_ibkr||[]).length)
+   h += 'Au registre, absents du compte :<ul>'
+      + r.absents_ibkr.map(function(t){return '<li>'+e(t)+'</li>';}).join('')
+      + '</ul>';
+  if((r.ecarts_quantite||[]).length)
+   h += 'Quantités différentes :<ul>' + r.ecarts_quantite.map(function(x){
+      return '<li>'+e(x.ticker)+' — compte '+nb(x.ibkr,0)+', registre '
+        + nb(x.registre,0)+'</li>';}).join('') + '</ul>';
+ }
+ if((r.sans_correspondance||[]).length)
+  h += 'Sans correspondance sûre avec un ticker CARRUOS :<ul>'
+     + r.sans_correspondance.map(function(t){return '<li>'+e(t)+'</li>';}).join('')
+     + '</ul>';
+ $('irap').innerHTML = h;
+}
+
+async function ibkLit(){
+ try{
+  var j = await (await fetch('/api/ibkr')).json();
+  ibkCfg(j); ibkEtat(j); ibkCompte(j); ibkLignes(j); ibkRap(j);
+  var n = (j.franchissements||[]).length;
+  document.title = n ? ('('+n+') '+IBK_TITRE) : IBK_TITRE;
+ }catch(err){
+  $('ietat').className = 'ibk-etat erreur';
+  $('ietat').textContent = 'CARRUOS ne répond plus : ' + err.message;
+ }
+}
+
+async function ibkCommande(action){
+ $('imsg').textContent = '';
+ var c = {action:action, hote:($('ihote').value||'').trim(),
+          port:$('iport').value, client:$('iclient').value,
+          auto:$('iauto').checked};
+ try{
+  var j = await (await fetch('/api/ibkr',{method:'POST',
+    headers:{'Content-Type':'application/json'}, body:JSON.stringify(c)})).json();
+  if(j.message) $('imsg').textContent = j.message;
+ }catch(err){ $('imsg').textContent = err.message; }
+ ibkLit();
+}
+
+// Deux secondes quand la fenetre est au premier plan, quinze sinon :
+// le titre de la fenetre porte le nombre de stops franchis, donc il
+// doit rester a jour meme quand on regarde ailleurs.
+var IBK_T = null;
+function ibkRythme(){
+ if(IBK_T) clearInterval(IBK_T);
+ IBK_T = setInterval(ibkLit, document.visibilityState==='visible' ? 2000 : 15000);
+}
+document.addEventListener('visibilitychange', ibkRythme);
+document.addEventListener('DOMContentLoaded', function(){ ibkLit(); ibkRythme(); });
+"""
+
+
+def _page_ibkr() -> str:
+    """L'onglet IBKR : le compte en direct, en lecture seule.
+
+    La page ne parle jamais a IBKR elle-meme. Elle lit, toutes les deux
+    secondes, la photo que tient `ibkr.LIAISON` — la seule porte vers le
+    compte, et une porte qui ne s'ouvre qu'en lecture.
+    """
+    from . import ibkr as ik
+    reg = rg.charge()
+    return (
+        '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<link rel="icon" type="image/svg+xml" href="/carruos.svg">'
+        '<link rel="alternate icon" href="/favicon.ico">'
+        f"<title>{NOM} - IBKR</title>"
+        f"<style>{rg.variables(reg)}{CSS}{CSS_IBKR}</style></head>"
+        f'<body class="{rg.classes(reg)}"{rg.corps_attrs(reg)}>'
+        + rg.tiroir_html(reg)
+        + hd.fond(TRACE_D)
+        + '<div class="app ibk-page">'
+        + hd.barre(TRACE_D, NOM, actif="ibkr", soustitre="COMPTE IBKR")
+        + '<div class="ibk">'
+
+          '<section class="pan"><div class="trait"><i></i></div>'
+          '<h2>CONNEXION</h2><div class="corps">'
+          '<div class="ibk-etat" id="ietat">&mdash;</div>'
+          '<div class="lg"><input id="ihote" placeholder="127.0.0.1" '
+          'title="Adresse de TWS ou d\'IB Gateway"></div>'
+          '<div class="lg"><select id="iport"></select>'
+          '<input id="iclient" type="number" min="0" style="max-width:90px" '
+          'title="Numéro de client : n\'importe quel nombre libre"></div>'
+          '<label class="ck"><input type="checkbox" id="iauto"> '
+          'se rebrancher au lancement de CARRUOS</label>'
+          '<div class="lg">'
+          '<button onclick="ibkCommande(\'connecte\')">CONNECTER</button>'
+          '<button class="sec" onclick="ibkCommande(\'deconnecte\')">'
+          'DÉCONNECTER</button></div>'
+          '<div class="msg" id="imsg"></div>'
+          '<p class="ex"><b>Dans TWS :</b> Fichier &rarr; Configuration '
+          'globale &rarr; API &rarr; Paramètres. Cocher <b>Enable ActiveX '
+          'and Socket Clients</b>, et aussi <b>Read-Only API</b> : un '
+          'second verrou, côté IBKR, en plus de celui de CARRUOS. Le port '
+          'doit être celui choisi ci-dessus.</p>'
+          f'<p class="ex">{html.escape(ik.RAPPEL)}</p>'
+          '<h2 style="margin-top:14px">LE COMPTE</h2>'
+          '<div class="ibk-tuiles" id="icompte"></div>'
+          '</div></section>'
+
+          '<section class="pan"><div class="trait"><i></i></div>'
+          '<h2>POSITIONS &mdash; EN DIRECT</h2><div class="corps">'
+          '<div id="ilignes"></div>'
+          '<h2 style="margin-top:16px">RAPPROCHEMENT AVEC LE REGISTRE</h2>'
+          '<div class="ibk-rap" id="irap"></div>'
+          '<div class="lg" style="margin-top:6px">'
+          '<button class="sec" onclick="ibkCommande(\'recopie\')">'
+          'RECOPIER LE COMPTE DANS LE REGISTRE</button></div>'
+          '<p class="ex">La recopie crée ou met à jour les lignes du registre '
+          'local à partir du compte — quantité et prix de revient — et '
+          '<b>conserve les stops que vous y avez inscrits</b>. Elle '
+          'n\'efface rien : une ligne du registre absente du compte reste '
+          'où elle est, c\'est à vous de la retirer. Rien de tout cela '
+          'ne part vers IBKR.</p>'
+          '</div></section>'
+
+          '</div></div>'
+        + f"<script>{hd.BARRE_JS}{JS_IBKR}{rg.tiroir_js()}</script>"
+          "</body></html>")
+
+
+def _ibkr_etat() -> dict:
+    from . import ibkr as ik
+    return ik.etat(ps.charge())
+
+
+def _ibkr_commande(c: dict) -> dict:
+    """Connecter, deconnecter, recopier dans le registre local.
+
+    Aucune de ces trois commandes n'envoie quoi que ce soit a IBKR en
+    dehors de l'ouverture d'une session en lecture seule.
+    """
+    from . import ibkr as ik
+    action = (c.get("action") or "").strip()
+    if action == "connecte":
+        try:
+            cfg = ik.pose_config(hote=c.get("hote") or "127.0.0.1",
+                                 port=int(c.get("port") or 7497),
+                                 client=int(c.get("client") or 71),
+                                 auto=bool(c.get("auto")))
+        except (TypeError, ValueError):
+            return {"ok": False, "message": "Port ou numéro de client invalide."}
+        ik.LIAISON.demarre(cfg["hote"], cfg["port"], cfg["client"])
+        return {"ok": True, "message": f"Connexion à {cfg['hote']}:{cfg['port']} "
+                                       f"({ik.libelle_port(cfg['port'])})…"}
+    if action == "deconnecte":
+        ik.LIAISON.arrete()
+        ik.pose_config(auto=False)
+        return {"ok": True, "message": "Déconnecté. Le rebranchement "
+                                       "automatique est coupé."}
+    if action == "recopie":
+        photo = ik.LIAISON.photo()
+        lignes = [l for l in photo.get("lignes", []) if l.get("ticker")]
+        if not lignes:
+            return {"ok": False, "message": "Rien à recopier : aucune "
+                                            "ligne lue sur le compte."}
+        existants = {r["ticker"]: r for r in ps.charge()}
+        for l in lignes:
+            ancien = existants.get(l["ticker"], {})
+            ps.ajoute(l["ticker"], l.get("quantite") or 0,
+                      l.get("prix_revient") or 0,
+                      stop=ancien.get("stop"), date=ancien.get("date"))
+        return {"ok": True, "message": f"{len(lignes)} ligne(s) recopiée(s) "
+                                       f"dans le registre, stops conservés."}
+    return {"ok": False, "message": "Commande inconnue."}
 
 
 def _page_carnet() -> str:
@@ -4290,6 +4686,13 @@ def main():
     srv = http.server.ThreadingHTTPServer(("127.0.0.1", port), Bruce)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     url = f"http://127.0.0.1:{port}/"
+    # Le compte IBKR, si la derniere session l'avait demande. En arriere-
+    # plan : un TWS absent ne doit pas retarder l'ouverture de la fenetre.
+    try:
+        from . import ibkr as ik
+        ik.demarre_auto()
+    except Exception:
+        pass
     ico = _icone()
     try:
         # Identite d'application distincte : la barre des taches regroupe

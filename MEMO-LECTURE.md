@@ -561,6 +561,70 @@ donc elle n'alimente pas la veille.
 
 ---
 
+## 5 nonies. L'onglet IBKR — `ibkr.py`
+
+**CARRUOS lit votre compte ; il ne peut pas y passer d'ordre.** Pour
+acheter ou vendre : IBKR.
+
+### Brancher
+
+1. Lancer **TWS** ou **IB Gateway**, et s'y connecter.
+2. Dans TWS : Fichier → Configuration globale → API → Paramètres.
+   Cocher **Enable ActiveX and Socket Clients**, et aussi **Read-Only
+   API** — un second verrou, côté IBKR.
+3. Dans l'onglet IBKR : choisir le port, puis CONNECTER.
+
+| Port | Programme | Compte |
+|---|---|---|
+| **7497** | TWS | simulation |
+| **7496** | TWS | réel |
+| **4002** | IB Gateway | simulation |
+| **4001** | IB Gateway | réel |
+
+Le libellé « simulation » ou « réel » en tête de page ne vient **pas**
+du port : il se lit sur le numéro de compte (« DU… » pour la
+simulation). Un compte réel s'affiche en or.
+
+### Ce que « en direct » veut dire
+
+Chaque cours porte son type, tel que TWS le déclare :
+
+| Étiquette | Sens |
+|---|---|
+| **TEMPS RÉEL** | le compte a l'abonnement de données de cette place |
+| **DIFFÉRÉ** | pas d'abonnement : 15 à 20 minutes de retard |
+| **FIGÉ** | hors séance : le dernier cours connu |
+| **FLUX DU COMPTE (≈ 3 MIN)** | aucun tick reçu : la valeur vient du flux « compte » d'IBKR, rafraîchi environ toutes les trois minutes |
+
+La page se relit toutes les **2** secondes quand elle est au premier
+plan, toutes les **15** sinon. Le titre de la fenêtre porte le nombre
+de stops franchis — « (1) CARRUOS - IBKR » — pour se voir même quand on
+regarde ailleurs.
+
+TWS se relance tout seul une fois par jour : la liaison se reconnecte
+d'elle-même, en attendant **3**, puis 6, 15, 30 et **60** secondes
+entre deux essais.
+
+### Stop franchi
+
+La ligne passe en rouge quand le cours est sous le stop **que vous avez
+inscrit** dans le registre — pas un stop calculé par le programme. Le
+type du cours est rappelé à côté : un cours différé sous un stop n'est
+pas la même information qu'un cours en temps réel sous ce stop.
+
+### Rapprochement avec le registre
+
+Trois listes : au compte mais absents du registre, au registre mais
+absents du compte, quantités différentes. Le bouton **RECOPIER** crée ou
+met à jour le registre local depuis le compte — quantité et prix de
+revient — **en conservant vos stops**. Il n'efface rien, et rien ne part
+vers IBKR.
+
+Quand l'onglet est branché, la **veille** rapproche l'actualité des
+lignes du compte lui-même, pas seulement de celles du registre.
+
+---
+
 ## 6. Ce que le programme refuse d'afficher
 
 Rappel, parce que c'est la colonne vertébrale du projet :

@@ -222,6 +222,33 @@ jeu de paramètres qui ne l'a pas produit.
   empêcher. Le carnet ne dit jamais « vous aviez raison ce jour-là » :
   comparer une intention à un résultat demanderait de décider ce qui
   compte comme réussite, ce qui est un avis, pas une mesure.
+- **Un ordre passé depuis CARRUOS.** L'onglet IBKR **lit** le compte
+  en direct ; il ne peut rien y envoyer, et ce n'est pas une promesse
+  mais trois verrous. La session est ouverte en `readonly=True`, le
+  drapeau de l'API d'IBKR elle-même : TWS refuse tout ordre qui en
+  vient. Aucun nom d'ordre (`placeOrder`, `cancelOrder`, `Order`,
+  `LimitOrder`… la liste `ibkr.ORDRES_INTERDITS`) n'apparaît dans
+  `ibkr.py` — `test_moteur` le lit comme un **arbre syntaxique**, pas
+  comme du texte, sinon la liste elle-même se ferait refuser. Et
+  `ibkr.py` est la **seule porte** : aucun autre module n'importe la
+  bibliothèque IBKR. Vérifié par mutation sur les trois : ajouter un
+  `placeOrder`, passer `readonly` à `False`, ou importer `ib_async`
+  ailleurs fait chacun tomber son test. On conseille en plus de cocher
+  « Read-Only API » dans TWS : un quatrième verrou, côté IBKR.
+- **Un cours différé présenté comme frais.** IBKR ne donne le temps
+  réel qu'avec l'abonnement de la place ; sans lui, le cours a 15 à
+  20 minutes de retard. Chaque cours porte son **type**, tel que TWS le
+  déclare — TEMPS RÉEL, DIFFÉRÉ, FIGÉ — collé au chiffre. Le flux
+  « compte » d'IBKR ne se rafraîchit qu'environ toutes les trois
+  minutes : chaque ligne est donc abonnée à son propre cours et à son
+  P&L du jour, qui suivent le marché.
+- **« Compte réel » ou « simulation » deviné d'après le port.** Il se
+  lit sur le **numéro de compte** — « DU… » pour la simulation. L'ancien
+  `portefeuille.py` le déduisait du port : IB Gateway en simulation
+  (4002) s'y affichait RÉEL. Et la page montre le port de la session
+  **en cours**, pas le dernier réglage enregistré : un sélecteur sur
+  « 7497 — simulation » à côté de « CONNECTÉ — COMPTE RÉEL » était
+  exactement la confusion à rendre impossible.
 - Une ligne de prédiction de prix. Le cône de dispersion existe : dérive
   fixée à zéro, il donne l'amplitude, jamais le sens.
 - Un take-profit **actif**. Les spécifications 2 et 3 disent « aucun
@@ -311,6 +338,12 @@ jeu de paramètres qui ne l'a pas produit.
 | | la durée de détention n'est pas déclarée, elle est **rejouée** : les règles de la spécification tournent sur tout l'historique et on relève la durée des trades obtenus |
 | `objectif.py` | une cible chiffrée, résolue par l'arithmétique, jamais refusée |
 | `carnet.py` | vos notes, et des relevés datés de ce que le moteur mesurait |
+| `ibkr.py` | le compte IBKR en direct, **en lecture seule par construction**, et la seule porte du programme vers IBKR |
+| | un fil d'exécution possède la session et sa boucle d'événements ; les pages ne lisent qu'une **photo** sous verrou. TWS se relance une fois par jour : la liaison se reconnecte seule, avec une attente croissante |
+| | un contrat IBKR devient un ticker CARRUOS par une table de places **écrite d'avance**. Une place absente ne se devine pas : la ligne garde son nom IBKR et le dit, plutôt que d'ouvrir le graphique d'un autre titre |
+| | le stop comparé au cours est celui **inscrit dans le registre**, jamais un stop calculé ; le franchissement est un fait, et le type du cours voyage avec |
+| | `ibkr.FABRIQUE` remplace la bibliothèque pour les tests — même procédé que `data.load_yf` : un faux TWS, sans réseau |
+| `portefeuille.py` | le même compte en ligne de commande, **par `ibkr.py`**. Il avait sa propre porte, une table de places qui retombait sur un ticker américain pour toute place inconnue, et un verdict CONSERVER / SURVEILLER / SORTIE ; il rend maintenant le compte des conditions de sortie actives |
 | `veille.py` | rapproche l'actualité de vos lignes — une **jointure**, jamais une analyse |
 | | trois niveaux de force, étiquetés : nommé par la source, même secteur déclaré, mot trouvé dans le titre. À l'écran, le plein et le pointillé les distinguent sans légende |
 | | la table thème → secteur est délibérément **pauvre** : chaque maillon ajouté serait une supposition. Les thèmes macro ne pointent vers rien, parce qu'ils concernent tout le marché |

@@ -288,7 +288,8 @@ def main() -> int:
                  "graphique": app._page_graphique("AAA"),
                  "strategie": app._page_strategie(),
                  "maliste": app._page_palmares(),
-                 "carnet": app._page_carnet()}
+                 "carnet": app._page_carnet(),
+                 "ibkr": app._page_ibkr()}
     finally:
         dl.load_yf = vrai
 

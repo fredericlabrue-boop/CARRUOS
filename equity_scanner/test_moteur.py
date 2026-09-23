@@ -2227,6 +2227,7 @@ def test_memo() -> None:
 
     from . import carnet as cn
     from . import cerveau as cv
+    from . import ibkr as ik_
     from . import objectif as ob
     from . import profil as pr
     from . import strategie as sg
@@ -2376,6 +2377,173 @@ def test_memo() -> None:
     for c in copies:
         print(f"          -> libelle identique a sa cle : {c}")
 
+    # ------------------------------------------------------------------
+    # IBKR : CARRUOS lit le compte, il ne PEUT PAS y passer d'ordre
+    # ------------------------------------------------------------------
+    #
+    # « Je n'acheterai ni ne vendrai sur CARRUOS. » Une promesse ne tient
+    # pas face a une ligne de code ajoutee un soir de fatigue ; un test,
+    # si. On lit le module comme un ARBRE SYNTAXIQUE — pas comme du texte,
+    # sinon la liste des noms interdits, qui les contient, se ferait
+    # refuser elle-meme — et on refuse tout usage d'un nom d'ordre.
+    print("\n— IBKR : lecture seule, par construction —")
+    import ast as _ast
+
+    from . import ibkr as _ik
+
+    src_ik = Path(_ik.__file__).read_text(encoding="utf-8")
+    arbre = _ast.parse(src_ik)
+    usages = set()
+    for n in _ast.walk(arbre):
+        if isinstance(n, _ast.Name) and n.id in _ik.ORDRES_INTERDITS:
+            usages.add(n.id)
+        elif isinstance(n, _ast.Attribute) and n.attr in _ik.ORDRES_INTERDITS:
+            usages.add(n.attr)
+        elif isinstance(n, (_ast.Import, _ast.ImportFrom)):
+            for al in n.names:
+                if al.name.split(".")[-1] in _ik.ORDRES_INTERDITS:
+                    usages.add(al.name)
+    ok("aucun nom d'ordre n'est utilise dans le module IBKR", not usages)
+    for u in sorted(usages):
+        print(f"          -> nom d'ordre trouve : {u}")
+
+    # Chaque ouverture de session porte readonly=True, en toutes lettres.
+    connexions = [n for n in _ast.walk(arbre)
+                  if isinstance(n, _ast.Call)
+                  and isinstance(n.func, _ast.Attribute)
+                  and n.func.attr == "connect"]
+    def _lecture_seule(n):
+        return any(k.arg == "readonly" and isinstance(k.value, _ast.Constant)
+                   and k.value.value is True for k in n.keywords)
+    ok("chaque connexion a IBKR est ouverte en readonly=True",
+       bool(connexions) and all(_lecture_seule(n) for n in connexions))
+
+    # Et ce module est la SEULE porte : aucun autre fichier n'importe la
+    # bibliotheque IBKR. Sinon le verrou ci-dessus se contournerait par
+    # le fichier d'a cote.
+    portes = []
+    for f in sorted(Path(_ik.__file__).parent.glob("*.py")):
+        if f.name in ("ibkr.py", "data.py") or f.name.startswith("test_"):
+            continue
+        t = f.read_text(encoding="utf-8")
+        if _re.search(r"^\s*(?:from|import)\s+(?:ib_async|ib_insync|ibapi)\b",
+                      t, _re.M):
+            portes.append(f.name)
+    ok("aucun autre module n'importe la bibliotheque IBKR", not portes)
+    for f in portes:
+        print(f"          -> seconde porte vers IBKR : {f}")
+    # data.load_ibkr lit des historiques : il doit, lui aussi, etre en
+    # lecture seule.
+    src_data = Path(_ik.__file__).with_name("data.py").read_text(encoding="utf-8")
+    ok("le chargeur d'historique IBKR est lui aussi en lecture seule",
+       "readonly=True" in src_data)
+
+    # --- Le comportement, contre un faux TWS -------------------------
+    from types import SimpleNamespace as _NS
+
+    class _Tick:
+        def __init__(self, p, t):
+            self._p, self.marketDataType = p, t
+
+        def marketPrice(self):
+            return self._p
+
+    class _FauxIB:
+        vu = []
+
+        def __init__(self):
+            self._co, self._n = False, 0
+
+        def connect(self, hote, port, clientId, readonly, timeout):
+            _FauxIB.vu.append(readonly)
+            self._co = True
+
+        def isConnected(self):
+            self._n += 1
+            return self._co and self._n < 5
+
+        def managedAccounts(self):
+            return ["U7654321"]
+
+        def reqMarketDataType(self, t):
+            pass
+
+        def reqPnL(self, a):
+            return _NS(dailyPnL=-40.0, unrealizedPnL=500.0, realizedPnL=0.0)
+
+        def portfolio(self, a=None):
+            def mk(sym, ex, cur, cid, q, px, avg):
+                return _NS(contract=_NS(symbol=sym, primaryExchange=ex,
+                                        exchange="SMART", currency=cur,
+                                        conId=cid, secType="STK"),
+                           position=q, marketPrice=px, marketValue=q * px,
+                           averageCost=avg, unrealizedPNL=q * (px - avg),
+                           realizedPNL=0.0, account=a)
+            return [mk("TLX", "IBIS", "EUR", 1, 10, 300.0, 331.5),
+                    mk("NVDA", "NASDAQ", "USD", 2, 5, 180.0, 120.0)]
+
+        def reqMktData(self, c):
+            return {1: _Tick(296.4, 1), 2: _Tick(181.2, 3)}[c.conId]
+
+        def reqPnLSingle(self, a, m, cid):
+            return _NS(dailyPnL=-36.0 if cid == 1 else 6.0)
+
+        def accountValues(self, a=None):
+            return [_NS(tag="NetLiquidation", value="25480", currency="BASE")]
+
+        def sleep(self, s):
+            time.sleep(0.02)
+
+        def disconnect(self):
+            self._co = False
+
+    import time
+    _ik.FABRIQUE = _FauxIB
+    try:
+        _L = _ik.Liaison()
+        _L.demarre("127.0.0.1", 7496, 71)
+        _ph = None
+        for _ in range(100):
+            time.sleep(0.02)
+            _ph = _L.photo()
+            if _ph.get("lignes"):
+                break
+        _L.arrete()
+    finally:
+        _ik.FABRIQUE = None
+    ok("la session s'ouvre en lecture seule, verifie a l'appel",
+       _FauxIB.vu and all(v is True for v in _FauxIB.vu))
+    ok("un compte « U… » est reconnu comme REEL, pas comme simulation",
+       _ph and _ph.get("simulation") is False)
+    ok("la photo dit sur quel port la session est REELLEMENT ouverte",
+       _ph and _ph.get("port") == 7496)
+    _par = {l["ticker"]: l for l in (_ph or {}).get("lignes", [])}
+    ok("les contrats IBKR sont traduits en tickers CARRUOS",
+       set(_par) == {"TLX.DE", "NVDA"})
+    ok("un cours en temps reel est dit TEMPS REEL",
+       _par.get("TLX.DE", {}).get("type_cours") == "reel")
+    ok("un cours differe est dit DIFFERE, jamais presente comme frais",
+       _par.get("NVDA", {}).get("type_cours") == "differe")
+    ok("le cours retenu est celui du tick, pas celui du flux compte",
+       _par.get("TLX.DE", {}).get("cours") == 296.4)
+    ok("le P&L du jour de chaque ligne est lu",
+       _par.get("TLX.DE", {}).get("pnl_jour") == -36.0)
+
+    _reg = [{"ticker": "TLX.DE", "quantite": 10, "stop": 297.0},
+            {"ticker": "MC.PA", "quantite": 3, "stop": None}]
+    _fr = _ik.franchissements(list(_par.values()), _reg)
+    ok("le cours sous le stop INSCRIT est signale, avec le type du cours",
+       len(_fr) == 1 and _fr[0]["ticker"] == "TLX.DE"
+       and _fr[0]["type_cours"] == "TEMPS RÉEL")
+    _rp = _ik.rapproche(list(_par.values()), _reg)
+    ok("le rapprochement nomme ce que le registre ignore et ce qu'il croit",
+       _rp["absents_registre"] == ["NVDA"] and _rp["absents_ibkr"] == ["MC.PA"])
+    ok("une place absente de la table n'est pas devinee",
+       _ik.vers_ticker("SAP", "SMART", "EUR") is None
+       and _ik.vers_ticker("XYZ", "LUNE", "EUR") is None)
+    ok("une option ou un contrat a terme n'est pas pris pour une action",
+       _ik.vers_ticker("ES", "CME", "USD", "FUT") is None)
+
     print("\n— Memo de lecture —")
     f = Path(__file__).resolve().parent.parent / "MEMO-LECTURE.md"
     ok("MEMO-LECTURE.md existe a la racine", f.exists())
@@ -2455,6 +2623,14 @@ def test_memo() -> None:
         # --- carnet.py et cerveau.py
         ("plafond du carnet", f"**{cn.MAX_ENTREES}** entrées"),
         ("plafond du dossier", f"**{cv.MAX_DOSSIER}** caractères"),
+        # --- ibkr.py : les ports et la reprise, cites dans le memo
+        ("port TWS simulation", f"| **{ik_.PORTS[0][0]}** | TWS | simulation |"),
+        ("port TWS reel", f"| **{ik_.PORTS[1][0]}** | TWS | réel |"),
+        ("port Gateway simulation",
+         f"| **{ik_.PORTS[2][0]}** | IB Gateway | simulation |"),
+        ("port Gateway reel", f"| **{ik_.PORTS[3][0]}** | IB Gateway | réel |"),
+        ("premiere reprise", f"attendant **{ik_.REPRISE[0]}**, puis"),
+        ("derniere reprise", f"**{ik_.REPRISE[-1]}** secondes"),
     ]
     absents = [(nom, val) for nom, val in ATTENDU if val not in m]
     ok(f"les {len(ATTENDU)} seuils cites dans le memo sont ceux qui "

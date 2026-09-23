@@ -194,7 +194,8 @@ CSS = CSS + BARRE_CSS
 ONGLETS = (("/", "ACCUEIL", "accueil"),
            ("/palmares", "MA LISTE", "palmares"),
            ("/strategie", "STRATÉGIE", "strategie"),
-           ("/carnet", "CARNET", "carnet"))
+           ("/carnet", "CARNET", "carnet"),
+           ("/ibkr", "IBKR", "ibkr"))
 
 
 def barre(trace: str, nom: str, actif: str = "", soustitre: str = "",
