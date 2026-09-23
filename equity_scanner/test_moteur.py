@@ -2230,6 +2230,93 @@ def test_memo() -> None:
     from . import objectif as ob
     from . import profil as pr
     from . import strategie as sg
+    # ------------------------------------------------------------------
+    # La veille : un rapprochement, et RIEN de plus
+    # ------------------------------------------------------------------
+    print("\n— Veille : le rapprochement —")
+    import json
+    import re as _re
+
+    from . import veille as vl
+
+    ACTUS = [
+        {"titre": "OPEC output cut as Saudi Arabia weighs sanctions "
+                  "on Russia", "source": "R", "quand": "1", "url": "",
+         "tickers": ["TTE.PA", "XOM"],
+         "themes": ["energy_transportation", "economy_macro"]},
+        {"titre": "Taiwan semiconductor export curbs tighten supply chain",
+         "source": "F", "quand": "2", "url": "",
+         "tickers": ["TSM"], "themes": ["technology", "manufacturing"]},
+        {"titre": "Fed holds rates steady", "source": "W", "quand": "3",
+         "url": "", "tickers": ["SPY"], "themes": ["economy_monetary"]},
+        {"titre": "actualites indisponibles (URLError)", "erreur": True},
+    ]
+    LIGNES = ["NVDA", "TTE.PA", "MC.PA"]
+    SECT = {"NVDA": "Technology", "TTE.PA": "Energy",
+            "MC.PA": "Consumer Cyclical"}
+    r = vl.rapproche(ACTUS, LIGNES, SECT)
+
+    ok("niveau 1 : le titre nomme par la source ressort",
+       any("TTE.PA" in a["titres"] for a in r["nommes"]))
+    ok("un titre qui n'est pas a lui ne ressort pas",
+       not any("XOM" in a["titres"] or "TSM" in a["titres"]
+               for a in r["nommes"]))
+    ok("niveau 2 : meme secteur declare, par la table ecrite d'avance",
+       any("NVDA" in v for a in r["sectoriels"]
+           for v in a["secteurs"].values()))
+    # Un titre deja NOMME ne doit pas etre repete au niveau sectoriel :
+    # la meme information deux fois, sous deux forces differentes, ferait
+    # croire a deux rapprochements.
+    ok("un titre nomme n'est pas repete au niveau sectoriel",
+       not any("TTE.PA" in v for a in r["sectoriels"]
+               for v in a["secteurs"].values()))
+    # Les themes macro ne pointent vers aucun secteur : ils concernent
+    # tout le marche, les rattacher a un secteur serait faux.
+    ok("un theme macro ne fabrique aucun rapprochement sectoriel",
+       all("Fed holds" not in a["titre"] for a in r["sectoriels"]))
+    ok("une depeche en erreur n'est jamais rapprochee",
+       all("indisponible" not in a["titre"]
+           for cle in ("nommes", "sectoriels", "geo") for a in r[cle]))
+    ok("niveau 3 : les mots du titre sont releves",
+       any("Russia" in a["mots"].get("pays", []) for a in r["geo"]))
+
+    # La regle qui tient tout : AUCUN chiffre ne sort de la veille. Un
+    # score, un compte agrege ou un classement ferait exactement ce que
+    # le projet refuse — ressembler a une mesure sans en etre une.
+    #
+    # La veille a le droit de RECOPIER ce que la depeche contient — son
+    # titre, sa source, son horodatage. Ce qu'elle n'a pas le droit de
+    # faire, c'est d'en PRODUIRE un. On retire donc d'abord tout ce
+    # qu'elle recopie, puis les deux seuls comptes legitimes (combien
+    # d'actualites, combien de titres), et on regarde ce qui reste.
+    _txt = " ".join(vl.texte(r))
+    for _a in ACTUS:
+        for _cle in ("titre", "source", "quand"):
+            if _a.get(_cle):
+                _txt = _txt.replace(str(_a[_cle]), " ")
+    _sans_ref = _re.sub(r"\b\d+ (?:actualites|de vos titres)\b", "", _txt)
+    _chiffres = _re.findall(r"\d+(?:[.,]\d+)?", _sans_ref)
+    ok("aucun chiffre n'est produit par la veille elle-meme",
+       not _chiffres)
+    for c in _chiffres[:5]:
+        print(f"          -> la veille sort le nombre {c!r}")
+    ok("le score de sentiment du fournisseur n'est jamais repris",
+       "score" not in json.dumps(r))
+    ok("le rappel voyage avec le resultat",
+       "RAPPROCHEMENT" in r["rappel"] and "pas une analyse" in r["rappel"])
+    ok("et le rappel dit que le risque geopolitique n'est pas chiffre",
+       "pas chiffre" in vl.RAPPEL_MOTS)
+    ok("le secteur est presente comme DECLARE, pas mesure",
+       "DECLARE" in vl.RAPPEL_SECTEUR)
+    # La table est ecrite AVANT usage et doit rester affichable : une
+    # correspondance qu'on ne peut pas lire ne peut pas se contester.
+    ok("la table de correspondance voyage avec le resultat",
+       isinstance(r.get("table"), dict) and r["table"])
+    ok("les deux vues partent de la MEME jointure",
+       [a["titres"] for a in r["nommes"]]
+       == [d["vous"]["titres"] for d in vl.decore(ACTUS, LIGNES, SECT)
+           if d.get("vous", {}).get("titres")])
+
     print("\n— Memo de lecture —")
     f = Path(__file__).resolve().parent.parent / "MEMO-LECTURE.md"
     ok("MEMO-LECTURE.md existe a la racine", f.exists())
@@ -2325,6 +2412,20 @@ def test_memo() -> None:
     ok("chaque figure du code est nommee dans le memo", not oublis)
     for n in oublis:
         print(f"          -> figure absente du memo : {n}")
+    # La table de la veille est une CONVENTION : le memo doit la citer
+    # en entier, sinon on lirait un rapprochement sans pouvoir verifier
+    # d'ou il vient. Liste derivee du code, jamais recopiee a la main.
+    from . import veille as _vl
+    themes_oublies = [t for t, secs in _vl.THEME_SECTEURS.items()
+                      if secs and t not in m]
+    ok("chaque theme de la table de veille est cite dans le memo",
+       not themes_oublies)
+    for t in themes_oublies:
+        print(f"          -> theme absent du memo : {t}")
+    ok("le memo dit que les themes macro ne pointent vers aucun secteur",
+       all(t in m for t, secs in _vl.THEME_SECTEURS.items() if not secs
+           and t.startswith("economy")))
+
     ok("le memo dit qu'une action n'a pas d'open interest",
        "pas d'open interest" in m.lower())
     ok("et rappelle les 72 mesures et les faux positifs attendus",

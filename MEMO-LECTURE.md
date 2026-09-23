@@ -488,6 +488,79 @@ calculé en local.
 
 ---
 
+## 5 octies. La veille — `veille.py`
+
+**Un rapprochement, pas une analyse.** Elle dit quelles actualités
+rencontrent vos lignes. Elle ne dit pas ce que le cours va faire, ni
+dans quel sens, ni quand.
+
+Trois niveaux, du plus factuel au moins factuel, chacun étiqueté à
+l'écran :
+
+| Niveau | Ce que c'est | Force |
+|---|---|---|
+| **NOMMÉ** | la source déclare elle-même que l'article porte sur ce titre | un fait énoncé par le fournisseur |
+| **MÊME SECTEUR** | le thème de l'article correspond au secteur **déclaré** de l'un de vos titres | une correspondance de **noms**, écrite d'avance |
+| **MOT TROUVÉ** | le titre contient un mot d'une liste écrite d'avance | un appariement de **chaînes de caractères** |
+
+À l'écran, un titre **nommé** s'affiche en plein, un titre du **même
+secteur** en pointillés : la différence de force se voit sans avoir à
+lire une légende.
+
+### La table de correspondance
+
+Elle est écrite **avant** tout usage et affichée avec le résultat, pour
+qu'on puisse la contester :
+
+| Thème de la source | Secteurs déclarés |
+|---|---|
+| `energy_transportation` | énergie, industrie, services aux collectivités |
+| `finance` | finance |
+| `life_sciences` | santé |
+| `manufacturing` | industrie, matériaux |
+| `real_estate` | immobilier |
+| `retail_wholesale` | consommation cyclique, consommation de base |
+| `technology` | technologie, communication |
+
+Elle est délibérément **pauvre** : chaque thème ne pointe que vers les
+secteurs qu'il nomme explicitement. On pourrait la rendre plus riche —
+« l'énergie touche les transports, qui touchent la distribution » — mais
+chaque maillon ajouté serait une supposition.
+
+`economy_macro`, `economy_monetary`, `economy_fiscal` et
+`financial_markets` ne pointent vers **rien** : ils concernent tout le
+marché, donc les rattacher à un secteur particulier serait faux.
+
+### Pourquoi le niveau 3 est le dernier
+
+**Alpha Vantage n'étiquette pas la géopolitique.** Ses thèmes sont
+économiques et sectoriels : il n'y a ni « conflit » ni « sanctions ». Un
+rapprochement géopolitique ne peut donc s'appuyer sur aucune déclaration
+de la source — il faut chercher les mots soi-même, et c'est nettement
+plus faible. D'où le nom : « mot trouvé », pas « risque géopolitique ».
+
+**Aucun total n'est calculé.** Compter des occurrences donnerait un
+nombre qui ressemblerait à une mesure sans en être une.
+`test_moteur` le vérifie : il retire du texte tout ce que la veille
+**recopie** de la dépêche, puis exige qu'il ne reste **aucun** chiffre.
+Vérifié par mutation — ajouter une ligne « exposition géopolitique :
+37,5 / 100 » fait tomber le test.
+
+### Le score du fournisseur n'est plus affiché
+
+Alpha Vantage publie un score de sentiment par article, et la page
+d'accueil l'affichait en vert ou en rouge : « positif », « négatif ».
+C'est un **verdict directionnel dérivé d'un score composite dont nous
+ignorons les poids** — exactement ce que le programme refuse par
+ailleurs, et pire encore puisqu'il vient d'ailleurs et n'est pas
+vérifiable. Il est remplacé par les **thèmes**, que la source déclare.
+
+Les lignes rapprochées sont vos **positions** et les titres que le
+**carnet** connaît. MA LISTE ne se conserve pas d'une visite à l'autre,
+donc elle n'alimente pas la veille.
+
+---
+
 ## 6. Ce que le programme refuse d'afficher
 
 Rappel, parce que c'est la colonne vertébrale du projet :

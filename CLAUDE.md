@@ -87,6 +87,24 @@ jeu de paramètres qui ne l'a pas produit.
   c'est ce que le backtest mesure.
 - Un chiffrage du risque géopolitique. Les actualités sont du contexte
   pour la vérification avant l'ordre, elles n'entrent dans aucune règle.
+  `veille.py` **rapproche** l'actualité de ses lignes — il ne l'analyse
+  pas. Trois niveaux, étiquetés par leur force : **nommé** (la source
+  déclare elle-même que l'article porte sur ce titre), **même secteur**
+  (correspondance de *noms*, par une table écrite d'avance et affichée
+  avec le résultat), **mot trouvé** (un appariement de chaînes, et rien
+  d'autre). Le niveau 3 est le dernier et s'appelle « mot trouvé » parce
+  qu'Alpha Vantage **n'étiquette pas la géopolitique** : il faut aller
+  chercher les mots soi-même, et c'est nettement plus faible. Aucun
+  total n'est calculé — compter des occurrences donnerait un nombre qui
+  ressemblerait à une mesure sans en être une. `test_moteur` retire du
+  texte tout ce que la veille **recopie** de la dépêche et exige qu'il
+  ne reste aucun chiffre.
+- **Le score de sentiment d'un fournisseur.** Alpha Vantage en publie
+  un, et la page d'accueil l'affichait en vert ou en rouge : « positif »,
+  « négatif ». C'est un verdict directionnel dérivé d'un score composite
+  dont nous ignorons les poids — ce que le projet refuse déjà pour les
+  siens, et pire encore ici puisqu'il vient d'ailleurs et n'est pas
+  vérifiable. Remplacé par les **thèmes**, que la source déclare.
 - Un score composite construit sur des poids non testés.
 - Un verdict directionnel (HAUSSIER / ACHAT) dérivé d'un tel score.
 - **Un « avis » ou un « intérêt » qui soit autre chose qu'un compte.**
@@ -293,6 +311,9 @@ jeu de paramètres qui ne l'a pas produit.
 | | la durée de détention n'est pas déclarée, elle est **rejouée** : les règles de la spécification tournent sur tout l'historique et on relève la durée des trades obtenus |
 | `objectif.py` | une cible chiffrée, résolue par l'arithmétique, jamais refusée |
 | `carnet.py` | vos notes, et des relevés datés de ce que le moteur mesurait |
+| `veille.py` | rapproche l'actualité de vos lignes — une **jointure**, jamais une analyse |
+| | trois niveaux de force, étiquetés : nommé par la source, même secteur déclaré, mot trouvé dans le titre. À l'écran, le plein et le pointillé les distinguent sans légende |
+| | la table thème → secteur est délibérément **pauvre** : chaque maillon ajouté serait une supposition. Les thèmes macro ne pointent vers rien, parce qu'ils concernent tout le marché |
 | `reglages.py` | **13 thèmes**, 13 effets visuels débrayables |
 | | un thème porte une `forme` : biseau, arrondi, équerres, densité, matière, typographie. Les valeurs par défaut **sont** l'apparence d'origine, donc un thème qui n'en redéfinit aucune ne change rien |
 | | **aucun thème clair** : ce n'est pas au goût du propriétaire, et `test_pages` le vérifie |

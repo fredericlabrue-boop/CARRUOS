@@ -622,10 +622,34 @@ td b{color:#e8f6fa;font-weight:500}
 .clebloc button{padding:8px 12px;font-size:10.5px}
 .act{padding:7px 0;border-bottom:1px solid #0b2028}
 .act:last-child{border:0}
+.ah>span{white-space:nowrap;flex:none}
+.ah>b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ah{display:flex;gap:9px;font:400 8.5px ui-monospace,monospace;
  letter-spacing:.14em;color:#2f5462;margin-bottom:3px}
 .ah b{font-weight:400;margin-left:auto}
 .at{font-size:11.5px;line-height:1.5;color:var(--txt-doux)}
+/* --- La veille : le rapprochement, pose SUR l'article qu'on lit.
+       Deux forces distinctes, deux traitements distincts — les
+       confondre presenterait une correspondance de noms comme un fait
+       declare par la source. --- */
+.act-vous{border-left:2px solid var(--bord-fort);padding-left:9px}
+.av-l{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.av-l span{cursor:pointer;font:500 9px ui-monospace,monospace;
+ letter-spacing:.1em;padding:2px 6px;border:1px solid var(--bord);
+ transition:background .16s ease,color .16s ease}
+/* NOMME par la source : plein. */
+.vn{color:var(--acc);border-color:var(--bord-fort);
+ background:rgba(8,34,42,.7)}
+.vn:hover{background:#0e3b48}
+/* MEME SECTEUR declare : creux et en pointilles — la difference de
+   force se voit sans avoir a lire une legende. */
+.vs{color:var(--txt-faible);border-style:dashed}
+.vs::before{content:"~ ";opacity:.8}
+.vs:hover{color:var(--txt-fort)}
+.av-m{margin-top:5px;font:400 9px ui-monospace,monospace;
+ letter-spacing:.08em;color:#2f5462}
+.vpied{margin-top:9px;padding-top:8px;border-top:1px solid var(--bord);
+ font-size:10px;line-height:1.55;color:var(--txt-faible)}
 .sep2{height:1px;background:#0b2028;margin:11px 0 9px}
 select{background:#07131a;border:1px solid #123c47;color:var(--txt-fort);
  padding:9px 8px;font:12px ui-monospace,monospace;flex:1;min-width:0;
@@ -888,7 +912,7 @@ async function actus(){
  const m=$('man'), r=$('ran');
  if(!m)return;
  try{
-  const j=await (await fetch('/api/actus')).json();
+  const j=await (await fetch('/api/veille')).json();
   if(j.items && j.items.length && j.items[0].sans_cle){
    $('clebloc').style.display='block';
    m.className='msg';
@@ -915,17 +939,53 @@ async function actus(){
   m.className='msg';
   m.textContent = (j.quota!=null && j.quota<=8)
    ? j.quota+' appels Alpha Vantage restants aujourd\'hui.' : '';
+  // Le score de sentiment du fournisseur N'EST PLUS AFFICHE. Un « positif »
+  // vert a cote d'un titre se lit comme un verdict directionnel, et c'est
+  // un score composite dont nous ignorons les poids : le projet refuse
+  // deja les siens, en importer un d'ailleurs serait pire puisqu'il ne
+  // serait meme pas verifiable. A la place, les THEMES — que la source
+  // declare — et le rapprochement avec vos lignes.
+  var nf = j.noms_fr || {};
   r.innerHTML=j.items.map(function(a){
-   var c = a.score==null ? 'var(--txt-mi)'
-         : (a.score>0.15?'#34d399':(a.score<-0.15?'#f87171':'var(--txt)'));
-   var s = a.score==null ? '' : (a.score>0.15?'positif'
-         : (a.score<-0.15?'negatif':'neutre'));
-   return '<div class="act">'
+   var v = a.vous || {};
+   var b = '';
+   (v.titres||[]).forEach(function(t){
+    b += '<span class="vn" data-vers="/graphique?ticker='+encodeURIComponent(t)
+      +'" data-fen="carruos-'+clean(t)+'" title="La source dit que cet '
+      +'article porte sur ce titre">'+clean(t)+'</span>'; });
+   Object.keys(v.secteurs||{}).forEach(function(sec){
+    v.secteurs[sec].forEach(function(t){
+     b += '<span class="vs" data-vers="/graphique?ticker='+encodeURIComponent(t)
+       +'" data-fen="carruos-'+clean(t)+'" title="Meme secteur declare : '
+       +clean(nf[sec]||sec)+'. Correspondance de noms, pas de causes">'
+       +clean(t)+'</span>'; }); });
+   var mots = [];
+   Object.keys(v.mots||{}).forEach(function(f){
+    (v.mots[f]||[]).forEach(function(m){ mots.push(m); }); });
+   return '<div class="act'+(b?' act-vous':'')+'">'
     +'<div class="ah"><span>'+clean(a.quand||'')+'</span>'
     +'<span>'+clean(a.source||'')+'</span>'
-    +(s?'<b style="color:'+c+'">'+s+'</b>':'')+'</div>'
-    +'<div class="at">'+clean(a.titre||'')+'</div></div>';
+    +(a.sujets?'<b>'+clean(a.sujets)+'</b>':'')+'</div>'
+    +'<div class="at">'+clean(a.titre||'')+'</div>'
+    +(b?'<div class="av-l">'+b+'</div>':'')
+    +(mots.length?'<div class="av-m">'+clean(mots.join(' \u00b7 '))
+      +'</div>':'')
+    +'</div>';
   }).join('');
+  var pied=$('vpied');
+  if(pied){
+   var n1=0,n2=0;
+   j.items.forEach(function(a){ var v=a.vous||{};
+    if((v.titres||[]).length) n1++;
+    if(Object.keys(v.secteurs||{}).length) n2++; });
+   pied.innerHTML = (j.lignes && j.lignes.length)
+    ? (n1+' actualite'+(n1>1?'s':'')+' vous nomme'+(n1>1?'nt':'')+', '
+       +n2+' touche'+(n2>1?'nt':'')+' un secteur que vous detenez. '
+       +'C\'est un RAPPROCHEMENT, pas une analyse : il ne dit ni le sens '
+       +'ni l\'ampleur, et aucune regle ne l\'utilise.')
+    : 'Aucune ligne a rapprocher. Ajoutez une position, ou prenez une '
+      +'note sur un titre dans le CARNET.';
+  }
  }catch(e){
   $('clebloc').style.display='block';
   m.className='msg err';
@@ -1061,12 +1121,34 @@ async function majExec(txt){
   }catch(e){ majDit('Etat du marche indisponible.'); }
   return;
  }
- if(/actualit|nouvelle|news/.test(q)){
+ if(/actualit|nouvelle|news|geopolit|veille|mes lignes/.test(q)){
   try{
-   const j=await (await fetch('/api/actus')).json();
+   const j=await (await fetch('/api/veille')).json();
    const it=(j.items||[])[0];
-   majDit(it && it.titre ? 'Derniere depeche. '+it.titre
-    : 'Aucune actualite disponible.');
+   if(it && it.erreur){ majDit(it.titre); return; }
+   // Ce qui touche SES lignes passe devant une depeche quelconque : il
+   // a demande une veille, pas un fil de presse.
+   var n1=[], n2=[];
+   (j.items||[]).forEach(function(a){ var v=a.vous||{};
+    (v.titres||[]).forEach(function(t){ if(n1.indexOf(t)<0) n1.push(t); });
+    Object.keys(v.secteurs||{}).forEach(function(sec){
+     (v.secteurs[sec]||[]).forEach(function(t){
+      if(n2.indexOf(t)<0 && n1.indexOf(t)<0) n2.push(t); }); }); });
+   var h='';
+   if(n1.length) h += '<b>Nommes par la source :</b> '+n1.join(', ')+'.<br>';
+   if(n2.length) h += '<b>Meme secteur declare :</b> '+n2.join(', ')
+     + ' &mdash; correspondance de noms, pas de causes.<br>';
+   if(!h) h = 'Aucune actualite du jour ne rencontre vos lignes.<br>';
+   (j.items||[]).slice(0,4).forEach(function(a){
+    h += '<br>' + (a.titre||'').replace(/</g,'&lt;'); });
+   h += '<br><br><span style="color:var(--txt-faible)">'
+     + (j.rappel||'') + '</span>';
+   $('majr').innerHTML = h;
+   majDit(n1.length
+    ? ('Ces titres sont nommes aujourd\'hui : '+n1.join(', ')+'.')
+    : (n2.length
+       ? ('Rien ne vous nomme. Meme secteur declare : '+n2.join(', ')+'.')
+       : 'Aucune actualite du jour ne rencontre vos lignes.'), false);
   }catch(e){ majDit('Actualites indisponibles.'); }
   return;
  }
@@ -1096,7 +1178,7 @@ async function majExec(txt){
  majDit('Je n\'ai pas compris. Essayez : je sors quand sur TLX, '
   +'combien je peux perdre sur Coin, que penses-tu de Nvidia, '
   +'on garde TLX combien de temps, analyse Sanofi, scan Cac 40, '
-  +'etat du marche, ou mes positions.');
+  +'etat du marche, la veille sur mes lignes, ou mes positions.');
 }
 
 // --- Le dossier d'un titre -------------------------------------------
@@ -2407,7 +2489,7 @@ def _accueil(splash: bool = True) -> str:
               'que penses-tu de Nvidia &middot; une figure sur Hood ? '
               '&middot; on garde TLX combien de temps &middot; '
               'analyse sanofi &middot; scan cac 40 &middot; '
-              'etat du marche &middot; mes positions</div>'
+              'etat du marche &middot; mes positions &middot; la veille sur mes lignes</div>'
               '<div class="majiab">'
               '<div class="majiae" id="majiae">&mdash;</div>'
               '<div class="row">'
@@ -2473,6 +2555,7 @@ def _accueil(splash: bool = True) -> str:
             'dans ton dossier personnel. La deuxieme copie est celle '
             'qui te la rend apres une mise a jour.</div></div>'
             '<div id="ran"></div>'
+            '<div class="vpied" id="vpied"></div>'
             '<div class="avert">Aucune de ces actualites n\'entre dans une '
             "regle. Une information publique est deja dans les cours. "
             "C'est du contexte avant de passer un ordre, pas un signal."
@@ -2652,6 +2735,9 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                 return self._json(cv.etat())
             if u.path == "/api/objectif":
                 return self._json(_objectif(q))
+            if u.path == "/api/veille":
+                return self._json(
+                    _veille(force=q.get("force") == "1"))
             if u.path == "/api/dossier":
                 return self._json(_dossier(q))
             if u.path == "/api/palmares":
@@ -3685,6 +3771,78 @@ def _cerveau_config(c: dict) -> dict:
     return cv.configure(fournisseur=(c.get("fournisseur") or "").strip(),
                         modele=(c.get("modele") or "").strip(),
                         cle=(c.get("cle") or "").strip())
+
+
+def _quota():
+    """Appels Alpha Vantage restants aujourd'hui, ou None."""
+    try:
+        from . import news as nw
+        return nw.reste_quota()
+    except Exception:
+        return None
+
+
+def _mes_lignes() -> list:
+    """Les titres du proprietaire : positions tenues, plus ceux que le
+    CARNET connait.
+
+    MA LISTE n'est pas conservee cote serveur — elle se colle a la main
+    a chaque visite — donc elle ne peut pas alimenter la veille. Le
+    carnet, lui, est durable : un titre sur lequel il a pris une note ou
+    fige un releve est un titre qu'il suit.
+    """
+    vus, out = set(), []
+    try:
+        for t in ps.tickers():
+            if t and t.upper() not in vus:
+                vus.add(t.upper())
+                out.append(t.upper())
+    except Exception:
+        pass
+    try:
+        from . import carnet as cn
+        for t in cn.tickers():
+            if t and t.upper() not in vus:
+                vus.add(t.upper())
+                out.append(t.upper())
+    except Exception:
+        pass
+    return out
+
+
+def _veille(force: bool = False) -> dict:
+    """Les actualites, et le rapprochement avec ses lignes.
+
+    Le rapprochement se pose SUR les articles deja affiches plutot que
+    dans une seconde liste : c'est la meme information, lue au moment ou
+    on lit le titre, et non deux listes a recouper a la main.
+
+    Aucun chiffrage du risque geopolitique n'en sort, et le score de
+    sentiment du fournisseur n'est pas repris — c'est un score composite
+    dont nous ignorons les poids.
+    """
+    from . import veille as vl
+
+    items = _actus(force=force)
+    lignes = _mes_lignes()
+    if not items or items[0].get("erreur") or items[0].get("sans_cle"):
+        return {"items": items, "lignes": lignes, "quota": _quota(),
+                "rappel": vl.RAPPEL}
+    try:
+        sect = vl.secteurs(lignes) if lignes else {}
+    except Exception:
+        sect = {}
+    return {
+        "items": vl.decore(items, lignes, sect),
+        "lignes": lignes,
+        "secteurs": {t: s for t, s in sect.items() if s},
+        "sans_secteur": sorted(t for t in lignes if not sect.get(t)),
+        "noms_fr": vl.SECTEURS_FR,
+        "quota": _quota(),
+        "rappel": vl.RAPPEL,
+        "rappel_secteur": vl.RAPPEL_SECTEUR,
+        "rappel_mots": vl.RAPPEL_MOTS,
+    }
 
 
 def _objectif(q: dict) -> dict:

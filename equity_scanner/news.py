@@ -199,9 +199,12 @@ def monde(api_key: str, limit: int = 12,
             "apikey": api_key,
         }))
     except Exception as e:
+        # `erreur` manquait ici : la page traitait donc « actualites
+        # indisponibles » comme un titre de presse ordinaire, et
+        # l'affichait entre deux vraies depeches sans rien signaler.
         return [{"titre": f"actualites indisponibles ({type(e).__name__})",
                  "url": "", "source": "", "quand": "", "score": None,
-                 "sujets": ""}]
+                 "sujets": "", "erreur": True}]
     # Alpha Vantage ne renvoie pas d'erreur HTTP : il renvoie 200 avec un
     # message dans "Information", "Note" ou "Error Message". Sans ca, on
     # voit "rien a afficher" sans jamais savoir pourquoi.
@@ -226,9 +229,25 @@ def monde(api_key: str, limit: int = 12,
         q = (it.get("time_published") or "")
         quand = f"{q[6:8]}/{q[4:6]} {q[9:11]}h{q[11:13]}" if len(q) >= 13 else ""
         sujets = ", ".join(s.get("topic", "") for s in (it.get("topics") or [])[:2])
+        # Les titres que la SOURCE dit concernes par l'article, et ses
+        # themes complets. Ce sont des faits enonces par le fournisseur,
+        # pas des interpretations : `veille.py` s'en sert pour rapprocher
+        # une actualite des lignes du proprietaire.
+        #
+        # Le score de sentiment par titre n'est PAS repris. C'est un
+        # score composite dont nous ne connaissons pas les poids, et le
+        # projet en refuse deja par principe — en importer un d'un
+        # fournisseur serait pire, puisqu'il ne serait meme pas
+        # verifiable.
+        tickers = sorted({(ts.get("ticker") or "").upper()
+                          for ts in (it.get("ticker_sentiment") or [])
+                          if ts.get("ticker")})
+        themes = sorted({s.get("topic", "") for s in (it.get("topics") or [])
+                         if s.get("topic")})
         out.append({"titre": (it.get("title") or "")[:150],
                     "url": it.get("url") or "", "source": it.get("source") or "",
-                    "quand": quand, "score": score, "sujets": sujets})
+                    "quand": quand, "score": score, "sujets": sujets,
+                    "tickers": tickers, "themes": themes})
     try:
         if out and not out[0].get("erreur"):
             cache.parent.mkdir(exist_ok=True)
