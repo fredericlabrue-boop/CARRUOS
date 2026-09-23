@@ -127,7 +127,7 @@ def news(api_key: str, ticker: str, limit: int = 4) -> list[dict]:
             "limit": str(max(limit, 10)), "sort": "LATEST", "apikey": api_key,
         }))
     except Exception as e:
-        return [{"titre": f"actualites indisponibles ({type(e).__name__})",
+        return [{"titre": f"actualités indisponibles ({type(e).__name__})",
                  "url": "", "source": "", "quand": "", "score": None}]
 
     # Alpha Vantage ne renvoie pas d'erreur HTTP : il renvoie 200 avec un
@@ -202,7 +202,7 @@ def monde(api_key: str, limit: int = 12,
         # `erreur` manquait ici : la page traitait donc « actualites
         # indisponibles » comme un titre de presse ordinaire, et
         # l'affichait entre deux vraies depeches sans rien signaler.
-        return [{"titre": f"actualites indisponibles ({type(e).__name__})",
+        return [{"titre": f"actualités indisponibles ({type(e).__name__})",
                  "url": "", "source": "", "quand": "", "score": None,
                  "sujets": "", "erreur": True}]
     # Alpha Vantage ne renvoie pas d'erreur HTTP : il renvoie 200 avec un

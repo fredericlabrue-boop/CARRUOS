@@ -53,7 +53,7 @@ MAX_ENTREES = 12000
 # qui a ecrit la ligne, et cette distinction est le fond du module.
 GENRES = {
     "note": "NOTE",            # vous l'avez ecrite
-    "releve": "RELEVE",        # le programme a mesure, vous avez fige
+    "releve": "RELEVÉ",        # le programme a mesure, vous avez fige
     "ordre": "ORDRE",          # un passage d'ordre que vous consignez
 }
 
@@ -213,7 +213,7 @@ def releve(ticker: str, faits: dict, titre: str = "") -> dict:
     On ne garde que des types simples : un objet pandas rendrait le
     carnet illisible par une autre version du programme.
     """
-    return ajoute(titre=titre or f"Releve {ticker.upper()}",
+    return ajoute(titre=titre or f"Relevé {ticker.upper()}",
                   ticker=ticker, genre="releve",
                   donnees=_simplifie(faits))
 

@@ -41,7 +41,7 @@ THEMES = {
     },
     "ultron": {
         "nom": "ULTRON",
-        "resume": "tres sombre, neons violet et rouge",
+        "resume": "très sombre, néons violet et rouge",
         "accent": "#b06cff", "marque": "#ff2d55", "fond": "#05030a",
         "pos": "#00e5a0", "neg": "#ff2d55", "holo": "176,108,255",
     },
@@ -65,7 +65,7 @@ THEMES = {
     # vide. Le contraire exact de l'apparence d'origine.
     "monolithe": {
         "nom": "MONOLITHE",
-        "resume": "angles droits, aucun ornement, tres aere",
+        "resume": "angles droits, aucun ornement, très aéré",
         "accent": "#d8d2c4", "marque": "#8a8578", "fond": "#0c0c0d",
         "pos": "#9fbfa4", "neg": "#c98b86", "holo": "216,210,196",
         "forme": {
@@ -317,10 +317,10 @@ LIB_INDICS = [("ema20", "EMA 20"), ("sma50", "SMA 50"), ("sma200", "SMA 200"),
 
 LIB_MODULES = [("cadrans", "Cadrans radiaux"), ("hologramme", "Hologramme du cerf"),
                ("rails", "Rails de mesure"), ("bandeau", "Bandeau de chiffres"),
-               ("momentum", "Momentum"), ("ecarts", "Ecart aux reperes"),
+               ("momentum", "Momentum"), ("ecarts", "Écart aux repères"),
                ("perfrel", "Performance relative"), ("signal", "Signal sur ce titre"),
-               ("horloge", "Seance et execution"), ("resultats", "Resultats"),
-               ("actus", "Actualites")]
+               ("horloge", "Séance et exécution"), ("resultats", "Résultats"),
+               ("actus", "Actualités")]
 
 
 def _fusion(base: dict, autre: dict) -> dict:

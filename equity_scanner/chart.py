@@ -1708,7 +1708,7 @@ def _modules(g, perf, ticker, marche, earn, actus, chand=None):
                      f'<b class="neu">{v["atr"]:+.1f} ATR</b></div>')
     k.append(f'<div class="kv"><span>Plus haut 52s</span>{_sgn(g["d_h52"])}</div>')
     k.append(f'<div class="kv"><span>Plus bas 52s</span>{_sgn(g["d_b52"])}</div>')
-    m.append('<div class="mod" data-mod="ecarts"><h4>ECART AUX REPERES</h4>' + "".join(k) + '</div>')
+    m.append('<div class="mod" data-mod="ecarts"><h4>ÉCART AUX REPÈRES</h4>' + "".join(k) + '</div>')
 
     # Force relative
     k = []
@@ -1718,7 +1718,7 @@ def _modules(g, perf, ticker, marche, earn, actus, chand=None):
         if v:
             k.append(f'<div class="kv"><span>{lab}</span>{_sgn(v["titre"])}'
                      f'{_sgn(v["ecart"])}</div>')
-    m.append('<div class="mod" data-mod="perfrel"><h4>PERFORMANCE / ECART A L\'INDICE</h4>'
+    m.append('<div class="mod" data-mod="perfrel"><h4>PERFORMANCE / ÉCART À L\'INDICE</h4>'
              + "".join(k) + '</div>')
 
     # Historique du signal sur CE titre
@@ -1740,7 +1740,7 @@ def _modules(g, perf, ticker, marche, earn, actus, chand=None):
                  'Pas de reference propre a ce titre.</div></div>')
 
     # Horloge de marche
-    m.append(f'<div class="mod" data-mod="horloge" data-marche="{marche}"><h4>SEANCE ET EXECUTION</h4>'
+    m.append(f'<div class="mod" data-mod="horloge" data-marche="{marche}"><h4>SÉANCE ET EXÉCUTION</h4>'
              '<div class="clk"><span class="dot off" id="d1"></span>'
              '<span id="etat">-</span></div>'
              '<div class="kv" style="margin-top:9px"><span>ouverture</span>'
@@ -1749,21 +1749,21 @@ def _modules(g, perf, ticker, marche, earn, actus, chand=None):
              '<div class="kv"><span>reste</span><b id="reste">-</b></div>'
              '<div class="clk" style="margin-top:9px"><span class="dot off" id="d2">'
              '</span><span id="win">-</span></div>'
-             '<div class="tl" style="margin-top:7px">Les regles s\'evaluent sur '
-             'cloture. La fenetre utile est <b>20 minutes avant la cloche</b>.'
+             '<div class="tl" style="margin-top:7px">Les règles s\'évaluent sur '
+             'clôture. La fenêtre utile est <b>20 minutes avant la cloche</b>.'
              '</div></div>')
 
     # Resultats trimestriels
     if earn:
         cls = "neg" if earn["jours"] is not None and earn["jours"] < 10 else "pos"
-        j = "inconnue" if earn["jours"] is None else f'{earn["jours"]} seances'
-        m.append('<div class="mod" data-mod="resultats"><h4>RESULTATS TRIMESTRIELS</h4>'
+        j = "inconnue" if earn["jours"] is None else f'{earn["jours"]} séances'
+        m.append('<div class="mod" data-mod="resultats"><h4>RÉSULTATS TRIMESTRIELS</h4>'
                  f'<div class="hdr2"><b class="{cls}">{e(str(earn.get("date","?")))}</b></div>'
                  f'<div class="kv"><span>dans</span><b class="{cls}">{j}</b></div>'
-                 + ('<div class="tl" style="margin-top:7px">Sous 10 seances : '
+                 + ('<div class="tl" style="margin-top:7px">Sous 10 séances : '
                     '<b>veto actif</b>, aucune entree.</div>'
                     if earn["jours"] is not None and earn["jours"] < 10 else
-                    '<div class="tl" style="margin-top:7px">Hors periode de veto.'
+                    '<div class="tl" style="margin-top:7px">Hors période de veto.'
                     '</div>') + '</div>')
 
     # Actualites
@@ -1777,7 +1777,7 @@ def _modules(g, perf, ticker, marche, earn, actus, chand=None):
             liens += (f'<a href="{e(a.get("url") or "#")}" target="_blank">'
                       f'{e(a.get("titre",""))}<br><span class="m">'
                       f'{e(a.get("quand",""))} {e(a.get("source",""))}{lab}</span></a>')
-        m.append('<div class="mod" data-mod="actus" style="grid-column:span 2"><h4>ACTUALITES</h4>'
+        m.append('<div class="mod" data-mod="actus" style="grid-column:span 2"><h4>ACTUALITÉS</h4>'
                  f'<div class="nw2">{liens}</div></div>')
 
     # --- Lecture des chandeliers -------------------------------------
@@ -1792,10 +1792,10 @@ def _modules(g, perf, ticker, marche, earn, actus, chand=None):
                 f'<div class="tl" style="margin:-3px 0 8px">{e(f["forme"])}'
                 f'</div>' for f in ici)
         else:
-            k = ('<div class="tl">Aucune figure repertoriee sur la '
-                 'derniere bougie.</div>')
+            k = ('<div class="tl">Aucune figure répertoriée sur la '
+                 'dernière bougie.</div>')
         m.append('<div class="mod" data-mod="chandeliers">'
-                 '<h4>CHANDELIERS &mdash; DERNIERE BOUGIE</h4>' + k + '</div>')
+                 '<h4>CHANDELIERS &mdash; DERNIÈRE BOUGIE</h4>' + k + '</div>')
 
         # Le detail de ce qui a suivi va dans la COLONNE DE DROITE :
         # le bandeau du bas fait 13 % de la hauteur et porte deja dix

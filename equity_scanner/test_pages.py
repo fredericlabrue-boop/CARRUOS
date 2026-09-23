@@ -945,7 +945,7 @@ def main() -> int:
     if charge:
         libelles = [l[0] for l in charge["lignes"]]
         _v("AMPLITUDE" in libelles, "l'amplitude mesuree est du lot")
-        _v(any("Duree mesuree" in x for x in libelles),
+        _v(any("Durée mesurée" in x for x in libelles),
            "la duree que la specification produit sur ce titre aussi")
         _v("Phase 0" in (charge.get("rappel") or ""),
            "le rappel de Phase 0 voyage avec la carte")

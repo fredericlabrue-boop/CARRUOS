@@ -61,12 +61,12 @@ import pandas as pd
 # valeur de croissance autour de 40 %, une petite capitalisation ou une
 # valeur en crise bien au-dela.
 BANDES = (
-    (0.00, 0.08, "tres_calme", "TRES CALME"),
+    (0.00, 0.08, "tres_calme", "TRÈS CALME"),
     (0.08, 0.16, "calme", "CALME"),
     (0.16, 0.25, "moyen", "AMPLITUDE MOYENNE"),
-    (0.25, 0.40, "agite", "AGITE"),
-    (0.40, 0.65, "tres_agite", "TRES AGITE"),
-    (0.65, float("inf"), "extreme", "AMPLITUDE EXTREME"),
+    (0.25, 0.40, "agite", "AGITÉ"),
+    (0.40, 0.65, "tres_agite", "TRÈS AGITÉ"),
+    (0.65, float("inf"), "extreme", "AMPLITUDE EXTRÊME"),
 )
 
 # 252 seances par an : la convention de place, pas un reglage.
@@ -84,7 +84,7 @@ def bande(vol: float | None) -> tuple[str, str]:
     for lo, hi, cle, lab in BANDES:
         if lo <= vol < hi:
             return (cle, lab)
-    return ("extreme", "AMPLITUDE EXTREME")
+    return ("extreme", "AMPLITUDE EXTRÊME")
 
 
 def _vol(rend: pd.Series) -> float | None:
@@ -311,6 +311,20 @@ def duree_detention(d: pd.DataFrame, bench: pd.DataFrame,
 # `duree_detention()` ont deja produit. Si un nombre n'est pas dans le
 # dictionnaire recu, aucune phrase ne peut le sortir.
 
+def _bt():
+    """`backtest`, importe tard : il tire numpy et pandas."""
+    from . import backtest as bt
+    return bt
+
+
+def _vl():
+    """`veille`, pour les libelles de secteur. UNE table pour tout le
+    programme : deux traductions du meme mot finiraient par se
+    contredire a l'ecran."""
+    from . import veille as vl
+    return vl
+
+
 def _pct(x, n=1):
     """Un pourcentage DEJA calcule. Aucune arithmetique ici."""
     return "—" if x is None else f"{x:.{n}f} %".replace(".", ",")
@@ -325,59 +339,61 @@ def lignes(m: dict, dd: dict | None = None) -> list[tuple[str, str]]:
     """Le profil en couples (libelle, valeur), prets a afficher."""
     out = [("AMPLITUDE", m.get("bande_libelle", "—"))]
     v = m.get("volatilite") or {}
-    out.append(("Volatilite annualisee, 1 an", _pct(v.get("un_an_pc"))))
-    out.append(("Volatilite annualisee, 3 ans", _pct(v.get("trois_ans_pc"))))
-    out.append(("Ecart quotidien ordinaire",
+    out.append(("Volatilité annualisée, 1 an", _pct(v.get("un_an_pc"))))
+    out.append(("Volatilité annualisée, 3 ans", _pct(v.get("trois_ans_pc"))))
+    out.append(("Écart quotidien ordinaire",
                 _pct(m.get("ecart_jour_ordinaire_pc"), 2)))
-    out.append(("ATR 14 rapporte au cours", _pct(m.get("atr_pc"), 2)))
+    out.append(("ATR 14 rapporté au cours", _pct(m.get("atr_pc"), 2)))
 
     r = m.get("recul_max") or {}
     if r.get("pc") is not None:
         txt = f"{_pct(r['pc'])} (creux du {r['date']})"
         if r.get("jours_retour") is not None:
-            txt += (f", rattrape en {r['jours_retour']} jours"
+            txt += (f", rattrapé en {r['jours_retour']} jours"
                     if r.get("rattrape")
-                    else f", pas encore rattrape apres {r['jours_retour']} jours")
+                    else f", pas encore rattrapé après {r['jours_retour']} jours")
         out.append(("Pire recul depuis un sommet", txt))
 
     s = m.get("seances_fortes") or {}
     if s.get("sur"):
-        out.append(("Seances a plus de 5 %",
+        out.append(("Séances à plus de 5 %",
                     f"{s['n']} sur {s['sur']} ({_pct(s.get('part_pc'), 1)})"))
 
     rep = m.get("repere") or {}
     if rep.get("beta_ar") is not None:
-        out.append(("Beta au repere", _nb(rep["beta_ar"])))
-        out.append(("Correlation au repere", _nb(rep.get("correlation_ar"))))
+        out.append(("Bêta au repère", _nb(rep["beta_ar"])))
+        out.append(("Corrélation au repère", _nb(rep.get("correlation_ar"))))
 
     dec = m.get("declare") or {}
     if dec.get("disponible") and dec.get("type"):
         lib = {"EQUITY": "action", "ETF": "ETF", "INDEX": "indice",
                "MUTUALFUND": "fonds",
                "CRYPTOCURRENCY": "crypto-actif"}.get(dec["type"], dec["type"])
-        out.append(("Type declare par la source", lib))
+        out.append(("Type déclaré par la source", lib))
         if dec.get("categorie"):
-            out.append(("Categorie declaree", str(dec["categorie"])))
+            out.append(("Catégorie déclarée",
+                    _vl().secteur_fr(str(dec["categorie"]))))
 
     if dd and dd.get("n"):
-        out.append(("Duree mesuree des positions",
-                    f"mediane {dd['mediane']} seances "
-                    f"(moitie centrale : {dd['q1']} a {dd['q3']}), "
+        out.append(("Durée mesurée des positions",
+                    f"médiane {dd['mediane']} séances "
+                    f"(moitié centrale : {dd['q1']} à {dd['q3']}), "
                     f"sur {dd['n']} trades"))
         if dd.get("motifs"):
             premier = next(iter(dd["motifs"].items()))
-            out.append(("Cause de sortie la plus frequente",
-                        f"{premier[0]} ({premier[1]} fois sur {dd['n']})"))
+            out.append(("Cause de sortie la plus fréquente",
+                        f"{_bt().motif_fr(premier[0])} "
+                        f"({premier[1]} fois sur {dd['n']})"))
     elif dd is not None:
-        out.append(("Duree mesuree des positions",
+        out.append(("Durée mesurée des positions",
                     "aucun trade sur l'historique disponible"))
     return out
 
 
-RAPPEL = ("Ces chiffres decrivent comment l'instrument a bouge et combien "
-          "de temps les regles de la specification gardent une ligne "
+RAPPEL = ("Ces chiffres décrivent comment l'instrument a bougé et combien "
+          "de temps les règles de la spécification gardent une ligne "
           "dessus. Ils ne disent rien de ce qu'il rapportera : aucune "
-          "hypothese n'a passe sa Phase 0.")
+          "hypothèse n'a passé sa Phase 0.")
 
-RAPPEL_DECLARE = ("Le type et la categorie sont DECLARES par la source de "
-                  "donnees, ils ne sont pas mesures. Les autres lignes, si.")
+RAPPEL_DECLARE = ("Le type et la catégorie sont DÉCLARÉS par la source de "
+                  "données, ils ne sont pas mesurés. Les autres lignes, si.")

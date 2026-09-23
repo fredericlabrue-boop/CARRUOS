@@ -193,7 +193,7 @@ CSS = CSS + BARRE_CSS
 # rappelle celle qui est deja la.
 ONGLETS = (("/", "ACCUEIL", "accueil"),
            ("/palmares", "MA LISTE", "palmares"),
-           ("/strategie", "STRATEGIE", "strategie"),
+           ("/strategie", "STRATÉGIE", "strategie"),
            ("/carnet", "CARNET", "carnet"))
 
 
@@ -416,8 +416,8 @@ def entete(ticker, g, verdict, perf, trace, ccy="") -> str:
                      rvol is not None and rvol >= 1.20)
               + _lig("ATR %", g.get("atr_pct"), "mesure, sans seuil", True)
               + '<div class="sfn">Un bloc ne passe que si sa mesure est '
-                'du bon cote de son seuil. Les seuils sont ceux de la '
-                'strategie, geles.</div>'
+                'du bon côté de son seuil. Les seuils sont ceux de la '
+                'stratégie, gelés.</div>'
               + '</div>')
 
     rails = ['<div class="rails">']
@@ -542,8 +542,8 @@ def console(trace: str, hologramme: bool = True) -> str:
         + rail("LIGNES", 0, 0, "--") + rail("MES LIGNES A TRAITER", 0, 0, "--")
         + '</div></div></div>'
         '<div id="hud-band">'
-        + bandeau([("SEANCE", "--", ""), ("EXECUTION", "21H40", "or"),
-                   ("POSITIONS", "--", ""), ("PHASE 0", "NON LANCEE", "neg")])
+        + bandeau([("SÉANCE", "--", ""), ("EXÉCUTION", "21H40", "or"),
+                   ("POSITIONS", "--", ""), ("PHASE 0", "NON LANCÉE", "neg")])
         + '</div></div>')
 
 
@@ -586,9 +586,9 @@ def console_etat(e: dict) -> dict:
         # La case ouvre maintenant les neuf places, europeennes comprises.
         ("LES PLACES", e.get("places_resume", e.get("seance", "--")),
          "pos" if e.get("places_ouvertes") else "", "lesPlaces()"),
-        ("EXECUTION", e.get("execution", "--"), "or", "lesPlaces()"),
+        ("EXÉCUTION", e.get("execution", "--"), "or", "lesPlaces()"),
         ("POSITIONS", f"{n}/{nmax}", "" if n < nmax else "neg"),
-        ("PHASE 0", e.get("phase0", "NON LANCEE"),
+        ("PHASE 0", e.get("phase0", "NON LANCÉE"),
          "pos" if e.get("phase0_ok") else "neg", "rapports()"),
     ])
     return {"rails": rails, "bandeau": band,

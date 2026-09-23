@@ -111,15 +111,58 @@ SECTEURS_FR = {
     "Technology": "technologie",
     "Communication Services": "communication",
     "Financial Services": "finance",
-    "Healthcare": "sante",
+    "Healthcare": "santé",
     "Consumer Cyclical": "consommation cyclique",
     "Consumer Defensive": "consommation de base",
     "Industrials": "industrie",
-    "Basic Materials": "materiaux",
-    "Energy": "energie",
-    "Utilities": "services aux collectivites",
+    "Basic Materials": "matériaux",
+    "Energy": "énergie",
+    "Utilities": "services aux collectivités",
     "Real Estate": "immobilier",
 }
+
+# Les themes d'Alpha Vantage, en francais. Ils s'affichaient bruts en
+# tete de chaque depeche — « energy_transportation, economy_macro » —
+# c'est-a-dire en anglais ET en notation de programmeur, sur une page
+# par ailleurs entierement en francais.
+#
+# Table derivee de THEME_SECTEURS par `test_moteur` : un theme ajoute
+# la-haut sans libelle ici fait tomber le test.
+THEMES_FR = {
+    "energy_transportation": "énergie et transports",
+    "finance": "finance",
+    "life_sciences": "sciences du vivant",
+    "manufacturing": "industrie",
+    "real_estate": "immobilier",
+    "retail_wholesale": "distribution",
+    "technology": "technologie",
+    "blockchain": "chaîne de blocs",
+    "earnings": "résultats",
+    "ipo": "introductions en bourse",
+    "mergers_and_acquisitions": "fusions-acquisitions",
+    "economy_fiscal": "politique budgétaire",
+    "economy_macro": "macroéconomie",
+    "economy_monetary": "politique monétaire",
+    "financial_markets": "marchés financiers",
+}
+
+
+def theme_fr(cle: str) -> str:
+    """Le libelle francais d'un theme, ou la cle si elle est inconnue.
+
+    Alpha Vantage peut en ajouter un demain sans nous prevenir : mieux
+    vaut afficher sa cle que rien du tout, et le test, lui, refuse
+    qu'un theme de NOTRE table reste sans libelle.
+    """
+    return THEMES_FR.get(cle, cle)
+
+
+def secteur_fr(cle: str) -> str:
+    """Le libelle francais d'un secteur declare, ou la valeur telle
+    quelle. Une categorie d'ETF (« Large Blend ») n'est pas un secteur
+    et reste affichee comme la source l'ecrit — c'est une declaration,
+    et la traduire serait la reecrire."""
+    return SECTEURS_FR.get(cle, cle)
 
 # ---------------------------------------------------------------------
 # Les mots, ECRITS AVANT tout usage
@@ -320,25 +363,25 @@ def rapproche(actus, lignes, sect: dict | None = None) -> dict:
 
 RAPPEL = (
     "Ceci est un RAPPROCHEMENT, pas une analyse. Il dit quelles "
-    "actualites rencontrent vos lignes ; il ne dit pas ce que le cours "
+    "actualités rencontrent vos lignes ; il ne dit pas ce que le cours "
     "va faire, ni dans quel sens, ni quand. Une information publique "
-    "est deja dans les prix au moment ou vous la lisez, et aucune "
-    "regle du programme ne l'utilise.")
+    "est déjà dans les prix au moment où vous la lisez, et aucune "
+    "règle du programme ne l'utilise.")
 
 RAPPEL_SECTEUR = (
-    "Le secteur d'un titre est DECLARE par la source de donnees, il "
-    "n'est pas mesure. La correspondance entre un theme d'actualite et "
-    "un secteur est une correspondance de NOMS, ecrite d'avance et "
-    "affichee ci-dessous : elle ne dit pas qu'un article agit sur un "
+    "Le secteur d'un titre est DÉCLARÉ par la source de données, il "
+    "n'est pas mesuré. La correspondance entre un thème d'actualité et "
+    "un secteur est une correspondance de NOMS, écrite d'avance et "
+    "affichée ci-dessous : elle ne dit pas qu'un article agit sur un "
     "cours.")
 
 RAPPEL_MOTS = (
-    "Un mot trouve est un mot trouve dans un titre — un appariement de "
-    "chaines de caracteres, rien d'autre. Aucun total n'est calcule : "
-    "compter des occurrences donnerait un nombre qui ressemblerait a "
-    "une mesure sans en etre une. Le risque geopolitique n'est pas "
-    "chiffre ici, et il ne le sera pas : personne ne sait convertir un "
-    "evenement en points de cours, et un nombre invente est plus "
+    "Un mot trouvé est un mot trouvé dans un titre — un appariement de "
+    "chaînes de caractères, rien d'autre. Aucun total n'est calculé : "
+    "compter des occurrences donnerait un nombre qui ressemblerait à "
+    "une mesure sans en être une. Le risque géopolitique n'est pas "
+    "chiffré ici, et il ne le sera pas : personne ne sait convertir un "
+    "événement en points de cours, et un nombre inventé est plus "
     "dangereux qu'une case vide parce qu'il se cite.")
 
 
@@ -346,34 +389,34 @@ def texte(r: dict) -> list[str]:
     """La veille en phrases. Aucun chiffre calcule ici : gabarits."""
     L = []
     if not r.get("lignes"):
-        return ["Aucune ligne a rapprocher : ajoutez des positions ou "
+        return ["Aucune ligne à rapprocher : ajoutez des positions ou "
                 "collez des titres dans MA LISTE."]
-    L.append(f"{r['n_actus']} actualites confrontees a "
+    L.append(f"{r['n_actus']} actualités confrontées à "
              f"{len(r['lignes'])} de vos titres.")
 
     if r["nommes"]:
         L.append("")
-        L.append("NOMMES PAR LA SOURCE — le fournisseur declare que "
+        L.append("NOMMÉS PAR LA SOURCE — le fournisseur déclare que "
                  "l'article porte sur ce titre :")
         for a in r["nommes"]:
             L.append(f"  • {', '.join(a['titres'])} — {a['titre']} "
                      f"({a['source']} {a['quand']})")
     else:
         L.append("")
-        L.append("Aucune actualite ne nomme l'un de vos titres.")
+        L.append("Aucune actualité ne nomme l'un de vos titres.")
 
     if r["sectoriels"]:
         L.append("")
-        L.append("MEME SECTEUR DECLARE — correspondance de noms, "
+        L.append("MÊME SECTEUR DÉCLARÉ — correspondance de noms, "
                  "pas de causes :")
         for a in r["sectoriels"]:
             for s, ts in a["secteurs"].items():
-                L.append(f"  • {SECTEURS_FR.get(s, s)} : "
+                L.append(f"  • {secteur_fr(s)} : "
                          f"{', '.join(ts)} — {a['titre']}")
 
     if r["geo"]:
         L.append("")
-        L.append("MOTS TROUVES DANS LE TITRE — appariement de chaines :")
+        L.append("MOTS TROUVÉS DANS LE TITRE — appariement de chaînes :")
         for a in r["geo"]:
             mots = ", ".join(m for fam in a["mots"].values() for m in fam)
             L.append(f"  • {mots} — {a['titre']}")

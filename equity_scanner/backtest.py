@@ -93,6 +93,32 @@ COUT_PAR_COTE = 0.0010     # spread + commission
 SLIPPAGE = 0.0005          # degradation du prix obtenu
 
 
+# Le motif de sortie, en francais, pour tout ce qui l'AFFICHE.
+#
+# Les cles restent les cles : elles servent d'index dans les rapports et
+# dans le journal d'audit, et les traduire les casserait. Seul le
+# libelle est traduit, et il vit ICI, a cote des chaines qui sont
+# reellement produites — `test_moteur` releve les motifs emis dans ce
+# fichier et exige que chacun ait sa ligne, donc un motif ajoute demain
+# sans libelle fait tomber le test au lieu de s'afficher en anglais.
+MOTIFS_FR = {
+    "stop": "stop touché",
+    "regime": "marché passé sous sa MM200",
+    "sma50": "clôture sous la SMA 50",
+    "ema20": "deux clôtures sous l'EMA 20",
+    "duree": "durée maximale atteinte",
+}
+
+
+def motif_fr(cle: str) -> str:
+    """Le libelle francais d'un motif de sortie, ou la cle si inconnue.
+
+    Rendre la cle plutot que de lever : un rapport ne doit pas tomber
+    parce qu'un libelle manque, mais le test, lui, le refuse.
+    """
+    return MOTIFS_FR.get(cle, cle)
+
+
 def _prix_entree(d: pd.DataFrame, i: int) -> tuple[float, int] | None:
     """Prix d'achat reel et barre a laquelle il est obtenu."""
     if not EXECUTION_J1:

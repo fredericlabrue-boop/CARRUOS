@@ -2305,9 +2305,9 @@ def test_memo() -> None:
     ok("le rappel voyage avec le resultat",
        "RAPPROCHEMENT" in r["rappel"] and "pas une analyse" in r["rappel"])
     ok("et le rappel dit que le risque geopolitique n'est pas chiffre",
-       "pas chiffre" in vl.RAPPEL_MOTS)
+       "pas chiffré" in vl.RAPPEL_MOTS)
     ok("le secteur est presente comme DECLARE, pas mesure",
-       "DECLARE" in vl.RAPPEL_SECTEUR)
+       "DÉCLARÉ" in vl.RAPPEL_SECTEUR)
     # La table est ecrite AVANT usage et doit rester affichable : une
     # correspondance qu'on ne peut pas lire ne peut pas se contester.
     ok("la table de correspondance voyage avec le resultat",
@@ -2316,6 +2316,65 @@ def test_memo() -> None:
        [a["titres"] for a in r["nommes"]]
        == [d["vous"]["titres"] for d in vl.decore(ACTUS, LIGNES, SECT)
            if d.get("vous", {}).get("titres")])
+
+    # ------------------------------------------------------------------
+    # Tout ce qui s'affiche est en francais
+    # ------------------------------------------------------------------
+    #
+    # Le programme est en francais, mais il lit des sources anglaises :
+    # les motifs de sortie du moteur (`stop`, `regime`, `sma50`), les
+    # secteurs de yfinance (« Consumer Cyclical ») et les themes
+    # d'Alpha Vantage (« energy_transportation ») sont des CLES
+    # anglaises. Elles doivent le rester — elles indexent les rapports
+    # et le journal d'audit — mais aucune ne doit atteindre l'ecran
+    # telle quelle.
+    #
+    # Les trois listes attendues sont DERIVEES du code, jamais recopiees
+    # a la main : une cle ajoutee demain sans son libelle fait tomber le
+    # test au lieu de s'afficher en anglais.
+    print("\n— Tout ce qui s'affiche est en francais —")
+    import re as _rf
+
+    from . import backtest as _bt
+    from . import veille as _v2
+
+    src_bt = Path(_bt.__file__).read_text(encoding="utf-8")
+    emis = set(_rf.findall(r', "([a-z0-9_]+)"\)\n', src_bt))
+    emis |= set(_rf.findall(r'j - i0, "([a-z0-9_]+)"\)', src_bt))
+    sans_libelle = sorted(m for m in emis if m not in _bt.MOTIFS_FR)
+    ok(f"les {len(emis)} motifs de sortie du moteur ont leur libelle",
+       bool(emis) and not sans_libelle)
+    for m_ in sans_libelle:
+        print(f"          -> motif sans libelle francais : {m_}")
+
+    themes_nus = sorted(t for t in _v2.THEME_SECTEURS if t not in _v2.THEMES_FR)
+    ok("chaque theme de la veille a son libelle francais", not themes_nus)
+    for t in themes_nus:
+        print(f"          -> theme sans libelle : {t}")
+
+    secteurs_nus = sorted({s for secs in _v2.THEME_SECTEURS.values()
+                           for s in secs if s not in _v2.SECTEURS_FR})
+    ok("chaque secteur cite par la table a son libelle francais",
+       not secteurs_nus)
+    for s_ in secteurs_nus:
+        print(f"          -> secteur sans libelle : {s_}")
+
+    # Et les libelles eux-memes doivent etre du francais, pas la cle
+    # recopiee : « technology » n'est pas une traduction de
+    # « technology ».
+    # Quelques mots s'ecrivent de la meme facon dans les deux langues.
+    # Les exempter NOMMEMENT plutot que d'assouplir la regle : une
+    # exemption se lit et se conteste, un test relache ne se voit plus.
+    IDENTIQUES = {"finance"}
+    copies = sorted(k for k, v in _v2.THEMES_FR.items()
+                    if k == v and k not in IDENTIQUES)
+    copies += sorted(k for k, v in _v2.SECTEURS_FR.items()
+                     if k == v and k not in IDENTIQUES)
+    copies += sorted(k for k, v in _bt.MOTIFS_FR.items()
+                     if k == v and k not in IDENTIQUES)
+    ok("aucun libelle n'est la cle anglaise recopiee", not copies)
+    for c in copies:
+        print(f"          -> libelle identique a sa cle : {c}")
 
     print("\n— Memo de lecture —")
     f = Path(__file__).resolve().parent.parent / "MEMO-LECTURE.md"

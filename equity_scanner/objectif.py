@@ -314,20 +314,20 @@ def plan(cible: float, capital: float, versement: float = 0.0,
 
 
 RAPPEL = (
-    "Ces nombres sont des equations resolues, pas des previsions. Le "
-    "taux exige est ce que l'arithmetique reclame pour tenir la date — "
-    "il ne dit pas qu'un placement le rendra. Aucune hypothese du "
-    "programme n'a passe sa Phase 0, donc aucun gain espere n'est "
-    "affiche ici : sans avantage demontre, il vaut zero, pas un petit "
+    "Ces nombres sont des équations résolues, pas des prévisions. Le "
+    "taux exigé est ce que l'arithmétique réclame pour tenir la date — "
+    "il ne dit pas qu'un placement le rendra. Aucune hypothèse du "
+    "programme n'a passé sa Phase 0, donc aucun gain espéré n'est "
+    "affiché ici : sans avantage démontré, il vaut zéro, pas un petit "
     "nombre optimiste.")
 
 RAPPEL_FREQUENCE = (
-    "La frequence historique compte des fenetres glissantes, qui se "
-    "recouvrent presque entierement. Le nombre de periodes reellement "
-    "independantes est bien plus petit, et c'est lui qui porte "
-    "l'information. Une frequence passee n'est pas une probabilite "
+    "La fréquence historique compte des fenêtres glissantes, qui se "
+    "recouvrent presque entièrement. Le nombre de périodes réellement "
+    "indépendantes est bien plus petit, et c'est lui qui porte "
+    "l'information. Une fréquence passée n'est pas une probabilité "
     "future : l'historique disponible est court, et il ne contient "
-    "qu'un seul deroulement de l'histoire.")
+    "qu'un seul déroulement de l'histoire.")
 
 
 def texte(p: dict) -> list[str]:
@@ -342,14 +342,14 @@ def texte(p: dict) -> list[str]:
         if m is None:
             return "hors d'atteinte avec ces leviers en moins de cent ans"
         if m == 0:
-            return "deja atteint"
+            return "déjà atteint"
         a, r = divmod(int(m), 12)
         if a and r:
             return f"{a} ans et {r} mois"
         return f"{a} ans" if a else f"{r} mois"
 
     if p.get("deja"):
-        return [f"La cible de {eur(p['cible'])} est deja atteinte."]
+        return [f"La cible de {eur(p['cible'])} est déjà atteinte."]
 
     out = [f"Cible {eur(p['cible'])}, capital {eur(p['capital'])}, "
            f"versement {eur(p['versement'])} par mois. "
@@ -359,7 +359,7 @@ def texte(p: dict) -> list[str]:
     if sc.get("mois") is not None:
         out.append(f"Sans aucune croissance, par les seuls versements : "
                    f"{dur(sc['mois'])}. C'est le seul chiffre de cette "
-                   f"page qui ne depende d'aucune hypothese.")
+                   f"page qui ne dépende d'aucune hypothèse.")
     elif sc.get("versement_pour_mois") is not None:
         out.append(f"Sans aucune croissance, tenir la date demanderait "
                    f"{eur(sc['versement_pour_mois'])} par mois.")
@@ -367,28 +367,28 @@ def texte(p: dict) -> list[str]:
     if p.get("mois_vise"):
         t = p.get("taux_exige")
         if t is None:
-            out.append(f"Pour y etre en {dur(p['mois_vise'])}, aucun taux "
+            out.append(f"Pour y être en {dur(p['mois_vise'])}, aucun taux "
                        f"atteignable ne suffit avec ce capital et ce "
                        f"versement : c'est le versement qu'il faut bouger.")
         else:
-            out.append(f"Pour y etre en {dur(p['mois_vise'])} avec ce "
-                       f"versement, l'arithmetique reclame {pc(t)} par an. "
-                       f"Elle ne dit pas ou le trouver.")
+            out.append(f"Pour y être en {dur(p['mois_vise'])} avec ce "
+                       f"versement, l'arithmétique réclame {pc(t)} par an. "
+                       f"Elle ne dit pas où le trouver.")
             ti = p.get("taux_exige_net_impot")
             if ti is not None:
                 out.append(f"Et {pc(ti)} par an si les {eur(p['cible'])} "
-                           f"doivent rester APRES le prelevement "
+                           f"doivent rester APRÈS le prélèvement "
                            f"forfaitaire de {pc(p['impot'])} sur le gain — "
-                           f"un seul denouement a la fin, donc un "
-                           f"plancher : revendre souvent coute plus.")
+                           f"un seul dénouement à la fin, donc un "
+                           f"plancher : revendre souvent coûte plus.")
         ve = p.get("versement_exige") or {}
         for hyp in sorted(ve):
             if ve[hyp] is not None:
-                out.append(f"  — a {pc(hyp)} par an : {eur(ve[hyp])} "
+                out.append(f"  — à {pc(hyp)} par an : {eur(ve[hyp])} "
                            f"par mois suffiraient.")
 
     if p.get("taux_pose") is not None:
-        out.append(f"A {pc(p['taux_pose'])} par an — votre hypothese — : "
+        out.append(f"À {pc(p['taux_pose'])} par an — votre hypothèse — : "
                    f"{dur(p.get('duree_au_taux_pose'))}.")
 
     out.append(RAPPEL)

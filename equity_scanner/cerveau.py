@@ -378,7 +378,7 @@ def _anthropic(msgs: list, modele: str, cle: str) -> str:
                     if b.get("type") == "text").strip()
     if not txt:
         raise RuntimeError((d.get("error") or {}).get("message",
-                                                      "reponse vide"))
+                                                      "réponse vide"))
     return txt
 
 
@@ -396,7 +396,7 @@ def _openai(msgs: list, modele: str, cle: str) -> str:
                 bouts.append(c.get("text", ""))
     txt = "\n".join(bouts).strip()
     if not txt:
-        raise RuntimeError("reponse vide")
+        raise RuntimeError("réponse vide")
     return txt
 
 
@@ -420,9 +420,9 @@ def demande(question: str, dossier: dict | None = None,
     cle = (c.get("cles") or {}).get(f, "")
     if not cle:
         return {"ok": False, "configure": False,
-                "erreur": "Aucune cle enregistree. Le programme n'en "
+                "erreur": "Aucune clé enregistrée. Le programme n'en "
                           "embarque aucune et ne peut pas en fabriquer : "
-                          "il faut la votre, prise chez "
+                          "il faut la vôtre, prise chez "
                           + FOURNISSEURS.get(f, {}).get("ou", "le fournisseur")
                           + "."}
 
@@ -449,7 +449,7 @@ def demande(question: str, dossier: dict | None = None,
         except Exception:
             detail = str(exc)
         return {"ok": False, "configure": True,
-                "erreur": f"{f} a repondu {exc.code} : {detail}"}
+                "erreur": f"{f} a répondu {exc.code} : {detail}"}
     except Exception as exc:
         return {"ok": False, "configure": True,
                 "erreur": f"{type(exc).__name__} : {exc}"}
@@ -498,7 +498,7 @@ def repond(question: str, existe=None, defaut_ticker: str = "",
 
     if not avec_modele or not disponible():
         out["modele"] = {"ok": False, "configure": disponible(),
-                         "erreur": "cerveau non configure"}
+                         "erreur": "cerveau non configuré"}
         return out
 
     out["modele"] = demande(question, faits, historique)

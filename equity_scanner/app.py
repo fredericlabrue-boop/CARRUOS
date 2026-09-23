@@ -956,7 +956,7 @@ async function actus(){
    Object.keys(v.secteurs||{}).forEach(function(sec){
     v.secteurs[sec].forEach(function(t){
      b += '<span class="vs" data-vers="/graphique?ticker='+encodeURIComponent(t)
-       +'" data-fen="carruos-'+clean(t)+'" title="Meme secteur declare : '
+       +'" data-fen="carruos-'+clean(t)+'" title="Même secteur déclaré : '
        +clean(nf[sec]||sec)+'. Correspondance de noms, pas de causes">'
        +clean(t)+'</span>'; }); });
    var mots = [];
@@ -979,18 +979,18 @@ async function actus(){
     if((v.titres||[]).length) n1++;
     if(Object.keys(v.secteurs||{}).length) n2++; });
    pied.innerHTML = (j.lignes && j.lignes.length)
-    ? (n1+' actualite'+(n1>1?'s':'')+' vous nomme'+(n1>1?'nt':'')+', '
-       +n2+' touche'+(n2>1?'nt':'')+' un secteur que vous detenez. '
+    ? (n1+' actualité'+(n1>1?'s':'')+' vous nomme'+(n1>1?'nt':'')+', '
+       +n2+' touche'+(n2>1?'nt':'')+' un secteur que vous détenez. '
        +'C\'est un RAPPROCHEMENT, pas une analyse : il ne dit ni le sens '
-       +'ni l\'ampleur, et aucune regle ne l\'utilise.')
-    : 'Aucune ligne a rapprocher. Ajoutez une position, ou prenez une '
+       +'ni l\'ampleur, et aucune règle ne l\'utilise.')
+    : 'Aucune ligne à rapprocher. Ajoutez une position, ou prenez une '
       +'note sur un titre dans le CARNET.';
   }
  }catch(e){
   $('clebloc').style.display='block';
   m.className='msg err';
-  m.textContent='Actualites indisponibles ('+e.message+'). '
-   +'Colle ta cle ci-dessous, ou verifie que news.py est bien a jour.';
+  m.textContent='Actualités indisponibles ('+e.message+'). '
+   +'Collez votre clé ci-dessous, ou vérifiez que news.py est à jour.';
  }
 }
 actus();
@@ -1135,21 +1135,21 @@ async function majExec(txt){
      (v.secteurs[sec]||[]).forEach(function(t){
       if(n2.indexOf(t)<0 && n1.indexOf(t)<0) n2.push(t); }); }); });
    var h='';
-   if(n1.length) h += '<b>Nommes par la source :</b> '+n1.join(', ')+'.<br>';
-   if(n2.length) h += '<b>Meme secteur declare :</b> '+n2.join(', ')
+   if(n1.length) h += '<b>Nommés par la source :</b> '+n1.join(', ')+'.<br>';
+   if(n2.length) h += '<b>Même secteur déclaré :</b> '+n2.join(', ')
      + ' &mdash; correspondance de noms, pas de causes.<br>';
-   if(!h) h = 'Aucune actualite du jour ne rencontre vos lignes.<br>';
+   if(!h) h = 'Aucune actualité du jour ne rencontre vos lignes.<br>';
    (j.items||[]).slice(0,4).forEach(function(a){
     h += '<br>' + (a.titre||'').replace(/</g,'&lt;'); });
    h += '<br><br><span style="color:var(--txt-faible)">'
      + (j.rappel||'') + '</span>';
    $('majr').innerHTML = h;
    majDit(n1.length
-    ? ('Ces titres sont nommes aujourd\'hui : '+n1.join(', ')+'.')
+    ? ('Ces titres sont nommés aujourd\'hui : '+n1.join(', ')+'.')
     : (n2.length
-       ? ('Rien ne vous nomme. Meme secteur declare : '+n2.join(', ')+'.')
-       : 'Aucune actualite du jour ne rencontre vos lignes.'), false);
-  }catch(e){ majDit('Actualites indisponibles.'); }
+       ? ('Rien ne vous nomme. Même secteur déclaré : '+n2.join(', ')+'.')
+       : 'Aucune actualité du jour ne rencontre vos lignes.'), false);
+  }catch(e){ majDit('Actualités indisponibles.'); }
   return;
  }
  const ms=q.match(/scan(?:ne|ner)?\s+(.+)/);
@@ -1219,23 +1219,23 @@ async function majCerveau(q){
    var c = m.chiffres || {};
    if(c.n_hors){
     h += '<div class="majiax">' + c.n_hors + ' chiffre'
-      + (c.n_hors>1?'s':'') + ' de cette reponse ne vien'
+      + (c.n_hors>1?'s':'') + ' de cette réponse ne vien'
       + (c.n_hors>1?'nent':'t') + ' pas du dossier : '
       + c.hors_dossier.join(', ').replace(/</g,'&lt;')
-      + '. Ils ne sont pas verifiables ici.</div>';
+      + '. Ils ne sont pas vérifiables ici.</div>';
    }else if(c.n_traces){
     h += '<div class="majiao">Les ' + c.n_traces
-      + ' chiffres de cette reponse viennent tous du dossier.</div>';
+      + ' chiffres de cette réponse viennent tous du dossier.</div>';
    }
    h += '</div>';
    MAJ_HIST.push({role:'user',content:q},{role:'assistant',content:m.texte});
    if(MAJ_HIST.length>20) MAJ_HIST=MAJ_HIST.slice(-20);
   }else if(m.configure===false){
-   h += '<div class="majiax">Le cerveau n\'est pas branche : aucune cle '
-     + 'enregistree. Les faits ci-dessus sont calcules par le programme '
-     + 'et ne demandent aucune cle.</div>';
+   h += '<div class="majiax">Le cerveau n\'est pas branché : aucune clé '
+     + 'enregistrée. Les faits ci-dessus sont calculés par le programme '
+     + 'et ne demandent aucune clé.</div>';
   }else if(m.erreur && m.configure){
-   h += '<div class="majiax">Le cerveau n\'a pas repondu : '
+   h += '<div class="majiax">Le cerveau n\'a pas répondu : '
      + String(m.erreur).replace(/</g,'&lt;')
      + '. Les faits ci-dessus restent valables.</div>';
   }
@@ -1245,7 +1245,7 @@ async function majCerveau(q){
     + j.rappel + '</span>';
   $('majr').innerHTML = h;
   majDit((m.ok && m.texte) ? m.texte.split(/[.!?]\s/)[0]
-                           : (f && f.ok ? f.titre : 'Voila.'), false);
+                           : (f && f.ok ? f.titre : 'Voilà.'), false);
   return true;
  }catch(e){ return false; }
 }
@@ -1261,15 +1261,15 @@ async function majIaEtat(){
   var j = await (await fetch('/api/cerveau/etat')).json();
   var e = $('majiae'); if(!e) return;
   e.textContent = j.configure
-    ? ('CERVEAU BRANCHE · ' + j.fournisseur_nom + ' · ' + j.modele)
-    : ('CERVEAU NON BRANCHE · cle a prendre sur ' + j.ou);
+    ? ('CERVEAU BRANCHÉ · ' + j.fournisseur_nom + ' · ' + j.modele)
+    : ('CERVEAU NON BRANCHÉ · clé à prendre sur ' + j.ou);
   e.className = 'majiae' + (j.configure ? ' on' : '');
  }catch(e){}
 }
 async function majIaPose(){
  var k = ($('majiak').value||'').trim();
- if(!k){ $('majiae').textContent = 'Collez la cle puis rappuyez.'; return; }
- $('majiae').textContent = 'Enregistrement...';
+ if(!k){ $('majiae').textContent = 'Collez la clé puis rappuyez.'; return; }
+ $('majiae').textContent = 'Enregistrement…';
  try{
   await fetch('/api/cerveau/config',{method:'POST',
    headers:{'Content-Type':'application/json'},
@@ -2264,10 +2264,10 @@ async function objectif(){
    + '&mois=' + encodeURIComponent($('omois').value||0)
    + '&taux=' + encodeURIComponent($('otaux').value||0)
    + '&ticker=' + encodeURIComponent(($('otk').value||'').trim());
- $('ores').innerHTML = '<p class="msg">Je resous.</p>';
+ $('ores').innerHTML = '<p class="msg">Je résous.</p>';
  try{
   var j = await (await fetch(q)).json();
-  if(!j.ok){ $('ores').innerHTML='<p class="msg">'+(j.erreur||'Echec.')
+  if(!j.ok){ $('ores').innerHTML='<p class="msg">'+(j.erreur||'Échec.')
     +'</p>'; return; }
   var h = '<div class="obj">';
   j.texte.forEach(function(l){
@@ -2279,14 +2279,14 @@ async function objectif(){
   if(f && f.assez){
    h += '<div class="obj o-f"><p class="o-t">CE TAUX, SUR L\'HISTORIQUE '
      + 'DE ' + String(f.ticker).replace(/</g,'&lt;') + '</p>'
-     + '<p class="o-l">' + f.k + ' fenetres sur ' + f.n + ' l\'ont '
+     + '<p class="o-l">' + f.k + ' fenêtres sur ' + f.n + ' l\'ont '
      + 'atteint, soit ' + (f.part*100).toFixed(1).replace('.',',') + ' %'
      + ' &mdash; intervalle de Wilson ' + (f.wilson[0]*100).toFixed(1)
        .replace('.',',') + ' % a ' + (f.wilson[1]*100).toFixed(1)
        .replace('.',',') + ' %.</p>'
-     + '<p class="o-l">Croissance mediane de ces fenetres : '
+     + '<p class="o-l">Croissance médiane de ces fenêtres : '
      + (f.median*100).toFixed(1).replace('.',',') + ' % par an.</p>'
-     + '<p class="o-l o-sous">Fenetres reellement independantes : environ '
+     + '<p class="o-l o-sous">Fenêtres réellement indépendantes : environ '
      + f.n_independantes + '.</p>'
      + '<p class="o-l o-sous">' + j.rappel_frequence + '</p></div>';
   }else if(f && f.erreur){
@@ -2295,7 +2295,7 @@ async function objectif(){
        .replace(/</g,'&lt;') + '</p></div>';
   }else if(f){
    h += '<div class="obj o-f"><p class="o-l o-sous">Pas assez '
-     + 'd\'historique pour compter les fenetres de cette duree.</p></div>';
+     + 'd\'historique pour compter les fenêtres de cette durée.</p></div>';
   }
   $('ores').innerHTML = h;
  }catch(e){ $('ores').innerHTML='<p class="msg">'+e.message+'</p>'; }
@@ -2497,17 +2497,17 @@ def _accueil(splash: bool = True) -> str:
               '<option value="anthropic">Claude (Anthropic)</option>'
               '<option value="openai">OpenAI</option></select>'
               '<input id="majiak" type="password" '
-              'placeholder="votre cle API"></div>'
+              'placeholder="votre clé API"></div>'
               '<div class="row" style="margin-top:6px">'
               '<button class="sec" onclick="majIaPose()">BRANCHER</button>'
               '<button class="sec" onclick="majIaOublie()">EFFACER</button>'
               '</div>'
-              '<div class="maje">CARRUOS n\'embarque aucune cle et ne '
-              'peut pas en fabriquer une : celle-ci est la votre, prise '
-              'chez le fournisseur. Elle est rangee dans '
+              '<div class="maje">CARRUOS n\'embarque aucune clé et ne '
+              'peut pas en fabriquer une : celle-ci est la vôtre, prise '
+              'chez le fournisseur. Elle est rangée dans '
               '~/.carruos/ia.json, jamais dans le programme ni dans '
-              'l\'archive. Sans elle, le majordome repond quand meme : '
-              'les faits sont calcules en local.</div>'
+              'l\'archive. Sans elle, le majordome répond quand même : '
+              'les faits sont calculés en local.</div>'
               '</div>'
               '</div>'
             + '<div id="voile" onclick="voileClic(event)">'
@@ -2541,7 +2541,7 @@ def _accueil(splash: bool = True) -> str:
             '</div></section>'
 
             '<section class="pan"><div class="trait"><i></i></div>'
-            '<h2>ACTUALITES MARCHE &amp; GEOPOLITIQUE</h2><div class="corps">'
+            '<h2>ACTUALITÉS MARCHÉ &amp; GÉOPOLITIQUE</h2><div class="corps">'
             '<div class="msg" id="man">Chargement...</div>'
             '<div class="clebloc" id="clebloc" style="display:none">'
             '<span class="ch">CLE ALPHA VANTAGE</span>'
@@ -2551,13 +2551,13 @@ def _accueil(splash: bool = True) -> str:
             '<button onclick="poseCle()">ENREGISTRER</button></div>'
             '<div class="note" style="margin-top:6px;border:0;padding:0">'
             'Gratuite sur alphavantage.co/support/#api-key. '
-            'Enregistree a deux endroits : a cote du programme, et '
-            'dans ton dossier personnel. La deuxieme copie est celle '
-            'qui te la rend apres une mise a jour.</div></div>'
+            'Enregistrée à deux endroits : à côté du programme, et '
+            'dans votre dossier personnel. La deuxième copie est celle '
+            'qui vous la rend après une mise à jour.</div></div>'
             '<div id="ran"></div>'
             '<div class="vpied" id="vpied"></div>'
-            '<div class="avert">Aucune de ces actualites n\'entre dans une '
-            "regle. Une information publique est deja dans les cours. "
+            '<div class="avert">Aucune de ces actualités n\'entre dans une '
+            "règle. Une information publique est déjà dans les cours. "
             "C'est du contexte avant de passer un ordre, pas un signal."
             '</div></div></section>'
             '<section class="pan"><div class="trait"><i></i></div><h2>SCANS COMPLETS</h2><div class="corps">'
@@ -2594,7 +2594,7 @@ def _accueil(splash: bool = True) -> str:
             '<div id="p0v"></div>'
             '<div class="msg" id="p0m">Le verdict decide si Carruos produit '
             "une liste d'ordres ou une liste de surveillance.</div>"
-            '<div class="avert">Regles evaluees sur cloture. '
+            '<div class="avert">Règles évaluées sur clôture. '
             "Tant que la Phase 0 n'a pas rendu un GO, toute sortie de "
             "Carruos est une liste de surveillance, pas une liste "
             "d'ordres.</div>"
@@ -3032,7 +3032,7 @@ def _etat():
     execution = f"NY {ny_etat['ouv_paris']} - {ny_etat['clo_paris']}"
 
     csv = sorted(Path(".").glob("phase0-*.csv"))
-    phase0 = "NON LANCEE" if not csv else f"{len(csv)} RAPPORT(S)"
+    phase0 = "NON LANCÉE" if not csv else f"{len(csv)} RAPPORT(S)"
 
     if us is None and eu is None:
         verdict = "MARCHE INDISPONIBLE"
@@ -3656,8 +3656,8 @@ async function crnCharge(){
       +'&q='+encodeURIComponent(($('cq').value||'').trim());
  var j=await (await fetch(u)).json();
  var c=j.compte||{};
- $('ccpt').textContent=(c.total||0)+' ENTREES  ·  '+(c.note||0)+' NOTES  ·  '
-   +(c.releve||0)+' RELEVES  ·  '+(c.ordre||0)+' ORDRES';
+ $('ccpt').textContent=(c.total||0)+' ENTRÉES  ·  '+(c.note||0)+' NOTES  ·  '
+   +(c.releve||0)+' RELEVÉS  ·  '+(c.ordre||0)+' ORDRES';
  var h='';
  (j.entrees||[]).forEach(function(x){
   h+='<div class="cse g-'+e(x.genre)+'"><div class="t">'
@@ -3673,8 +3673,8 @@ async function crnCharge(){
   if(x.donnees) h+='<div class="dn">'+e(JSON.stringify(x.donnees,null,1))+'</div>';
   h+='</div>';
  });
- $('cl').innerHTML=h||'<p class="ex">Rien encore. La premiere note se '
-  +'prend au moment ou vous decidez, pas apres.</p>';
+ $('cl').innerHTML=h||'<p class="ex">Rien encore. La première note se '
+  +'prend au moment où vous décidez, pas après.</p>';
  var o='<option value="">TOUS LES TITRES</option>';
  (j.tickers||[]).forEach(function(t){
   o+='<option value="'+e(t)+'"'+(t===CRN_TK?' selected':'')+'>'+e(t)+'</option>';});
@@ -3683,28 +3683,28 @@ async function crnCharge(){
 
 async function crnEcrit(){
  var titre=($('ctitre').value||'').trim(), texte=$('ctexte').value||'';
- if(!titre && !texte.trim()){ $('cm').textContent='Rien a enregistrer.'; return; }
- $('cm').textContent='Enregistrement...';
+ if(!titre && !texte.trim()){ $('cm').textContent='Rien à enregistrer.'; return; }
+ $('cm').textContent='Enregistrement…';
  var r=await fetch('/api/carnet',{method:'POST',
    headers:{'Content-Type':'application/json'},
    body:JSON.stringify({action:'ajoute',titre:titre,texte:texte,
      ticker:($('ctk').value||'').trim(),genre:$('cg').value})});
  var j=await r.json();
- if(!j.ok){ $('cm').textContent=j.erreur||'Echec.'; return; }
+ if(!j.ok){ $('cm').textContent=j.erreur||'Échec.'; return; }
  $('ctitre').value=''; $('ctexte').value='';
- $('cm').textContent='Enregistre.';
+ $('cm').textContent='Enregistré.';
  crnCharge();
 }
 
 async function crnReleve(){
  var tk=($('ctk').value||'').trim();
- if(!tk){ $('cm').textContent='Un releve demande un ticker.'; return; }
- $('cm').textContent='Mesure en cours...';
+ if(!tk){ $('cm').textContent='Un relevé demande un ticker.'; return; }
+ $('cm').textContent='Mesure en cours…';
  var r=await fetch('/api/carnet',{method:'POST',
    headers:{'Content-Type':'application/json'},
    body:JSON.stringify({action:'releve',ticker:tk})});
  var j=await r.json();
- $('cm').textContent=j.ok?('Releve de '+tk+' fige.'):(j.erreur||'Echec.');
+ $('cm').textContent=j.ok?('Relevé de '+tk+' figé.'):(j.erreur||'Échec.');
  if(j.ok) crnCharge();
 }
 
@@ -3832,8 +3832,17 @@ def _veille(force: bool = False) -> dict:
         sect = vl.secteurs(lignes) if lignes else {}
     except Exception:
         sect = {}
+    # Le libelle francais des themes, traduit ICI : la page affichait
+    # « energy_transportation, economy_macro » en tete de chaque
+    # depeche — de l'anglais ET de la notation de programmeur, sur une
+    # interface par ailleurs entierement en francais.
+    dec = vl.decore(items, lignes, sect)
+    for a_ in dec:
+        th = a_.get("themes") or []
+        if th:
+            a_["sujets"] = ", ".join(vl.theme_fr(t) for t in th[:2])
     return {
-        "items": vl.decore(items, lignes, sect),
+        "items": dec,
         "lignes": lignes,
         "secteurs": {t: s for t, s in sect.items() if s},
         "sans_secteur": sorted(t for t in lignes if not sect.get(t)),
@@ -3912,14 +3921,14 @@ def _page_carnet() -> str:
         + '<div class="crn">'
 
           '<section class="pan"><div class="trait"><i></i></div>'
-          '<h2>ECRIRE</h2><div class="corps">'
-          '<p class="ex">Ce que vous ecrivez ici n\'est <b>ni lu ni '
-          'interprete</b> par le programme. Un <b>releve</b>, lui, fige '
-          'ce que le moteur mesure <b>a cet instant</b> : c\'est la '
-          'seule facon de savoir plus tard ce que vous voyiez le jour '
-          'ou vous avez decide.</p>'
+          '<h2>ÉCRIRE</h2><div class="corps">'
+          '<p class="ex">Ce que vous écrivez ici n\'est <b>ni lu ni '
+          'interprété</b> par le programme. Un <b>relevé</b>, lui, fige '
+          'ce que le moteur mesure <b>à cet instant</b> : c\'est la '
+          'seule façon de savoir plus tard ce que vous voyiez le jour '
+          'où vous avez décidé.</p>'
           '<div class="lg">'
-          '<input id="ctk" placeholder="Titre concerne (optionnel)">'
+          '<input id="ctk" placeholder="Titre concerné (optionnel)">'
           f'<select id="cg">{genres}</select></div>'
           '<div class="lg"><input id="ctitre" placeholder="Titre de la note">'
           '</div>'
@@ -3927,7 +3936,7 @@ def _page_carnet() -> str:
           'vous attendez. Ce qui vous ferait changer d\'avis."></textarea>'
           '<div class="lg" style="margin-top:9px">'
           '<button onclick="crnEcrit()">ENREGISTRER</button>'
-          '<button class="sec" onclick="crnReleve()">FIGER LE RELEVE</button>'
+          '<button class="sec" onclick="crnReleve()">FIGER LE RELEVÉ</button>'
           '</div><div class="msg" id="cm"></div>'
           '</div></section>'
 
@@ -3938,7 +3947,7 @@ def _page_carnet() -> str:
           '<select id="cft"><option value="">TOUS LES TITRES</option></select>'
           '<select id="cfg"><option value="">TOUS LES GENRES</option>'
           '<option value="note">NOTES</option>'
-          '<option value="releve">RELEVES</option>'
+          '<option value="releve">RELEVÉS</option>'
           '<option value="ordre">ORDRES</option></select>'
           '<input id="cq" placeholder="Chercher un mot"></div>'
           '<div id="cl"></div>'
@@ -3979,7 +3988,7 @@ def _carnet_ecrit(c: dict) -> dict:
     if action == "releve":
         tk = (c.get("ticker") or "").strip().upper()
         if not tk:
-            return {"ok": False, "erreur": "Un releve demande un ticker."}
+            return {"ok": False, "erreur": "Un relevé demande un ticker."}
         faits = _faits_releve(tk)
         if not faits.get("ok"):
             return {"ok": False, "erreur": faits.get("erreur", "mesure impossible")}
@@ -4159,21 +4168,21 @@ def _page_strategie() -> str:
         '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         '<link rel="icon" type="image/svg+xml" href="/carruos.svg"><link rel="alternate icon" href="/favicon.ico">'
-        f"<title>{NOM} - strategie</title>"
+        f"<title>{NOM} - stratégie</title>"
         f"<style>{rg.variables(reg)}{CSS}{CSS_FICHE}{CSS_STRAT}</style></head>"
         f'<body class="{rg.classes(reg)}"{rg.corps_attrs(reg)}>'
         + rg.tiroir_html(reg)
         + hd.fond(TRACE_D)
         + '<div class="app strat-page">'
           + hd.barre(TRACE_D, NOM, actif="strategie",
-                     soustitre="STRATEGIE")
+                     soustitre="STRATÉGIE")
 
           + '<div class="strat">'
           '<section class="pan"><h2>SI JE REINVESTIS</h2>'
           '<div class="corps">'
-          '<p class="ex">Le meme rendement, trois traitements fiscaux. '
-          'Le taux ci-dessous est <b>votre hypothese</b> : ce tableau en '
-          'tire les consequences, il ne les devine pas.</p>'
+          '<p class="ex">Le même rendement, trois traitements fiscaux. '
+          'Le taux ci-dessous est <b>votre hypothèse</b> : ce tableau en '
+          'tire les conséquences, il ne les devine pas.</p>'
           '<div class="champs">'
           '<label>Capital<input id="pcap" type="number" value="8000"></label>'
           '<label>Versement / mois<input id="pmens" type="number" value="0">'
@@ -4192,11 +4201,11 @@ def _page_strategie() -> str:
 
           '<section class="pan"><h2>UN OBJECTIF CHIFFRE</h2>'
           '<div class="corps">'
-          '<p class="ex">Dites la somme et la date. L\'arithmetique ne '
-          'repond jamais <b>impossible</b> : elle repond <b>ce que ca '
-          'demande</b>. Le taux exige est ce que l\'equation reclame, '
+          '<p class="ex">Dites la somme et la date. L\'arithmétique ne '
+          'répond jamais <b>impossible</b> : elle répond <b>ce que ça '
+          'demande</b>. Le taux exigé est ce que l\'équation réclame, '
           'pas ce qu\'un placement va rendre — et le programme ne vous '
-          'dira pas ou le trouver.</p>'
+          'dira pas où le trouver.</p>'
           '<div class="champs">'
           '<label>Objectif<input id="ocib" type="number" value="50000">'
           '</label>'
@@ -4204,23 +4213,23 @@ def _page_strategie() -> str:
           '</label>'
           '<label>Versement / mois<input id="over" type="number" '
           'value="300"></label>'
-          '<label>Echeance (mois)<input id="omois" type="number" '
+          '<label>Échéance (mois)<input id="omois" type="number" '
           'value="36"></label>'
-          '<label>Votre hypothese %/an<input id="otaux" type="number" '
+          '<label>Votre hypothèse %/an<input id="otaux" type="number" '
           'value="8" step="0.5"></label>'
           '<label>Titre (facultatif)<input id="otk" '
           'placeholder="CW8.PA, NVDA..."></label>'
           '</div>'
           '<div class="row" style="margin-top:9px">'
-          '<button onclick="objectif()">RESOUDRE</button></div>'
+          '<button onclick="objectif()">RÉSOUDRE</button></div>'
           '<div id="ores"></div>'
           '</div></section>'
 
           '<section class="pan"><h2>MES LIGNES</h2>'
           '<div class="corps">'
           '<p class="ex">Les faits mesurables sur chaque position, et '
-          'l\'etat des <b>quatre conditions de sortie de votre '
-          'specification</b>. Aucun verdict n\'est calcule ici.</p>'
+          'l\'état des <b>quatre conditions de sortie de votre '
+          'spécification</b>. Aucun verdict n\'est calculé ici.</p>'
           '<div class="row">'
           '<input id="rtk" placeholder="n\'importe quel titre : NVDA, MC.PA, '
           'TLX...">'
