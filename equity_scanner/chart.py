@@ -555,6 +555,12 @@ body{background:var(--fond);color:var(--txt);
  grid-template-columns:238px minmax(0,1fr) 258px 306px;
  grid-template-rows:auto auto minmax(0,1fr) auto}
 .wrap>.hd{grid-column:1/-1}
+.prf{padding:5px 0;border-top:1px solid var(--bord)}
+.prf:first-of-type{border-top:0}
+.prf span{display:block;font:400 8.5px ui-monospace,monospace;
+ letter-spacing:.16em;color:var(--txt-faible);text-transform:uppercase}
+.prf em{display:block;margin-top:2px;font-style:normal;font-size:12px;
+ line-height:1.45;color:var(--txt-fort);font-variant-numeric:tabular-nums}
 .wrap>.bar{grid-column:1/-1;margin-bottom:4px}
 .wrap>.ol{grid-column:1/-1;display:flex;align-items:center;gap:9px;
  flex-wrap:wrap;padding:7px 11px;background:rgba(4,10,14,.5);
@@ -1032,6 +1038,32 @@ function carteInteret(d){
  return h + '</div>';
 }
 
+// Le profil de l'instrument. Une action et un ETF monde ne se lisent
+// pas pareil, et la difference se MESURE : amplitude, pire recul, lien
+// au repere — et surtout la duree REELLE des positions que les regles
+// de la specification produisent sur ce titre. L'horizon n'est pas un
+// choix, c'est une consequence des quatre conditions de sortie.
+function carteProfil(){
+ const P=(typeof PROFIL!=='undefined')?PROFIL:null;
+ if(!P || !P.lignes || !P.lignes.length) return '';
+ let h='<div class="int"><h3>PROFIL DE L’INSTRUMENT</h3>';
+ P.lignes.forEach(function(l){
+  const cle=String(l[0]), val=String(l[1]);
+  if(cle==='AMPLITUDE'){
+   h+='<div class="sec"><span>'+cle+'</span>'
+     +'<div class="mo" style="margin-top:0">'+val+'</div></div>';
+   return;
+  }
+  // Libelle au-dessus, valeur en dessous. Sur une colonne de 270 px,
+  // « Pire recul depuis un sommet » en face de sa valeur se casse sur
+  // quatre lignes et la carte devient illisible.
+  h+='<div class="prf"><span>'+cle+'</span><em>'+val+'</em></div>';
+ });
+ h+='<div class="av">'+P.rappel
+   +(P.declare?('<br>'+P.rappel_declare):'')+'</div>';
+ return h+'</div>';
+}
+
 // La lecture des chandeliers, dans la colonne de droite. Elle ne dit
 // jamais ce qu'une figure ANNONCE : elle dit ce qu'elle a ete suivie de
 // sur ce titre, a cote de ce que le titre fait un jour quelconque.
@@ -1085,7 +1117,7 @@ function draw(){
      + 'annuelles. Essayez une unite plus fine.';
   }
   document.getElementById('side').innerHTML='<div class="box">'+m+'</div>'
-    + carteInteret(null) + carteChandeliers();
+    + carteInteret(null) + carteProfil() + carteChandeliers();
   return;
  }
  bou.setData(d.ohlc); bou.setMarkers(d.markers); vol.setData(d.volume);
@@ -1112,6 +1144,7 @@ function draw(){
  let h='<div class="vd v-'+v.type+'"><div class="t">'+v.titre+
        '</div><div class="s">'+v.sous+'</div></div>';
  h+=carteInteret(d);
+ h+=carteProfil();
  h+=carteChandeliers();
  if(d.niveaux){const n=d.niveaux;
   h+='<div class="box"><h3>NIVEAUX</h3><div class="lv">'+
@@ -1419,6 +1452,30 @@ def build_html(brut, ticker, bench_brut, sleeve=8000.0, ccy="",
             "volume_prix": chand.get("volume_prix", []),
         }
 
+    # Le profil : ce qui distingue ce titre d'un ETF monde, mesure.
+    # La duree de detention rejoue les regles sur tout l'historique,
+    # donc elle coute ; elle est calculee une fois pour la page.
+    # `dj`, la serie JOURNALIERE enrichie — pas `data["jour"]`, qui porte
+    # deja les tableaux mis en forme pour le navigateur. Le premier essai
+    # allait y chercher une colonne `close` absente, l'exception tombait
+    # dans le `except` et la carte disparaissait sans un mot. D'ou la
+    # trace ci-dessous : une carte qui s'efface en silence ne se remarque
+    # pas, et c'est exactement ce qui est arrive.
+    prof_js = None
+    try:
+        from . import profil as pf
+        m = pf.mesures(dj, bench=bj, ticker=ticker)
+        dd = pf.duree_detention(dj, bj, ticker)
+        prof_js = {"lignes": pf.lignes(m, dd), "rappel": pf.RAPPEL,
+                   "bande": m.get("bande_libelle"),
+                   "declare": bool((m.get("declare") or {})
+                                   .get("disponible")),
+                   "rappel_declare": pf.RAPPEL_DECLARE}
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        prof_js = None
+
     # Pas d'antislash dans une expression de f-string : interdit avant
     # Python 3.12. On construit la classe a part.
     morceaux = []
@@ -1525,6 +1582,7 @@ def build_html(brut, ticker, bench_brut, sleeve=8000.0, ccy="",
         + ";const TICKER=" + json.dumps(ticker)
         + ";const INTERET=" + json.dumps(inter, ensure_ascii=False)
         + ";const CHAND=" + json.dumps(chand_js, ensure_ascii=False)
+        + ";const PROFIL=" + json.dumps(prof_js, ensure_ascii=False)
         + ";" + hd.BARRE_JS + JS + rg.tiroir_js() + "</script></body></html>"
     ).replace("__D__", json.dumps(data, separators=(",", ":")))
 

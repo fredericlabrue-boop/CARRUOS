@@ -224,6 +224,35 @@ def _regle_sans_ancetre(css: str, classe: str) -> bool:
     return False
 
 
+def _classes_coquille(html: str) -> set:
+    """Les classes posees sur la COQUILLE de la page : <body> et .app.
+
+    Ce sont celles qui pilotent toute la mise en page. `strat-page` et
+    `crn-page` redefinissent les lignes de la grille plein ecran ; sans
+    leur regle, la page retombe sur un gabarit a trois pistes dont la
+    troisieme, vide, ramasse tout l'espace libre.
+    """
+    out = set()
+    m = re.search(r"<body[^>]*class=\"([^\"]*)\"", html)
+    if m:
+        out.update(m.group(1).split())
+    m = re.search(r'<div class="app([^"]*)"', html)
+    if m:
+        out.update(m.group(1).split())
+    # `theme-…` est la seule exception, et elle est ECRITE dans les
+    # regles du projet : un theme ne fait qu'outrepasser l'apparence de
+    # base, donc celui qui ne redefinit rien n'a legitimement aucune
+    # regle — c'est le cas du theme d'origine.
+    return {c for c in out
+            if c and c != "app" and not c.startswith("theme-")}
+
+
+def _classe_stylee(css: str, classe: str) -> bool:
+    """Une regle de CETTE feuille mentionne-t-elle cette classe ?"""
+    css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    return re.search(r"\.%s\b" % re.escape(classe), css) is not None
+
+
 def _rangs_onglets(html: str) -> list:
     """Les adresses des onglets, dans l'ordre ou la page les pose."""
     return re.findall(r'data-vers="([^"]*)"', _bloc_barre(html))
@@ -258,7 +287,8 @@ def main() -> int:
         pages = {"accueil": app._accueil(splash=False),
                  "graphique": app._page_graphique("AAA"),
                  "strategie": app._page_strategie(),
-                 "maliste": app._page_palmares()}
+                 "maliste": app._page_palmares(),
+                 "carnet": app._page_carnet()}
     finally:
         dl.load_yf = vrai
 
@@ -328,6 +358,21 @@ def main() -> int:
        "aucun onglet ne remplace la page ouverte")
     _v(all('data-fenetre="' in _bloc_barre(pg) for pg in pages.values()),
        "chaque page nomme sa fenetre : rouvrir un onglet n'en empile pas")
+
+    # Une regle posee dans la feuille d'une AUTRE page ne s'applique
+    # nulle part, et rien dans le rendu ne le dit. `.app.crn-page` avait
+    # atterri dans CSS_STRAT, que la page CARNET ne charge pas : les deux
+    # panneaux se calaient sur leur contenu et un tiers de l'ecran
+    # restait vide sous eux. La page se dessinait, simplement de travers.
+    for nom, page in pages.items():
+        m = re.search(r"<style>(.*?)</style>", page, re.S)
+        feuille = m.group(1) if m else ""
+        orphelines = sorted(c for c in _classes_coquille(page)
+                            if not _classe_stylee(feuille, c))
+        _v(not orphelines,
+           f"{nom} : chaque classe de coquille a sa regle dans SA feuille")
+        if orphelines:
+            print(f"          -> sans regle ici : {', '.join(orphelines)}")
 
     print("\n  FOND HOLOGRAPHIQUE")
     _v('class="fond-anneaux"' in h, "anneaux en rotation a l'echelle de l'ecran")
@@ -880,6 +925,31 @@ def main() -> int:
     m_box = re.search(r"\.pil-c \.box\{[^}]*\}", css5.replace("\n", " "))
     _v(bool(m_box) and "flex" in m_box.group(0),
        "la boite donne au trace une hauteur definie, en colonne flex")
+
+    # La carte PROFIL : son contenu doit VRAIMENT partir dans la page.
+    # Elle etait absente sans le moindre signe, parce que le calcul
+    # tombait dans un `except` muet. Verifier que la fonction existe ne
+    # suffit pas : c'est ce qu'elle PRODUIT qu'il faut regarder.
+    print("\n  PROFIL DE L'INSTRUMENT")
+    g = pages["graphique"]
+    # Decoupage par comptage d'accolades, pas par expression reguliere :
+    # un `.*?` s'arrete au premier point-virgule, et la charge en
+    # contient.
+    try:
+        charge = _objet(g, "const PROFIL=")
+    except Exception:
+        charge = None
+    _v(charge is not None, "le profil part bien dans la page")
+    _v(bool(charge and charge.get("lignes")),
+       "et il porte des lignes, pas une coquille vide")
+    if charge:
+        libelles = [l[0] for l in charge["lignes"]]
+        _v("AMPLITUDE" in libelles, "l'amplitude mesuree est du lot")
+        _v(any("Duree mesuree" in x for x in libelles),
+           "la duree que la specification produit sur ce titre aussi")
+        _v("Phase 0" in (charge.get("rappel") or ""),
+           "le rappel de Phase 0 voyage avec la carte")
+    _v("carteProfil()" in _scripts(g), "la carte est posee dans la colonne")
 
     print("\n  MAJORDOME : LA PORTE EN FRANCAIS")
     from . import dossier as _ds

@@ -441,6 +441,7 @@ body{overflow:hidden}
 @keyframes battement{0%,100%{box-shadow:0 0 14px rgba(52,211,153,.3)}
  50%{box-shadow:0 0 34px rgba(52,211,153,.75)}}
 .majp{position:fixed;right:18px;bottom:82px;z-index:70;width:330px;
+ max-height:calc(100vh - 110px);overflow-y:auto;overscroll-behavior:contain;
  background:rgba(4,10,14,.96);border:1px solid #0d2a33;padding:13px 15px;
  display:none;
  clip-path:polygon(13px 0,100% 0,100% calc(100% - 13px),
@@ -1244,6 +1245,10 @@ function majOuvre(){
  const p=$('majp');
  if(!p) return;
  p.classList.add('ouvert');
+ // L'etat du cerveau se relit a chaque ouverture : la cle a pu etre
+ // posee ou retiree depuis la derniere fois, et un panneau qui ne dit
+ // pas s'il est branche laisse croire qu'il l'est.
+ try{ majIaEtat(); }catch(e){}
  const c=$('majc');
  if(c) c.focus();
 }
@@ -1484,11 +1489,11 @@ function majDemarre(R){
   if(e.key==='Escape') majFerme(); });
 })();
 
-async document.addEventListener('click', function(ev){
+document.addEventListener('click', function(ev){
  var b=ev.target.closest ? ev.target.closest('[data-raf]') : null;
  if(b) toutRafraichir();
 });
-function toutRafraichir(){
+async function toutRafraichir(){
  const b=$('raf');
  if(!b || b.classList.contains('occupe')) return;
  b.classList.add('occupe');
@@ -2010,9 +2015,22 @@ function detailTechnique(r, tenu){
 # Deux colonnes : a gauche de l'arithmetique, a droite des faits mesures.
 # Aucune animation de mise en page : uniquement transform et opacity.
 CSS_CARNET = """
+/* Cette page n'a que deux enfants dans `.app` : la barre et la grille.
+   Le gabarit de base en declare trois, et la troisieme piste — vide —
+   ramassait le 1fr. Les deux panneaux se calaient donc sur leur
+   contenu et laissaient un tiers de l'ecran vide sous eux.
+   La regle vivait dans CSS_STRAT, que cette page ne charge pas : une
+   regle posee dans la feuille d'une autre page ne s'applique nulle
+   part, et rien dans le rendu ne le dit. */
+.app.crn-page{grid-template-rows:auto minmax(0,1fr)}
+/* Une ligne EXPLICITE en 1fr : sans elle les deux panneaux tombent
+   dans une ligne implicite dimensionnee sur leur contenu, et les deux
+   tiers de l'ecran restaient vides sous eux. */
 .crn{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);
+ grid-template-rows:minmax(0,1fr);
  gap:var(--gap);min-height:0;overflow:hidden}
-@media(max-width:900px){.crn{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:900px){.crn{grid-template-columns:minmax(0,1fr);
+ grid-template-rows:minmax(0,1fr) minmax(0,1fr)}}
 .crn>section{min-width:0;min-height:0;display:flex;flex-direction:column}
 .crn .corps{overflow:auto;min-height:0}
 .crn textarea{width:100%;min-height:190px;resize:vertical;background:#070d13;
@@ -2021,8 +2039,8 @@ CSS_CARNET = """
 .crn input,.crn select{background:#070d13;border:1px solid var(--bord);
  color:var(--txt-fort);padding:8px 10px;font:400 12px inherit;min-width:0}
 .crn .lg{display:flex;gap:8px;margin-bottom:9px;flex-wrap:wrap}
-.crn .lg>*{flex:1 1 130px;min-width:0}
-.crn .lg button{flex:0 0 auto}
+.crn .lg>input,.crn .lg>select{flex:1 1 120px;min-width:0}
+.crn .lg button{flex:0 1 auto;white-space:nowrap}
 .cse{border:1px solid var(--bord);border-left:2px solid var(--bord-fort);
  padding:10px 12px;margin-bottom:9px;background:rgba(6,12,18,.5)}
 .cse.g-releve{border-left-color:var(--acc)}
@@ -2108,15 +2126,28 @@ CSS_PALM = """
 
 
 CSS_STRAT = """
+.obj{margin-top:11px;padding:11px 13px;border:1px solid var(--bord);
+ border-left:2px solid var(--acc);background:rgba(6,12,18,.5)}
+.obj.o-f{border-left-color:#c9b28a;margin-top:9px}
+.obj .o-t{margin:0 0 7px;font:500 8px ui-monospace,monospace;
+ letter-spacing:.22em;color:#c9b28a}
+.obj .o-l{margin:0 0 6px;font-size:12.5px;line-height:1.62;
+ color:var(--txt-fort)}
+.obj .o-l:last-child{margin-bottom:0}
+.obj .o-sous{color:var(--txt-faible);font-size:11px;padding-left:11px}
 /* .app attend TROIS rangees (barre, console, grille). Cette page n'en a
    que deux : sans gabarit propre, les panneaux tombaient dans la rangee
    « auto » et s'arretaient au milieu de l'ecran. */
 .app.strat-page{grid-template-rows:auto minmax(0,1fr)}
 .strat{display:grid;grid-template-columns:1fr 1.15fr;
- grid-template-rows:minmax(0,1fr);gap:9px;min-height:0}
+ grid-template-rows:minmax(0,1.25fr) minmax(0,1fr);gap:9px;min-height:0}
+.strat>section{min-width:0;min-height:0}
+/* MES LIGNES prend toute la largeur sous les deux premiers. */
+.strat>section:nth-child(3){grid-column:1/-1}
 .strat .corps{overflow-y:auto;min-height:0}
 @media(max-width:1150px){.strat{grid-template-columns:1fr;
- grid-template-rows:auto auto}}
+ grid-template-rows:repeat(3,minmax(0,1fr))}
+ .strat>section:nth-child(3){grid-column:auto}}
 .champs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .champs label{display:flex;flex-direction:column;gap:4px;
  font:400 10px ui-monospace,monospace;letter-spacing:.14em;color:var(--txt-faible)}
@@ -2138,6 +2169,56 @@ CSS_STRAT = """
 """
 
 JS_STRAT = r"""
+// --- L'objectif ------------------------------------------------------
+//
+// Rien n'est calcule ici. Le serveur resout les equations et rend des
+// PHRASES deja ecrites ; la page les pose. C'est le meme contrat que
+// pour le majordome, et pour la meme raison : un chiffre calcule dans
+// le navigateur ne serait verifiable nulle part.
+async function objectif(){
+ var q = '/api/objectif?cible=' + encodeURIComponent($('ocib').value||0)
+   + '&capital=' + encodeURIComponent($('ocap').value||0)
+   + '&versement=' + encodeURIComponent($('over').value||0)
+   + '&mois=' + encodeURIComponent($('omois').value||0)
+   + '&taux=' + encodeURIComponent($('otaux').value||0)
+   + '&ticker=' + encodeURIComponent(($('otk').value||'').trim());
+ $('ores').innerHTML = '<p class="msg">Je resous.</p>';
+ try{
+  var j = await (await fetch(q)).json();
+  if(!j.ok){ $('ores').innerHTML='<p class="msg">'+(j.erreur||'Echec.')
+    +'</p>'; return; }
+  var h = '<div class="obj">';
+  j.texte.forEach(function(l){
+   var c = (l.indexOf('  \u2014 ')===0) ? ' o-sous' : '';
+   h += '<p class="o-l'+c+'">'+l.replace(/</g,'&lt;')+'</p>';
+  });
+  h += '</div>';
+  var f = j.frequence;
+  if(f && f.assez){
+   h += '<div class="obj o-f"><p class="o-t">CE TAUX, SUR L\'HISTORIQUE '
+     + 'DE ' + String(f.ticker).replace(/</g,'&lt;') + '</p>'
+     + '<p class="o-l">' + f.k + ' fenetres sur ' + f.n + ' l\'ont '
+     + 'atteint, soit ' + (f.part*100).toFixed(1).replace('.',',') + ' %'
+     + ' &mdash; intervalle de Wilson ' + (f.wilson[0]*100).toFixed(1)
+       .replace('.',',') + ' % a ' + (f.wilson[1]*100).toFixed(1)
+       .replace('.',',') + ' %.</p>'
+     + '<p class="o-l">Croissance mediane de ces fenetres : '
+     + (f.median*100).toFixed(1).replace('.',',') + ' % par an.</p>'
+     + '<p class="o-l o-sous">Fenetres reellement independantes : environ '
+     + f.n_independantes + '.</p>'
+     + '<p class="o-l o-sous">' + j.rappel_frequence + '</p></div>';
+  }else if(f && f.erreur){
+   h += '<div class="obj o-f"><p class="o-l o-sous">Historique '
+     + 'indisponible pour ce titre : ' + String(f.erreur)
+       .replace(/</g,'&lt;') + '</p></div>';
+  }else if(f){
+   h += '<div class="obj o-f"><p class="o-l o-sous">Pas assez '
+     + 'd\'historique pour compter les fenetres de cette duree.</p></div>';
+  }
+  $('ores').innerHTML = h;
+ }catch(e){ $('ores').innerHTML='<p class="msg">'+e.message+'</p>'; }
+}
+
 async function proj(){
  var q = 'capital=' + ($('pcap').value||0)
        + '&mensuel=' + ($('pmens').value||0)
@@ -3475,6 +3556,10 @@ async function classe(){
 # ---------------------------------------------------------------------
 
 JS_CARNET = r"""
+// Le raccourci de selection. Il vit dans JS, que cette page n'inclut
+// pas : sans cette ligne, le premier $() de la page tuait tout le
+// script et aucun bouton ne repondait plus.
+function $(i){ return document.getElementById(i); }
 var CRN_TK='', CRN_G='';
 function e(s){ return (s==null?'':String(s))
  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -3664,7 +3749,7 @@ def _page_carnet() -> str:
         f'<body class="{rg.classes(reg)}"{rg.corps_attrs(reg)}>'
         + rg.tiroir_html(reg)
         + hd.fond(TRACE_D)
-        + '<div class="app">'
+        + '<div class="app crn-page">'
         + hd.barre(TRACE_D, NOM, actif="carnet", soustitre="CARNET")
         + '<div class="crn">'
 
@@ -3945,6 +4030,32 @@ def _page_strategie() -> str:
           '<button class="sec" id="benv" onclick="basculePea()">'
           'COMPTE-TITRES (30 %)</button></div>'
           '<div id="pres"></div>'
+          '</div></section>'
+
+          '<section class="pan"><h2>UN OBJECTIF CHIFFRE</h2>'
+          '<div class="corps">'
+          '<p class="ex">Dites la somme et la date. L\'arithmetique ne '
+          'repond jamais <b>impossible</b> : elle repond <b>ce que ca '
+          'demande</b>. Le taux exige est ce que l\'equation reclame, '
+          'pas ce qu\'un placement va rendre — et le programme ne vous '
+          'dira pas ou le trouver.</p>'
+          '<div class="champs">'
+          '<label>Objectif<input id="ocib" type="number" value="50000">'
+          '</label>'
+          '<label>Capital<input id="ocap" type="number" value="8000">'
+          '</label>'
+          '<label>Versement / mois<input id="over" type="number" '
+          'value="300"></label>'
+          '<label>Echeance (mois)<input id="omois" type="number" '
+          'value="36"></label>'
+          '<label>Votre hypothese %/an<input id="otaux" type="number" '
+          'value="8" step="0.5"></label>'
+          '<label>Titre (facultatif)<input id="otk" '
+          'placeholder="CW8.PA, NVDA..."></label>'
+          '</div>'
+          '<div class="row" style="margin-top:9px">'
+          '<button onclick="objectif()">RESOUDRE</button></div>'
+          '<div id="ores"></div>'
           '</div></section>'
 
           '<section class="pan"><h2>MES LIGNES</h2>'
