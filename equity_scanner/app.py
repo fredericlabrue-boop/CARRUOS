@@ -257,10 +257,6 @@ CERF = (
     'fill="url(#gr)"/></mask></defs>'
     '<path class="rm" d="' + TRACE_D + '"/></svg>'
 )
-CERF_FIXE = (
-    '<svg viewBox="0 0 380 400" width="{0}" height="{1}">'
-    '<path class="fx" d="' + TRACE_D + '"/></svg>'
-)
 
 # --- Panneau de detail de l'accueil -----------------------------------
 #
@@ -429,22 +425,7 @@ body{overflow:hidden}
  grid-template-rows:auto auto minmax(0,1fr);
  gap:var(--gap);padding:9px 13px 11px}
 
-/* La reserve a droite est la place de la roue de reglages : sans elle,
-   l'horloge passe dessous. */
-.bar{display:flex;align-items:center;gap:13px;padding:0 50px 0 3px;flex:none}
-.bar h1{font-size:15px;font-weight:300;color:var(--marque);letter-spacing:.4em}
-.bar .sst{font:400 9px ui-monospace,Consolas,monospace;letter-spacing:.24em;
- color:var(--txt-faible)}
-.bar .sep{flex:1}
-.bar .etat{font:400 10px ui-monospace,Consolas,monospace;letter-spacing:.18em;
- color:var(--txt-faible)}
-.bar .etat b{color:var(--txt-fort);font-weight:400}
-.raf{background:#08222a;border:1px solid var(--bord-fort);color:var(--acc);
- padding:6px 12px;font:500 10px ui-monospace,monospace;letter-spacing:.14em;
- cursor:pointer;
- clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),
- calc(100% - 6px) 100%,0 100%,0 6px)}
-.raf:hover{background:#0e3b48}
+/* .bar et .raf vivent dans hud.py : une barre, une definition. */
 /* --- Majordome. Disque flottant, panneau au clic. --- */
 .maj{position:fixed;right:18px;bottom:18px;z-index:70;width:54px;height:54px;
  border-radius:50%;background:rgba(6,18,26,.9);border:1px solid var(--bord-fort);
@@ -1410,7 +1391,11 @@ function majDemarre(R){
   if(e.key==='Escape') majFerme(); });
 })();
 
-async function toutRafraichir(){
+async document.addEventListener('click', function(ev){
+ var b=ev.target.closest ? ev.target.closest('[data-raf]') : null;
+ if(b) toutRafraichir();
+});
+function toutRafraichir(){
  const b=$('raf');
  if(!b || b.classList.contains('occupe')) return;
  b.classList.add('occupe');
@@ -1424,16 +1409,6 @@ async function toutRafraichir(){
  }
 }
 
-function horloge(){
- var h=$('horloge'); if(!h)return;
- var d=new Date();
- var p=d.toLocaleTimeString('fr-FR',{timeZone:'Europe/Paris',hour:'2-digit',
-   minute:'2-digit',second:'2-digit'});
- var j=d.toLocaleDateString('fr-FR',{timeZone:'Europe/Paris',weekday:'short',
-   day:'2-digit',month:'short'});
- h.innerHTML=j.toUpperCase()+'  <b>'+p+'</b>  PARIS';
-}
-horloge(); setInterval(horloge,1000);
 etat();
 setInterval(etat, 300000);
 """
@@ -1941,6 +1916,46 @@ function detailTechnique(r, tenu){
 # --- Page STRATEGIE ---------------------------------------------------
 # Deux colonnes : a gauche de l'arithmetique, a droite des faits mesures.
 # Aucune animation de mise en page : uniquement transform et opacity.
+CSS_CARNET = """
+.crn{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);
+ gap:var(--gap);min-height:0;overflow:hidden}
+@media(max-width:900px){.crn{grid-template-columns:minmax(0,1fr)}}
+.crn>section{min-width:0;min-height:0;display:flex;flex-direction:column}
+.crn .corps{overflow:auto;min-height:0}
+.crn textarea{width:100%;min-height:190px;resize:vertical;background:#070d13;
+ border:1px solid var(--bord);color:var(--txt-fort);padding:10px 11px;
+ font:400 13px/1.62 inherit}
+.crn input,.crn select{background:#070d13;border:1px solid var(--bord);
+ color:var(--txt-fort);padding:8px 10px;font:400 12px inherit;min-width:0}
+.crn .lg{display:flex;gap:8px;margin-bottom:9px;flex-wrap:wrap}
+.crn .lg>*{flex:1 1 130px;min-width:0}
+.crn .lg button{flex:0 0 auto}
+.cse{border:1px solid var(--bord);border-left:2px solid var(--bord-fort);
+ padding:10px 12px;margin-bottom:9px;background:rgba(6,12,18,.5)}
+.cse.g-releve{border-left-color:var(--acc)}
+.cse.g-ordre{border-left-color:#c9b28a}
+.cse .t{display:flex;gap:9px;align-items:baseline;flex-wrap:wrap;
+ margin-bottom:5px}
+.cse .d{font:400 9px ui-monospace,monospace;letter-spacing:.14em;
+ color:var(--txt-faible);font-variant-numeric:tabular-nums}
+.cse .g{font:500 8px ui-monospace,monospace;letter-spacing:.2em;
+ color:var(--txt-faible);border:1px solid var(--bord);padding:1px 6px}
+.cse.g-releve .g{color:var(--acc);border-color:var(--bord-fort)}
+.cse .tk{font:500 11px ui-monospace,monospace;letter-spacing:.1em;
+ color:var(--acc);cursor:pointer}
+.cse .ti{color:var(--txt-fort);font-weight:500;flex:1;min-width:0}
+.cse .x{cursor:pointer;color:#5d8a97;font-size:14px;line-height:1}
+.cse .x:hover{color:#f87171}
+.cse pre{white-space:pre-wrap;word-break:break-word;margin:0;
+ font:400 12.5px/1.62 inherit;color:var(--txt-doux)}
+.cse .dn{margin-top:7px;font:400 11px/1.55 ui-monospace,monospace;
+ color:var(--txt-faible);white-space:pre-wrap;word-break:break-word;
+ max-height:190px;overflow:auto;border-top:1px solid var(--bord);
+ padding-top:6px}
+.crn .cpt{font:400 9px ui-monospace,monospace;letter-spacing:.16em;
+ color:var(--txt-faible);margin-bottom:9px}
+"""
+
 CSS_PALM = """
 .palm{max-width:1180px;margin:0 auto;padding:0 4px 40px}
 .palm .saisie{display:grid;gap:11px;align-items:end;margin-bottom:14px;
@@ -2155,10 +2170,6 @@ proj(); lignes();
 """
 
 
-BARRE = ('<div style="margin-bottom:15px"><button onclick="location.href=\'/\'" '
-         'style="background:#121a24;border:1px solid #22303f;color:var(--txt);'
-         'border-radius:9px;padding:9px 18px;font:500 13px inherit;cursor:pointer">'
-         '&#8592; Retour</button></div>')
 
 
 def _lettres(mot: str) -> str:
@@ -2228,16 +2239,10 @@ def _accueil(splash: bool = True) -> str:
               '<div class="fx" onclick="fermeDetail()" title="Fermer (Echap)">'
               '&times;</div></div><div id="dcorps"></div></div></div>'
             + '<div class="app">'
-            + f'<div class="bar">{CERF_FIXE.format(28, 30)}'
-            f"<h1>{NOM}</h1><span class=\"sst\">REPLI EN TENDANCE</span>"
-            '<span class="sep"></span>'
-            '<button class="raf" id="raf" onclick="toutRafraichir()">'
-            '&#8635; ACTUALISER</button>'
-            '<button class="raf" onclick="location.href=&#39;/palmares&#39;">'
-            'MA LISTE</button>'
-            '<button class="raf" onclick="location.href=&#39;/strategie&#39;">'
-            'STRATEGIE</button>'
-            '<span class="etat" id="horloge">&mdash;</span></div>'
+            + hd.barre(
+                TRACE_D, NOM, actif="accueil", soustitre="REPLI EN TENDANCE",
+                avant='<button class="raf" id="raf" data-raf="1">'
+                      '&#8635; ACTUALISER</button>')
             + hd.console(TRACE_D, hologramme=False)
             + '<div class="grille">'
 
@@ -2319,7 +2324,7 @@ def _accueil(splash: bool = True) -> str:
             '</div></section>'
 
             '</div></div>'
-            f"<script>{JS}{JS_POS}{JS_HUD}{JS_FICHE}{JS_DETAIL}"
+            f"<script>{hd.BARRE_JS}{JS}{JS_POS}{JS_HUD}{JS_FICHE}{JS_DETAIL}"
             f"{rg.tiroir_js()}</script></body></html>")
 
 
@@ -2341,13 +2346,16 @@ class Bruce(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         u = urllib.parse.urlparse(self.path)
         if u.path not in ("/api/reglages", "/api/positions",
-                          "/api/cle", "/api/validation", "/api/phase0"):
+                          "/api/cle", "/api/validation", "/api/phase0",
+                          "/api/carnet"):
             return self._envoie("<h1>404</h1>", code=404)
         try:
             n = int(self.headers.get("Content-Length") or 0)
             corps = json.loads(self.rfile.read(n) or b"{}")
             if u.path == "/api/validation":
                 return self._json(_val_lance(corps.get("quoi", "phase0")))
+            if u.path == "/api/carnet":
+                return self._json(_carnet_ecrit(corps))
             if u.path == "/api/cle":
                 ok = pose_cle(corps.get("cle", ""))
                 return self._json({"ok": True, "pose": ok})
@@ -2436,6 +2444,10 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                 return self._envoie(_page_graphique(q.get("ticker", "")))
             if u.path == "/palmares":
                 return self._envoie(_page_palmares())
+            if u.path == "/carnet":
+                return self._envoie(_page_carnet())
+            if u.path == "/api/carnet":
+                return self._json(_carnet(q))
             if u.path == "/api/dossier":
                 return self._json(_dossier(q))
             if u.path == "/api/palmares":
@@ -2808,7 +2820,8 @@ def _page_graphique(tk):
     from . import cache as ch
     return gr.build_html(ch.charge(tk, annees=20), tk,
                          ch.charge(bench_tk, annees=20),
-                         REGLAGES["sleeve"] * fx, ccy, barre=BARRE,
+                         REGLAGES["sleeve"] * fx, ccy, barre=hd.barre(TRACE_D, NOM, fenetre=f"carruos-{tk}",
+                                        soustitre="GRAPHIQUE"),
                          marche=marche, earn=earn, actus=actus)
 
 
@@ -3334,6 +3347,224 @@ async function classe(){
 """
 
 
+# ---------------------------------------------------------------------
+# LE CARNET
+# ---------------------------------------------------------------------
+
+JS_CARNET = r"""
+var CRN_TK='', CRN_G='';
+function e(s){ return (s==null?'':String(s))
+ .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+async function crnCharge(){
+ var u='/api/carnet?ticker='+encodeURIComponent(CRN_TK)
+      +'&genre='+encodeURIComponent(CRN_G)
+      +'&q='+encodeURIComponent(($('cq').value||'').trim());
+ var j=await (await fetch(u)).json();
+ var c=j.compte||{};
+ $('ccpt').textContent=(c.total||0)+' ENTREES  ·  '+(c.note||0)+' NOTES  ·  '
+   +(c.releve||0)+' RELEVES  ·  '+(c.ordre||0)+' ORDRES';
+ var h='';
+ (j.entrees||[]).forEach(function(x){
+  h+='<div class="cse g-'+e(x.genre)+'"><div class="t">'
+   +'<span class="d">'+e((x.date||'').slice(0,16).replace('T',' '))+'</span>'
+   +'<span class="g">'+e((x.genre||'note').toUpperCase())+'</span>'
+   +(x.ticker?'<span class="tk" data-vers="/graphique?ticker='
+     +encodeURIComponent(x.ticker)+'" data-fen="carruos-'+e(x.ticker)+'">'
+     +e(x.ticker)+'</span>':'')
+   +'<span class="ti">'+e(x.titre)+'</span>'
+   +'<span class="x" data-sup="'+e(x.id)+'" title="Supprimer">&times;</span>'
+   +'</div>';
+  if(x.texte) h+='<pre>'+e(x.texte)+'</pre>';
+  if(x.donnees) h+='<div class="dn">'+e(JSON.stringify(x.donnees,null,1))+'</div>';
+  h+='</div>';
+ });
+ $('cl').innerHTML=h||'<p class="ex">Rien encore. La premiere note se '
+  +'prend au moment ou vous decidez, pas apres.</p>';
+ var o='<option value="">TOUS LES TITRES</option>';
+ (j.tickers||[]).forEach(function(t){
+  o+='<option value="'+e(t)+'"'+(t===CRN_TK?' selected':'')+'>'+e(t)+'</option>';});
+ $('cft').innerHTML=o;
+}
+
+async function crnEcrit(){
+ var titre=($('ctitre').value||'').trim(), texte=$('ctexte').value||'';
+ if(!titre && !texte.trim()){ $('cm').textContent='Rien a enregistrer.'; return; }
+ $('cm').textContent='Enregistrement...';
+ var r=await fetch('/api/carnet',{method:'POST',
+   headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({action:'ajoute',titre:titre,texte:texte,
+     ticker:($('ctk').value||'').trim(),genre:$('cg').value})});
+ var j=await r.json();
+ if(!j.ok){ $('cm').textContent=j.erreur||'Echec.'; return; }
+ $('ctitre').value=''; $('ctexte').value='';
+ $('cm').textContent='Enregistre.';
+ crnCharge();
+}
+
+async function crnReleve(){
+ var tk=($('ctk').value||'').trim();
+ if(!tk){ $('cm').textContent='Un releve demande un ticker.'; return; }
+ $('cm').textContent='Mesure en cours...';
+ var r=await fetch('/api/carnet',{method:'POST',
+   headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({action:'releve',ticker:tk})});
+ var j=await r.json();
+ $('cm').textContent=j.ok?('Releve de '+tk+' fige.'):(j.erreur||'Echec.');
+ if(j.ok) crnCharge();
+}
+
+document.addEventListener('click',async function(ev){
+ var x=ev.target.closest && ev.target.closest('[data-sup]');
+ if(!x) return;
+ await fetch('/api/carnet',{method:'POST',
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({action:'supprime',id:x.getAttribute('data-sup')})});
+ crnCharge();
+});
+// Brouillon garde dans le navigateur : fermer la fenetre par megarde ne
+// doit pas effacer ce qu'on etait en train d'ecrire.
+['ctitre','ctexte','ctk'].forEach(function(k){
+ var el=$(k); if(!el) return;
+ try{ var v=localStorage.getItem('crn-'+k); if(v) el.value=v; }catch(e){}
+ el.addEventListener('input',function(){
+  try{ localStorage.setItem('crn-'+k, el.value); }catch(e){} });
+});
+document.addEventListener('DOMContentLoaded', function(){
+ $('cft').addEventListener('change', function(){ CRN_TK=this.value; crnCharge(); });
+ $('cfg').addEventListener('change', function(){ CRN_G=this.value; crnCharge(); });
+ $('cq').addEventListener('input', function(){ crnCharge(); });
+ crnCharge();
+});
+"""
+
+
+def _page_carnet() -> str:
+    """Le CARNET : vos notes, et les releves dates de ce qui etait mesure.
+
+    La page ne calcule rien elle-meme. Le bouton FIGER LE RELEVE demande
+    au serveur l'etat du titre tel que le moteur le voit a cet instant,
+    et l'ecrit tel quel. Un releve reconstruit apres coup ne repondrait
+    pas a la question qu'on lui pose.
+    """
+    reg = rg.charge()
+    from . import carnet as cn
+    genres = "".join(f'<option value="{k}">{v}</option>'
+                     for k, v in cn.GENRES.items())
+    return (
+        '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<link rel="icon" type="image/svg+xml" href="/carruos.svg">'
+        '<link rel="alternate icon" href="/favicon.ico">'
+        f"<title>{NOM} - carnet</title>"
+        f"<style>{rg.variables(reg)}{CSS}{CSS_CARNET}</style></head>"
+        f'<body class="{rg.classes(reg)}"{rg.corps_attrs(reg)}>'
+        + rg.tiroir_html(reg)
+        + hd.fond(TRACE_D)
+        + '<div class="app">'
+        + hd.barre(TRACE_D, NOM, actif="carnet", soustitre="CARNET")
+        + '<div class="crn">'
+
+          '<section class="pan"><div class="trait"><i></i></div>'
+          '<h2>ECRIRE</h2><div class="corps">'
+          '<p class="ex">Ce que vous ecrivez ici n\'est <b>ni lu ni '
+          'interprete</b> par le programme. Un <b>releve</b>, lui, fige '
+          'ce que le moteur mesure <b>a cet instant</b> : c\'est la '
+          'seule facon de savoir plus tard ce que vous voyiez le jour '
+          'ou vous avez decide.</p>'
+          '<div class="lg">'
+          '<input id="ctk" placeholder="Titre concerne (optionnel)">'
+          f'<select id="cg">{genres}</select></div>'
+          '<div class="lg"><input id="ctitre" placeholder="Titre de la note">'
+          '</div>'
+          '<textarea id="ctexte" placeholder="Pourquoi cette ligne. Ce que '
+          'vous attendez. Ce qui vous ferait changer d\'avis."></textarea>'
+          '<div class="lg" style="margin-top:9px">'
+          '<button onclick="crnEcrit()">ENREGISTRER</button>'
+          '<button class="sec" onclick="crnReleve()">FIGER LE RELEVE</button>'
+          '</div><div class="msg" id="cm"></div>'
+          '</div></section>'
+
+          '<section class="pan"><div class="trait"><i></i></div>'
+          '<h2>LE CARNET</h2><div class="corps">'
+          '<div class="cpt" id="ccpt">&mdash;</div>'
+          '<div class="lg">'
+          '<select id="cft"><option value="">TOUS LES TITRES</option></select>'
+          '<select id="cfg"><option value="">TOUS LES GENRES</option>'
+          '<option value="note">NOTES</option>'
+          '<option value="releve">RELEVES</option>'
+          '<option value="ordre">ORDRES</option></select>'
+          '<input id="cq" placeholder="Chercher un mot"></div>'
+          '<div id="cl"></div>'
+          '</div></section>'
+
+          '</div></div>'
+        + f"<script>{hd.BARRE_JS}{JS_CARNET}{rg.tiroir_js()}</script>"
+          "</body></html>")
+
+
+def _carnet(q: dict) -> dict:
+    """Lecture du carnet, filtree."""
+    from . import carnet as cn
+    return {"ok": True,
+            "entrees": cn.entrees(ticker=q.get("ticker", ""),
+                                  genre=q.get("genre", ""),
+                                  q=q.get("q", "")),
+            "tickers": cn.tickers(),
+            "compte": cn.compte()}
+
+
+def _carnet_ecrit(c: dict) -> dict:
+    """Ecriture. Un releve passe par le moteur, jamais par le navigateur.
+
+    Le navigateur pourrait poster n'importe quel chiffre dans `donnees`.
+    Le releve serait alors une photo de ce que la page AFFICHAIT, pas de
+    ce que le moteur a MESURE — et c'est exactement la confusion que le
+    carnet est cense empecher. Le serveur recalcule donc lui-meme.
+    """
+    from . import carnet as cn
+    action = (c.get("action") or "ajoute").strip()
+    if action == "supprime":
+        return {"ok": cn.supprime(c.get("id", ""))}
+    if action == "modifie":
+        e = cn.modifie(c.get("id", ""), titre=c.get("titre"),
+                       texte=c.get("texte"), ticker=c.get("ticker"))
+        return {"ok": e is not None, "entree": e}
+    if action == "releve":
+        tk = (c.get("ticker") or "").strip().upper()
+        if not tk:
+            return {"ok": False, "erreur": "Un releve demande un ticker."}
+        faits = _faits_releve(tk)
+        if not faits.get("ok"):
+            return {"ok": False, "erreur": faits.get("erreur", "mesure impossible")}
+        return {"ok": True, "entree": cn.releve(tk, faits)}
+    if action == "ajoute":
+        return {"ok": True,
+                "entree": cn.ajoute(titre=c.get("titre", ""),
+                                    texte=c.get("texte", ""),
+                                    ticker=c.get("ticker", ""),
+                                    genre=c.get("genre", "note"))}
+    return {"ok": False, "erreur": "action inconnue"}
+
+
+def _faits_releve(tk: str) -> dict:
+    """Ce que le moteur mesure sur un titre, a cet instant.
+
+    On reutilise le dossier du majordome : c'est deja le point unique
+    ou les faits d'un titre sont rassembles, et en ajouter un second
+    garantirait qu'un jour les deux divergent.
+    """
+    from . import dossier as ds
+    try:
+        d = ds.constitue(tk)
+    except Exception as exc:
+        return {"ok": False, "erreur": f"{type(exc).__name__}: {exc}"}
+    if not d or d.get("erreur"):
+        return {"ok": False, "erreur": (d or {}).get("erreur", "titre introuvable")}
+    d["ok"] = True
+    return d
+
+
 def _page_palmares() -> str:
     """MA LISTE : des titres colles a la main, passes aux 13 blocs.
 
@@ -3362,12 +3593,9 @@ def _page_palmares() -> str:
         + rg.tiroir_html(reg)
         + hd.fond(TRACE_D)
         + '<div class="app">'
-          f'<div class="bar">{CERF_FIXE.format(28, 30)}'
-          f'<h1>{NOM}</h1><span class="sst">MA LISTE</span>'
-          '<span class="sep"></span>'
-          '<button class="raf" onclick="location.href=&#39;/&#39;">'
-          '&#8592; ACCUEIL</button></div>'
-          '<div class="palm">'
+          + hd.barre(TRACE_D, NOM, actif="palmares",
+                     soustitre="MA LISTE")
+          + '<div class="palm">'
           '<p class="ex">Collez vos tickers &mdash; <b>COIN HOOD TLX.DE '
           'MC.PA</b> &mdash; séparés par des espaces ou des '
           'virgules. Chacun passe les <b>13 blocs</b> de la '
@@ -3390,7 +3618,7 @@ def _page_palmares() -> str:
           '</div>'
           '<div id="pres"></div>'
           '</div></div>'
-        + f"<script>{JS_PALM}{rg.tiroir_js()}</script></body></html>")
+        + f"<script>{hd.BARRE_JS}{JS_PALM}{rg.tiroir_js()}</script></body></html>")
 
 
 def _dossier(q: dict) -> dict:
@@ -3491,13 +3719,10 @@ def _page_strategie() -> str:
         + rg.tiroir_html(reg)
         + hd.fond(TRACE_D)
         + '<div class="app strat-page">'
-          f'<div class="bar">{CERF_FIXE.format(28, 30)}'
-          f"<h1>{NOM}</h1><span class=\"sst\">STRATEGIE</span>"
-          '<span class="sep"></span>'
-          '<button class="raf" onclick="location.href=&#39;/&#39;">'
-          '&#8592; ACCUEIL</button></div>'
+          + hd.barre(TRACE_D, NOM, actif="strategie",
+                     soustitre="STRATEGIE")
 
-          '<div class="strat">'
+          + '<div class="strat">'
           '<section class="pan"><h2>SI JE REINVESTIS</h2>'
           '<div class="corps">'
           '<p class="ex">Le meme rendement, trois traitements fiscaux. '
@@ -3536,7 +3761,7 @@ def _page_strategie() -> str:
           '<div id="lres" class="msg">Releve en cours...</div>'
           '</div></section>'
           '</div></div>'
-        + f"<script>{JS_FICHE}{JS_STRAT}{rg.tiroir_js()}</script>"
+        + f"<script>{hd.BARRE_JS}{JS_FICHE}{JS_STRAT}{rg.tiroir_js()}</script>"
           "</body></html>")
 
 
@@ -3596,8 +3821,41 @@ def main():
 
     try:
         import webview
+
+        # « je veux que la premiere reste et quand j'ouvre un onglet ca
+        # m'ouvre une autre fenetre ». Dans un navigateur, `window.open`
+        # suffit. Sous pywebview, le moteur n'ouvre pas de fenetre tout
+        # seul : c'est Python qui doit la creer. La page appelle donc
+        # `pywebview.api.fenetre()` quand elle existe, et retombe sur
+        # `window.open` sinon — le meme code sert les deux mondes.
+        class Fenetres:
+            """Ouvre, ou rappelle, une fenetre nommee."""
+
+            def __init__(self):
+                self._ouvertes = {}
+
+            def fenetre(self, adresse: str, nom: str = ""):
+                adresse = str(adresse or "/")
+                if not adresse.startswith("/"):
+                    return {"ok": False}
+                nom = str(nom or adresse)
+                f = self._ouvertes.get(nom)
+                if f is not None:
+                    # Une fenetre fermee reste dans le dictionnaire : on
+                    # ne le sait qu'en essayant de s'en servir.
+                    try:
+                        f.load_url(url.rstrip("/") + adresse)
+                        return {"ok": True, "rappelee": True}
+                    except Exception:
+                        self._ouvertes.pop(nom, None)
+                self._ouvertes[nom] = webview.create_window(
+                    TITRE, url.rstrip("/") + adresse, width=1280, height=880,
+                    min_size=(900, 620), background_color="#080b10")
+                return {"ok": True, "rappelee": False}
+
         webview.create_window(TITRE, url, width=1420, height=940,
-                              min_size=(980, 680), background_color="#080b10")
+                              min_size=(980, 680), background_color="#080b10",
+                              js_api=Fenetres())
         if ico:
             threading.Thread(target=_pose_icone, args=(TITRE, ico),
                              daemon=True).start()

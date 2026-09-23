@@ -139,6 +139,139 @@ CSS = """
 .bandeau .v.or{color:#c9b28a}
 """
 
+# --- La barre du haut, ECRITE UNE SEULE FOIS --------------------------
+#
+# Elle etait recopiee a la main sur quatre pages : accueil, MA LISTE,
+# STRATEGIE, graphique. Quatre copies divergent, et elles avaient
+# diverge : seule l'accueil portait des onglets, le majordome n'existait
+# que la, et le graphique n'avait qu'un bouton « Retour ».
+#
+# L'horloge, elle, portait `class="etat"` — le nom deja pris par une
+# CARTE de l'accueil, qui vaut marge 10/12 px, ecart interieur 13 px et
+# une bordure. `.bar .etat` ne surchargeait que la police, donc la barre
+# heritait de la boite d'une carte : 61 px de haut au lieu de 30. Ces
+# 31 px etaient pris a la grille de contenu a CHAQUE ouverture de la
+# page d'accueil, et les trois familles d'elements y flottaient a trois
+# hauteurs differentes. C'est le « mal dimensionne » signale.
+#
+# La lecon tient en une ligne : un element de barre ne doit jamais
+# porter le nom de classe d'une carte. Et comme une relecture ne
+# l'attrape pas, `test_pages` compare la hauteur RENDUE de la barre
+# entre les pages — deux valeurs differentes veulent dire qu'une page a
+# ramasse un style qui ne la concerne pas.
+
+BARRE_CSS = """
+.bar{display:flex;align-items:center;gap:11px;padding:0 50px 0 3px;flex:none;
+ flex-wrap:wrap;row-gap:7px}
+.bar h1{font-size:15px;font-weight:300;color:var(--marque);letter-spacing:.4em;
+ margin:0;white-space:nowrap}
+.bar .sst{font:400 9px ui-monospace,Consolas,monospace;letter-spacing:.24em;
+ color:var(--txt-faible);white-space:nowrap}
+.bar .sep{flex:1;min-width:12px}
+/* L'horloge a SON nom. `etat` etait celui d'une carte. */
+.bar .horl{font:400 10px ui-monospace,Consolas,monospace;letter-spacing:.18em;
+ color:var(--txt-faible);white-space:nowrap;font-variant-numeric:tabular-nums;
+ margin:0;padding:0;border:0;background:none}
+.bar .horl b{color:var(--txt-fort);font-weight:400}
+.raf{background:#08222a;border:1px solid var(--bord-fort);color:var(--acc);
+ padding:6px 12px;font:500 10px ui-monospace,monospace;letter-spacing:.14em;
+ cursor:pointer;flex:none;white-space:nowrap;
+ transition:background .16s ease,color .16s ease,border-color .16s ease;
+ clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),
+ calc(100% - 6px) 100%,0 100%,0 6px)}
+.raf:hover{background:#0e3b48}
+/* L'onglet de la page ouverte : on doit savoir ou l'on est. */
+.raf.actif{background:#0c3340;color:var(--txt-fort);border-color:var(--acc)}
+.raf.actif::before{content:"";display:inline-block;width:5px;height:5px;
+ margin-right:6px;vertical-align:1px;background:var(--acc);border-radius:50%}
+"""
+
+CSS = CSS + BARRE_CSS
+
+# Les onglets : (adresse, libelle, cle). La cle nomme aussi la FENETRE,
+# pour qu'ouvrir deux fois MA LISTE ne donne pas deux fenetres mais
+# rappelle celle qui est deja la.
+ONGLETS = (("/", "ACCUEIL", "accueil"),
+           ("/palmares", "MA LISTE", "palmares"),
+           ("/strategie", "STRATEGIE", "strategie"),
+           ("/carnet", "CARNET", "carnet"))
+
+
+def barre(trace: str, nom: str, actif: str = "", soustitre: str = "",
+          avant: str = "", fenetre: str = "") -> str:
+    """La barre du haut, identique sur toutes les pages.
+
+    `actif` est la cle de l'onglet courant : il s'affiche marque et ne
+    reouvre pas sa propre page. `avant` recoit les boutons propres a la
+    page (ACTUALISER sur l'accueil) — ils se rangent avant les onglets.
+
+    Aucun `onclick` n'est ecrit ici. L'adresse voyage dans `data-vers`
+    et un SEUL ecouteur delegue la lit : c'est la regle du projet, et
+    elle vient d'un vrai degat — un `onclick="ouvre('X')"` fabrique
+    depuis une chaine Python non brute transformait `\'` en apostrophe
+    nue et tuait tout le script de la page.
+    """
+    cerf = ('<svg viewBox="0 0 380 400" width="28" height="30">'
+            f'<path class="fx" d="{trace}"/></svg>')
+    ong = "".join(
+        f'<button class="raf ong{" actif" if cle == actif else ""}"'
+        f' data-vers="{adr}" data-fen="carruos-{cle}">{lab}</button>'
+        for adr, lab, cle in ONGLETS)
+    sst = f'<span class="sst">{soustitre}</span>' if soustitre else ""
+    fen = fenetre or (f"carruos-{actif}" if actif else "")
+    return (f'<div class="bar" data-fenetre="{fen}">' + cerf
+            + f"<h1>{nom}</h1>" + sst
+            + '<span class="sep"></span>' + avant + ong
+            + '<span class="horl" id="horloge">&mdash;</span></div>')
+
+
+# Le script de la barre : l'horloge, et l'ouverture des onglets.
+#
+# « je veux que la premiere reste et quand j'ouvre un onglet ca m'ouvre
+# une autre fenetre » — donc jamais `location.href`, qui remplace la
+# page ouverte. `window.open` avec un NOM de fenetre : deux clics sur le
+# meme onglet rappellent la meme fenetre au lieu d'en empiler une
+# seconde. Sous pywebview, c'est Python qui ouvre la fenetre ; dans un
+# navigateur, si la fenetre est bloquee, on navigue sur place plutot que
+# de ne rien faire du tout.
+BARRE_JS = r"""
+function ouvreFenetre(adr, nom){
+ if(!adr) return;
+ if(window.pywebview && window.pywebview.api && window.pywebview.api.fenetre){
+  try{ window.pywebview.api.fenetre(adr, nom || ''); return; }catch(e){}
+ }
+ var f=null;
+ try{ f=window.open(adr, nom || '_blank'); }catch(e){ f=null; }
+ if(f){ try{ f.focus(); }catch(e){} return; }
+ location.href=adr;          // fenetre bloquee : au moins on y va
+}
+document.addEventListener('click', function(ev){
+ var b=ev.target.closest ? ev.target.closest('[data-vers]') : null;
+ if(!b) return;
+ ev.preventDefault();
+ if(b.classList.contains('actif')) return;   // deja sur cette page
+ ouvreFenetre(b.getAttribute('data-vers'), b.getAttribute('data-fen'));
+});
+// La fenetre porte son nom des le chargement : sans lui, un onglet
+// rouvert depuis une fenetre fille creerait un doublon au lieu de
+// rappeler la fenetre existante.
+(function(){
+ var b=document.querySelector('.bar');
+ var n=b && b.getAttribute('data-fenetre');
+ if(n){ try{ window.name=n; }catch(e){} }
+})();
+function horloge(){
+ var h=document.getElementById('horloge'); if(!h) return;
+ var d=new Date();
+ var p=d.toLocaleTimeString('fr-FR',{timeZone:'Europe/Paris',hour:'2-digit',
+   minute:'2-digit',second:'2-digit'});
+ var j=d.toLocaleDateString('fr-FR',{timeZone:'Europe/Paris',weekday:'short',
+   day:'2-digit',month:'short'});
+ h.innerHTML=j.toUpperCase()+'  <b>'+p+'</b>  PARIS';
+}
+horloge(); setInterval(horloge,1000);
+"""
+
 R = 46.0
 C = 2 * 3.14159265 * R
 ARC = 0.72                       # cadran ouvert de 259 degres

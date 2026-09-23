@@ -555,6 +555,7 @@ body{background:var(--fond);color:var(--txt);
  grid-template-columns:238px minmax(0,1fr) 258px 306px;
  grid-template-rows:auto auto minmax(0,1fr) auto}
 .wrap>.hd{grid-column:1/-1}
+.wrap>.bar{grid-column:1/-1;margin-bottom:4px}
 .wrap>.ol{grid-column:1/-1;display:flex;align-items:center;gap:9px;
  flex-wrap:wrap;padding:7px 11px;background:rgba(4,10,14,.5);
  border:1px solid #0d2a33;margin-top:-8px;
@@ -1458,7 +1459,11 @@ def build_html(brut, ticker, bench_brut, sleeve=8000.0, ccy="",
         + rg.tiroir_html(reg)
         + '<div class="wrap">'
         # --- barre superieure ---
-        f'<div class="hd">{barre}<h1>{e(ticker)}</h1>'
+        #     La barre d'onglets est celle des autres pages : depuis un
+        #     graphique on repart vers l'accueil, MA LISTE ou le CARNET
+        #     sans repasser par un bouton « Retour » isole.
+        + barre
+        + f'<div class="hd"><h1>{e(ticker)}</h1>'
         f'<span class="px" id="px"></span><span class="mt" id="mt"></span>'
         f'<div class="tabs">{tabs}</div></div>'
         # --- barre d'outils : les interrupteurs existaient mais
@@ -1520,7 +1525,7 @@ def build_html(brut, ticker, bench_brut, sleeve=8000.0, ccy="",
         + ";const TICKER=" + json.dumps(ticker)
         + ";const INTERET=" + json.dumps(inter, ensure_ascii=False)
         + ";const CHAND=" + json.dumps(chand_js, ensure_ascii=False)
-        + ";" + JS + rg.tiroir_js() + "</script></body></html>"
+        + ";" + hd.BARRE_JS + JS + rg.tiroir_js() + "</script></body></html>"
     ).replace("__D__", json.dumps(data, separators=(",", ":")))
 
     return doc

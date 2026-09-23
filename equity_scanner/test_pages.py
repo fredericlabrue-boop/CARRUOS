@@ -145,6 +145,90 @@ def _chaine_brute_preservee() -> bool:
     return bool(re.search(r"JS_POS\s*=\s*r\"\"\"", src))
 
 
+def _bloc_barre(html: str) -> str:
+    """Le HTML de la barre du haut, du `<div class="bar"` a sa fermeture.
+
+    Decoupage par comptage de balises `div`, pas par expression
+    reguliere : la barre contient des `div` imbriques et un `.*?</div>`
+    s'arreterait au premier.
+    """
+    i = html.find('<div class="bar"')
+    if i < 0:
+        return ""
+    prof, k = 0, i
+    while k < len(html):
+        if html.startswith("<div", k):
+            prof += 1
+        elif html.startswith("</div>", k):
+            prof -= 1
+            if prof == 0:
+                return html[i:k + 6]
+        k += 1
+    return html[i:]
+
+
+def _classes(fragment: str) -> set:
+    """Tous les noms de classe poses dans un fragment de HTML."""
+    out = set()
+    for val in re.findall(r'class="([^"]*)"', fragment):
+        out.update(t for t in val.split() if t)
+    return out
+
+
+def _collisions_barre(html: str) -> list:
+    """Les noms de classe partages entre la barre et le RESTE de la page.
+
+    C'est le defaut qui a produit le « mal dimensionne » signale :
+    l'horloge portait `class="etat"`, le nom deja pris par une CARTE de
+    l'accueil (marge 10/12 px, ecart interieur 13 px, bordure).
+    `.bar .etat` ne surchargeait que la police, donc la barre heritait
+    de la boite d'une carte — 61 px de haut au lieu de 30, et ces 31 px
+    etaient pris a la grille de contenu a chaque ouverture.
+
+    Une regle CSS ne dit pas d'ou vient son element : on compare donc
+    les classes POSEES dans la barre a celles posees ailleurs. Deux
+    intentions differentes sous un meme nom finissent toujours par se
+    marcher dessus, et rien dans le rendu ne le signale.
+
+    `svg`, `path` et compagnie sont ignores : `fx` designe le trace du
+    cerf dans les deux cas, c'est bien le meme objet.
+    """
+    barre = _bloc_barre(html)
+    if not barre:
+        return ["aucune barre dans la page"]
+    dehors = _classes(html.replace(barre, ""))
+    # Classes portees par un element de barre (hors SVG, voir plus haut).
+    sans_svg = re.sub(r"<svg.*?</svg>", "", barre, flags=re.S)
+    partagees = _classes(sans_svg) & dehors
+    if not partagees:
+        return []
+    # Un nom partage ne nuit que si une regle l'atteint des DEUX cotes,
+    # c'est-a-dire une regle sans ancetre : `.etat{...}` en atteint
+    # toutes les occurrences, `.bar .etat{...}` ou `.pil-h .sst{...}`
+    # restent chez elles. Sans cette nuance le controle refuserait des
+    # noms qui ne se rencontrent jamais, et un test qui crie pour rien
+    # finit par ne plus etre lu.
+    m = re.search(r"<style>(.*?)</style>", html, re.S)
+    css = m.group(1) if m else ""
+    return sorted(c for c in partagees if _regle_sans_ancetre(css, c))
+
+
+def _regle_sans_ancetre(css: str, classe: str) -> bool:
+    """Une regle CSS qui atteint cette classe ou qu'elle se trouve."""
+    css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    motif = re.compile(r"^\.%s(?:[.:\[][^\s>+~,]*)*$" % re.escape(classe))
+    for selecteurs in re.findall(r"([^{}]+)\{", css):
+        for sel in selecteurs.split(","):
+            if motif.match(sel.strip()):
+                return True
+    return False
+
+
+def _rangs_onglets(html: str) -> list:
+    """Les adresses des onglets, dans l'ordre ou la page les pose."""
+    return re.findall(r'data-vers="([^"]*)"', _bloc_barre(html))
+
+
 def main() -> int:
     import os
     import tempfile
@@ -223,6 +307,27 @@ def main() -> int:
     for haut in (768, 900, 1080):
         reste = haut - fige
         _v(reste >= 380, f"ecran {haut} px -> {reste} px pour les panneaux")
+
+    print("\n  LA BARRE DU HAUT")
+    from . import hud as _hd
+    attendus = [a for a, _l, _c in _hd.ONGLETS]
+    for nom, page in pages.items():
+        col = _collisions_barre(page)
+        _v(not col,
+           f"{nom} : aucune classe de la barre n'est celle d'une carte")
+        if col:
+            print(f"          -> partagees : {', '.join(col)}")
+    for nom, page in pages.items():
+        _v(_rangs_onglets(page) == attendus,
+           f"{nom} : les memes onglets, dans le meme ordre")
+    _v(all('id="horloge"' in _bloc_barre(pg) for pg in pages.values()),
+       "l'horloge est sur toutes les pages")
+    _v(all("location.href='/'" not in _scripts(pg)
+           and 'location.href="/"' not in _scripts(pg)
+           for pg in pages.values()),
+       "aucun onglet ne remplace la page ouverte")
+    _v(all('data-fenetre="' in _bloc_barre(pg) for pg in pages.values()),
+       "chaque page nomme sa fenetre : rouvrir un onglet n'en empile pas")
 
     print("\n  FOND HOLOGRAPHIQUE")
     _v('class="fond-anneaux"' in h, "anneaux en rotation a l'echelle de l'ecran")
