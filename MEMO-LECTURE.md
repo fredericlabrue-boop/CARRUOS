@@ -722,6 +722,57 @@ l'attribut d'aucun module.
 
 ---
 
+## 5 undecies. Le test de la stratégie 2 — `pead.py`
+
+**Une surprise de résultats est-elle suivie d'une dérive ?** La
+spécification (`derive-post-annonce-v1.md`) est gelée ; la façon dont le
+moteur la lit est écrite à part, datée et hachée avant tout regard sur
+la période de validation (`derive-post-annonce-v1-lecture.md`).
+
+### Les six conditions d'entrée, évaluées à la clôture de J+2
+
+| # | Condition | Seuil |
+|---|---|---|
+| E1 | surprise : titre moins indice, cumulé de J−1 à J+1 | **≥ +5 %** |
+| E2 | volume de la séance J / moyenne 20 séances | **≥ 2** |
+| E3 | clôture de J+1 au-dessus de celle de J−1 | pas de rétractation |
+| E4 | prix | **≥ 10** |
+| E5 | volume en devise sur 20 séances | **≥ 20 M** |
+| E6 | indice au-dessus de sa MM200 | à J+2 |
+
+**J est la première séance qui peut réagir** : une publication à
+**16 h** ou après (heure de New York) est échangée la séance suivante.
+Achat à l'ouverture de J+3.
+
+### Les sorties, la première atteinte ferme
+
+**45** séances ; clôture sous entrée − **2** × ATR ; la veille de
+l'annonce suivante ; indice sous sa MM200. Aucun take-profit.
+
+### Le passage unique
+
+- **Préparation**, répétable : relevé et gel des dates d'annonces,
+  comptes sur 2024–2026 sans aucun rendement, et répétition générale
+  complète sur la période de conception.
+- **Passage**, une seule fois : inscrit au registre **avant** le calcul,
+  fermé avec son résultat **avant** l'affichage. Un second passage est
+  refusé ; il faut le demander en toutes lettres, et le motif est écrit
+  au registre comme second regard.
+- Il ne part pas si l'univers compte moins de **450** titres, si les
+  dates manquent pour plus de 10 % des titres (au moins **90 %** rendus),
+  si moins de **80 %** sont exploitables, ou si l'heure n'est connue que
+  pour moins de **50 %** des publications.
+- Le z compare aux annonces **sans surprise**, rejouées avec les mêmes
+  sorties : **1000** tirages. Moins de **20** annonces témoins, pas de z.
+
+Les cinq critères se mesurent à 0,15 % de frais par côté ; un GO exige
+en plus une espérance positive à 0,30 %. Puis il faut battre SMH net.
+
+Le registre est `~/.carruos/registre-tests.md`, les rapports sont dans
+`~/.carruos/strategie-2/`.
+
+---
+
 ## 6. Ce que le programme refuse d'afficher
 
 Rappel, parce que c'est la colonne vertébrale du projet :
@@ -749,8 +800,8 @@ Rappel, parce que c'est la colonne vertébrale du projet :
 | Hypothèse | État |
 |---|---|
 | Stratégie 1 — repli en tendance | **NO-GO** en Phase 0 sur S&P 500 et 120 titres US. Hypothèse morte. |
-| Stratégie 2 — dérive post-annonce | spécifiée, moteur codé, **test pas encore lancé** |
-| Stratégie 3 — dérive post-annonce négative (vente à découvert) | spécifiée, moteur codé, **test pas encore lancé**. Le dividende dû au prêteur n'est pas modélisé : retrancher ~0,4 point par trade. |
+| Stratégie 2 — dérive post-annonce | moteur relu et corrigé avant le passage (note de lecture datée et hachée), passage unique **préparé et verrouillé**, pas encore lancé : `py -m equity_scanner.pead` |
+| Stratégie 3 — dérive post-annonce négative (vente à découvert) | spécifiée, moteur codé, **test pas encore lancé**. Son moteur lit encore la date du calendrier : à relire comme celui de la stratégie 2 avant tout passage. Le dividende dû au prêteur n'est pas modélisé : retrancher ~0,4 point par trade. |
 
 **Tant qu'aucune hypothèse n'a passé sa Phase 0, toute sortie de
 CARRUOS est une liste de surveillance, pas une liste d'ordres.**

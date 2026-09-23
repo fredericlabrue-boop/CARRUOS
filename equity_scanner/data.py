@@ -401,11 +401,11 @@ def avertissement(cle: str, debut: str) -> str:
     _, jour = univers_a_la_date(cle, debut)
     if jour:
         return ""
-    return (f"BIAIS DU SURVIVANT : aucune composition de « {cle} » figee "
+    return (f"BIAIS DU SURVIVANT : aucune composition de « {cle} » figée "
             f"avant {debut}. Le test tourne sur la liste D'AUJOURD'HUI, "
-            f"donc sur les seules societes qui ont survecu. Le resultat est "
-            f"flatte d'un montant inconnu, et generalement de plusieurs "
-            f"points par an. Lance `py -m equity_scanner.data --figer {cle}` "
+            f"donc sur les seules sociétés qui ont survécu. Le résultat est "
+            f"flatté d'un montant inconnu, et généralement de plusieurs "
+            f"points par an. Lancez `py -m equity_scanner.data --figer {cle}` "
             f"chaque trimestre pour cesser de perdre cette information.")
 
 

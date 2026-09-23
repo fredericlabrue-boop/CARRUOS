@@ -55,6 +55,10 @@ DOCS_GELES = {
         "bc6a8d1798c38be9ca134c38b309e1d65a1b1108b8d92b6b99fe1a7c77aa175b",
     "protocole-validation-v1.md":
         "a65538649263f69e9d3f8e465e5ae0a1a3cb85918ec6f86349438b12138063ae",
+    # La lecture de la specification n°2, ecrite AVANT le passage unique.
+    # La retoucher apres le passage serait une retouche de la regle.
+    "derive-post-annonce-v1-lecture.md":
+        "101d09b5b0ba9f762da0698362ba542034c6909474e5b00efc0fca8953430b8a",
 }
 
 
@@ -869,7 +873,59 @@ def test_cle_av() -> None:
                 os.environ[k] = val
 
 
+def _univers_pead(graine: int, n_titres: int = 40, derive: float = 0.0,
+                  n: int = 1100) -> dict:
+    """Un univers synthetique dont on CONNAIT la reponse.
+
+    Une publication tous les trimestres environ, a une heure tiree parmi
+    avant l'ouverture, apres la cloture et inconnue. Sur la seance qui
+    reagit : un saut tire au hasard et un volume triple. `derive` ajoute,
+    apres chaque surprise de +5 % ou plus, une derive quotidienne pendant
+    quarante seances — c'est l'effet cherche, plante a la main. Sans
+    elle, l'univers est du bruit : le test ne doit rien y trouver.
+    """
+    from .indicators import enrich
+    rng = np.random.default_rng(graine)
+    idx = pd.bdate_range("2019-01-02", periods=n)
+    b = 300 * np.exp(np.cumsum(rng.normal(0.0006, 0.007, n)))
+    bb = pd.DataFrame({"open": b, "high": b * 1.004, "low": b * 0.996,
+                       "close": b, "volume": 1e8}, index=idx)
+    series, dates = {}, {}
+    for t in range(n_titres):
+        r = rng.normal(0.0004, 0.014, n)
+        v = rng.uniform(1.5e6, 3e6, n)
+        ann = []
+        k = int(rng.integers(30, 90))
+        while k < n - 5:
+            h = [7, 16, None][int(rng.integers(0, 3))]
+            j = k + 1 if h == 16 else k
+            saut = rng.normal(0.0, 0.06)
+            r[j] += saut
+            v[j] *= 3.5
+            if saut >= 0.05 and derive:
+                r[j + 3:j + 43] += derive
+            ann.append(f"{idx[k].date()}T{h:02d}:00:00" if h is not None
+                       else str(idx[k].date()))
+            k += int(rng.integers(58, 68))
+        c = 50 * np.exp(np.cumsum(r))
+        o = np.r_[50.0, c[:-1]] * (1 + rng.normal(0, 0.002, n))
+        d = pd.DataFrame({"open": o, "high": np.maximum(o, c) * 1.005,
+                          "low": np.minimum(o, c) * 0.995, "close": c,
+                          "volume": v}, index=idx)
+        series[f"T{t}"] = enrich(d, bench_close=bb["close"])
+        dates[f"T{t}"] = ann
+    return {"series": series, "dates": dates, "bench_brut": bb,
+            "bo": enrich(bb), "ecartes": {}, "ref": bb["close"],
+            "instantane": {"tickers": list(series), "annonces": dates,
+                           "collecte": "2026-09-23T00:00:00",
+                           "sans_dates": []}}
+
+
 def test_pead() -> None:
+    import json
+    from pathlib import Path
+
+    from . import backtest as bt_mod
     from . import pead
     from .indicators import enrich
 
@@ -888,6 +944,201 @@ def test_pead() -> None:
     memes = pead.aligne(bo, bo.index)
     ok("un calendrier deja identique n'est pas recopie inutilement",
        memes is bo)
+
+    # --- la seance qui reagit (note de lecture, point 1) ---------------
+    ix = pd.bdate_range("2024-01-01", periods=10)      # lundi 1er janvier
+    lun, mar = ix[0], ix[1]
+    ok("publiee apres la cloture : c'est la seance SUIVANTE qui reagit",
+       pead.seance_de_reaction(ix, lun, 16) == 1)
+    ok("publiee avant l'ouverture : le jour meme",
+       pead.seance_de_reaction(ix, mar, 7) == 1)
+    ok("heure inconnue : le jour du calendrier, et c'est dit",
+       pead.seance_de_reaction(ix, mar, None) == 1
+       and pead.moment(ix, mar, None) == "inconnue")
+    ok("un samedi : la seance suivante, pas la precedente",
+       pead.seance_de_reaction(ix, pd.Timestamp("2024-01-06"), 10) == 5
+       and pead.moment(ix, pd.Timestamp("2024-01-06"), 10) == "hors_seance")
+    ok("l'heure est lue sur l'horloge de New York",
+       pead._normalise(pd.Timestamp("2024-10-30 16:00", tz="America/New_York"))
+       ["heure"] == 16
+       and pead._normalise(pd.Timestamp("2024-10-30 20:00", tz="UTC"))
+       ["heure"] == 16
+       and pead._normalise("2024-10-30")["heure"] is None)
+
+    # Un titre construit a la main : publication un lundi APRES LA
+    # CLOTURE, reaction le mardi (+9 %, volume x4).
+    n = 400
+    ix = pd.bdate_range("2023-01-02", periods=n)
+    r = np.zeros(n)
+    r[1:] = 0.0005
+    vol = np.full(n, 2e6)
+    k = 300                                   # lundi de la publication
+    r[k + 1] += 0.09
+    vol[k + 1] *= 4
+    c = 50 * np.exp(np.cumsum(r))
+    brut = pd.DataFrame({"open": c, "high": c * 1.01, "low": c * 0.99,
+                         "close": c, "volume": vol}, index=ix)
+    bb = pd.DataFrame({"open": 100.0, "high": 100.0, "low": 100.0,
+                       "close": 100.0, "volume": 1e8}, index=ix)
+    d1 = enrich(brut, bench_close=bb["close"])
+    ev_n = pead.evenements(d1, bb, [f"{ix[k].date()}T16:00:00"])
+    ok("apres la cloture : J est la seance de la reaction",
+       len(ev_n) == 1 and ev_n[0]["i"] == k + 1)
+    ok("et le volume mesure est celui de la reaction (E2 passe)",
+       len(ev_n) == 1 and ev_n[0]["rvol"] >= pead.RVOL_ANNONCE
+       and ev_n[0]["car3"] >= pead.CAR3_MIN)
+    ev_l = pead.evenements(d1, bb, [str(ix[k].date())])
+    ok("la lecture litterale ratait ce volume (le defaut corrige)",
+       len(ev_l) == 1 and ev_l[0]["rvol"] < pead.RVOL_ANNONCE)
+
+    # --- E6 a la cloture de J+2 (point 2) ------------------------------
+    J = k + 1
+    bo_e6 = pd.DataFrame({"close": 100.0, "sma200": 101.0}, index=ix)
+    bo_e6.iloc[J + 2:, 0] = 102.0             # l'indice repasse au-dessus a J+2
+    _, _, inf = pead.trades_ticker(d1, "X", bb, bo_e6,
+                                   [f"{ix[k].date()}T16:00:00"],
+                                   str(ix[0].date()), str(ix[-1].date()),
+                                   simule=False)
+    ok("E6 se lit a la cloture de J+2, pas a J",
+       inf["conditions"]["E6 regime"] == 1 and inf["candidats"] == 1)
+
+    # --- les sorties (points 3 et 4) -----------------------------------
+    bo_ok = pd.DataFrame({"close": 102.0, "sma200": 100.0}, index=ix)
+    i0 = J + pead.DELAI_EXEC
+    t = pead.simule_pead(d1, J, "X", bo_ok, prochaine=ix[J + 20])
+    ok("entree a l'ouverture de J+3",
+       t is not None and t.entree_d == ix[i0])
+    ok("S3 : sortie a la cloture de la VEILLE de l'annonce suivante",
+       t is not None and t.motif == "annonce" and t.sortie_d == ix[J + 19])
+    t = pead.simule_pead(d1, J, "X", bo_ok, prochaine=None)
+    ok("S1 : 45 seances, puis sortie",
+       t is not None and t.motif == "duree" and t.barres == pead.MAX_BARRES)
+    t = pead.simule_pead(d1.iloc[:J + 20], J, "X", bo_ok.iloc[:J + 20])
+    ok("donnees finies avant toute sortie : position OUVERTE, pas un trade",
+       t is not None and t.motif == "ouvert")
+    t = pead.simule_pead(d1.iloc[:J + 20], J, "X", bo_ok.iloc[:J + 20],
+                         prochaine=ix[J + 30])
+    ok("une annonce apres la derniere barre ne ferme pas la position ici",
+       t is not None and t.motif == "ouvert")
+    bo_ko = bo_ok.copy()
+    bo_ko.iloc[i0 + 5:, 0] = 90.0
+    t = pead.simule_pead(d1, J, "X", bo_ko)
+    ok("S4 : l'indice passe sous sa MM200, on sort",
+       t is not None and t.motif == "regime" and t.sortie_d == ix[i0 + 5])
+    chute = d1.copy()
+    chute.iloc[i0 + 3:, chute.columns.get_loc("close")] *= 0.7
+    t = pead.simule_pead(chute, J, "X", bo_ok)
+    ok("S2 : cloture sous le stop, on sort",
+       t is not None and t.motif == "stop" and t.sortie_d == ix[i0 + 3])
+    with pead.conditions(False, 0.0, 0.0):
+        t = pead.simule_pead(d1, J, "X", bo_ok)
+    ok("ligne 1 des couts : entree a la cloture de J+2, sans frais",
+       t is not None and t.entree_d == ix[J + 2]
+       and abs(t.entree - d1["close"].iloc[J + 2]) < 1e-9)
+    ok("et les reglages du moteur sont remis en place ensuite",
+       bt_mod.EXECUTION_J1 and bt_mod.COUT_PAR_COTE == 0.0010)
+
+    # --- le test lui-meme, sur des univers dont on CONNAIT la reponse ----
+    rien = lambda *_: None                              # noqa: E731
+    don = _univers_pead(1, derive=0.004)
+    res = pead.evalue(don, "2020-01-01", "2023-06-30", rien)
+    ok(f"une derive plantee apres les surprises est trouvee "
+       f"(z = {res['z']['z']:+.1f})", (res["z"]["z"] or 0) >= 3)
+    # Les lignes 2 a 4 ne different que par les frais : l'esperance ne peut
+    # que baisser. La ligne 1 change le PRIX d'entree, pas seulement les
+    # frais — elle n'a pas d'ordre garanti avec la 2.
+    ok("les quatre lignes de couts, et les frais ne font que retrancher",
+       len(res["couts"]) == 4
+       and res["couts"][1]["ev"] >= res["couts"][2]["ev"]
+       >= res["couts"][3]["ev"])
+    zs = []
+    for g in range(8):
+        r_ = pead.evalue(_univers_pead(100 + g), "2020-01-01", "2023-06-30",
+                         rien)
+        zs.append(r_["z"]["z"])
+    ok(f"sur 8 univers de bruit pur, z moyen {np.mean(zs):+.2f} "
+       f"et aucun au-dessus de 2", abs(np.mean(zs)) < 0.8
+       and max(zs) < 2.0)
+    ok("sur du bruit, aucun GO", r_["verdict"] == "NO-GO")
+    # Le meme univers, titres presentes dans un autre ordre (celui d'arrivee
+    # des telechargements paralleles) : le z doit etre IDENTIQUE.
+    u = _univers_pead(107)
+    u2 = {**u, "series": dict(reversed(list(u["series"].items())))}
+    za = pead.evalue(u, "2020-01-01", "2023-06-30", rien)["z"]["z"]
+    zb = pead.evalue(u2, "2020-01-01", "2023-06-30", rien)["z"]["z"]
+    ok("le z ne depend pas de l'ordre d'arrivee des titres",
+       abs(za - zb) < 1e-9)
+
+    # Assez de titres pour 200 trades : les cinq criteres passent. Puis la
+    # meme chose avec des frais ecrasants sur la ligne 4 : la regle « si
+    # l'avantage ne survit pas a la derniere ligne, il n'existe pas » doit
+    # renverser le verdict a elle seule.
+    grand = _univers_pead(2, n_titres=120, derive=0.004)
+    rg_ = pead.evalue(grand, "2020-01-01", "2023-06-30", rien)
+    ok(f"une derive plantee sur {rg_['m']['n']} trades passe les cinq "
+       f"criteres", all(c[1] for c in rg_["criteres"])
+       and rg_["verdict"] != "NO-GO")
+    ligne4 = pead.COUTS[pead.LIGNE_ELIMINATOIRE]
+    pead.COUTS[pead.LIGNE_ELIMINATOIRE] = (ligne4[0], True, 0.05, 0.05)
+    try:
+        rk = pead.evalue(grand, "2020-01-01", "2023-06-30", rien)
+    finally:
+        pead.COUTS[pead.LIGNE_ELIMINATOIRE] = ligne4
+    ok("mais si la derniere ligne des couts l'efface : NO-GO",
+       all(c[1] for c in rk["criteres"]) and not rk["survit"]
+       and rk["verdict"] == "NO-GO")
+    # La note de lecture est gelee par son empreinte ; ses nombres doivent
+    # etre ceux du moteur, sinon l'un des deux ment.
+    note = pead.LECTURE.read_text(encoding="utf-8")
+    cites = {"heure de cloture": f"{pead.HEURE_CLOTURE} h",
+             "tirages": f"{pead.TIRAGES:,} tirages".replace(",", " "),
+             "graine": f"graine {pead.GRAINE}",
+             "temoins minimum": f"{pead.TEMOINS_MIN} annonces témoins",
+             "univers minimum": f"**{pead.UNIVERS_MIN}** titres",
+             "part des dates": f"**{pead.PART_DATES_MIN * 100:.0f} %**",
+             "part exploitable": f"**{pead.PART_EXPLOITABLES_MIN * 100:.0f} %**",
+             "part des heures": f"**{pead.PART_HEURES_MIN * 100:.0f} %**"}
+    absents = [k for k, v in cites.items() if v not in note]
+    ok("la note de lecture cite les nombres qui tournent", not absents)
+    for k in absents:
+        print(f"          -> {k} : la note ne contient pas {cites[k]!r}")
+    ok("chaque condition s'affiche avec le seuil que le moteur teste",
+       pead.LIBELLES["E1 surprise"].endswith(f"+{pead.CAR3_MIN * 100:.0f} %")
+       and set(pead.LIBELLES) == set(pead.CONDITIONS))
+    lignes = pead.rapport(res, don, "ESSAI", [])
+    ok("le taux de gagnants ne s'affiche qu'avec son intervalle de Wilson",
+       any("intervalle de Wilson" in l for l in lignes)
+       and not any("taux de reussite" in l for l in lignes))
+
+    # --- le passage unique, et le registre -----------------------------
+    import tempfile as _tf3
+    tmp = Path(_tf3.mkdtemp())
+    et, md = tmp / "reg.json", tmp / "reg.md"
+    don = _univers_pead(3)
+    r0 = pead.valide(don, rien, etat=et, md=md, dossier=tmp)
+    ok("sur un univers tronque (40 titres), le passage NE PART PAS, et "
+       "rien n'est inscrit", r0.get("incomplet") and not md.exists()
+       and not et.exists())
+    sans_h = {**don, "instantane": {**don["instantane"], "annonces": {
+        tk: [x[:10] for x in v]
+        for tk, v in don["instantane"]["annonces"].items()}}}
+    ok("ni sur des dates privees de leur heure (le defaut corrige)",
+       any("l'heure n'est connue" in m_ for m_ in pead.incomplet(sans_h)))
+    r1 = pead.valide(don, rien, etat=et, md=md, dossier=tmp, controle=False)
+    ok("le passage est inscrit, puis ferme avec son resultat",
+       not r1.get("refuse") and md.read_text(encoding="utf-8").count(
+           pead.HYPOTHESE) == 2)
+    r2 = pead.valide(don, rien, etat=et, md=md, dossier=tmp, controle=False)
+    ok("un second passage sur la meme periode est REFUSE", r2.get("refuse"))
+    r3 = pead.valide(don, rien, second_regard="essai du test", etat=et,
+                     md=md, dossier=tmp, controle=False)
+    ok("sauf demande explicite, ecrite au registre comme SECOND REGARD",
+       not r3.get("refuse")
+       and "SECOND REGARD : essai du test" in md.read_text(encoding="utf-8"))
+    ok("le registre porte l'empreinte des constantes ET du code",
+       all(e["details"].get("moteur") and e["empreinte"] ==
+           pead.empreintes()["constantes"]
+           for e in json.loads(et.read_text(encoding="utf-8"))))
 
 
 def test_comparatif() -> None:
@@ -2231,6 +2482,7 @@ def test_memo() -> None:
     from . import cerveau as cv
     from . import ibkr as ik_
     from . import objectif as ob
+    from . import pead as pd_
     from . import profil as pr
     from . import strategie as sg
     # ------------------------------------------------------------------
@@ -2803,6 +3055,20 @@ def test_memo() -> None:
         ("port Gateway reel", f"| **{ik_.PORTS[3][0]}** | IB Gateway | réel |"),
         ("premiere reprise", f"attendant **{ik_.REPRISE[0]}**, puis"),
         ("derniere reprise", f"**{ik_.REPRISE[-1]}** secondes"),
+        # --- pead.py : les constantes gelees et la lecture
+        ("E1 surprise", f"**≥ +{pd_.CAR3_MIN * 100:.0f} %**"),
+        ("E2 volume", f"**≥ {pd_.RVOL_ANNONCE:g}**"),
+        ("E4 prix", f"**≥ {pd_.PRIX_MIN:g}**"),
+        ("E5 liquidite", f"**≥ {pd_.DOLLAR_VOL_MIN / 1e6:g} M**"),
+        ("heure de cloture", f"**{pd_.HEURE_CLOTURE} h**"),
+        ("duree maximale", f"**{pd_.MAX_BARRES}** séances ;"),
+        ("stop ATR", f"**{pd_.STOP_ATR:g}** × ATR"),
+        ("univers minimum", f"moins de **{pd_.UNIVERS_MIN}** titres"),
+        ("part des dates", f"**{pd_.PART_DATES_MIN * 100:.0f} %** rendus"),
+        ("part exploitable", f"**{pd_.PART_EXPLOITABLES_MIN * 100:.0f} %** sont"),
+        ("part des heures", f"moins de **{pd_.PART_HEURES_MIN * 100:.0f} %** des"),
+        ("tirages du temoin", f"**{pd_.TIRAGES}** tirages"),
+        ("temoins minimum", f"Moins de **{pd_.TEMOINS_MIN}** annonces"),
         # --- memoire.py
         ("horizons de la memoire",
          f"**{_me.HORIZONS[0]}**, **{_me.HORIZONS[1]}** et "

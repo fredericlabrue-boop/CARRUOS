@@ -33,7 +33,7 @@ echo.
 echo      --- VALIDATION ---
 echo      5.  PHASE 0 - go/no-go sur le S^&P 500
 echo      6.  PHASE 0 - test rapide sur 120 titres US
-echo      P.  Derive post-annonce - univers US large
+echo      P.  STRATEGIE 2 - preparation, puis passage unique sur OUI
 echo      S.  Derive post-annonce NEGATIVE - vente a decouvert
 echo.
 echo      --- DONNEES ET CONTROLES ---
@@ -139,10 +139,12 @@ echo. & pause & goto menu
 
 :pead
 echo.
-echo   Derive post-annonce - regles GELEES, un seul passage.
-echo   Collecte des dates d'annonces puis rejeu.
+echo   STRATEGIE 2 - derive post-annonce. Regles GELEES.
+echo   D'abord la preparation, repetable a volonte. Puis le passage
+echo   UNIQUE sur 2024-2026 : il ne part que si vous tapez OUI, et son
+echo   resultat s'inscrit au registre quel qu'il soit.
 echo.
-%PY% -m equity_scanner.pead --univers us --csv "pead-us.csv"
+%PY% -m equity_scanner.pead
 echo. & pause & goto menu
 
 :short

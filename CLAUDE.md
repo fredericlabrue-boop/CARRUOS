@@ -15,6 +15,7 @@ py -m equity_scanner.chandeliers NVDA   # figures, et ce qui a suivi
 py -m equity_scanner.options NVDA       # open interest des OPTIONS
 py -m equity_scanner.palmares COIN HOOD TLX.DE   # les 13 blocs, classés
 py -m equity_scanner.dossier "je sors quand sur TLX.DE"
+py -m equity_scanner.pead         # stratégie 2 : préparation, puis passage unique sur OUI
 ```
 
 `MEMO-LECTURE.md` à la racine rassemble **tous les seuils** du
@@ -287,12 +288,19 @@ jeu de paramètres qui ne l'a pas produit.
 
 - Stratégie 1, « repli en tendance » : **NO-GO** en Phase 0 sur S&P 500
   et 120 titres US. Hypothèse morte, elle ne se retouche pas.
-- Stratégie 2, dérive post-annonce (`pead.py`) : spécifiée, moteur codé,
-  **test pas encore lancé**.
+- Stratégie 2, dérive post-annonce (`pead.py`) : spécifiée, moteur **relu
+  contre son texte et corrigé avant le passage**, passage unique **préparé
+  et verrouillé**, pas encore lancé — il doit tourner sur la machine du
+  propriétaire, Yahoo n'étant pas joignable d'ailleurs. Les corrections sont
+  écrites dans `derive-post-annonce-v1-lecture.md`, datée du 23 septembre
+  2026 et **hachée** comme la spécification : aucune constante n'a bougé,
+  l'empreinte `d32cd9bf…` est la même.
 - Stratégie 3, dérive post-annonce **négative** — vente à découvert
   (`short.py`) : spécifiée (`strategie-short-v1.md`), moteur codé,
-  **test pas encore lancé**. Ce n'est pas la stratégie 2 avec les signes
-  inversés : perte non bornée, position qui grossit quand elle a tort,
+  **test pas encore lancé**. Son moteur lit encore la **date du
+  calendrier** comme jour d'annonce — le défaut corrigé sur la stratégie 2 :
+  il faut le relire de la même façon avant tout passage. Ce n'est pas la
+  stratégie 2 avec les signes inversés : perte non bornée, position qui grossit quand elle a tort,
   coût d'emprunt au prorata, dérive haussière du marché à couvrir. Le
   **dividende dû au prêteur n'est pas modélisé** — environ 0,4 point par
   trade d'optimisme à retrancher à la main du résultat affiché.
@@ -314,6 +322,11 @@ jeu de paramètres qui ne l'a pas produit.
 | `backtest.py` | moteur de simulation, exécution J+1, coûts, **plafond de poids** |
 | `phase0.py` | les 5 critères go/no-go |
 | `pead.py` | stratégie 2 — **constantes gelées** |
+| | J est la **première séance qui peut réagir** : une publication à 16 h ou après (New York) s'échange le lendemain. La lecture littérale prenait la date du calendrier — sur données synthétiques, **0 surprise sur 54** publiées après la clôture passait E2, contre 51 sur 51 maintenant |
+| | deux temps : `prepare()` (répétable) relève et **fige** les dates dans un instantané, compte sans rendement sur 2024–2026 et fait une répétition générale sur la période de conception ; `valide()` est le **passage unique** — inscrit au registre avant le calcul, fermé avant l'affichage, refusé la seconde fois |
+| | il **ne part pas** sur des données incomplètes (univers tronqué, dates manquantes, heures absentes) : une période de validation brûlée ne se rend pas |
+| | le témoin de chaque annonce neutre est simulé **une fois**, puis tiré ; les titres sont parcourus dans l'ordre **alphabétique** — l'ordre d'arrivée des téléchargements parallèles faisait bouger le z au deuxième chiffre |
+| `registre.py` | le registre des tests, étape 10 du protocole : `~/.carruos/registre-tests.md` pour être lu, `.json` pour refuser un second passage. Aucune ligne n'est jamais réécrite |
 | `short.py` | stratégie 3, vente à découvert — **constantes gelées** |
 | `comparatif.py` | système contre SMH buy & hold net de PFU |
 | `contexte.py` | faits mesurés d'un titre, sans score inventé |
@@ -597,6 +610,18 @@ jeu de paramètres qui ne l'a pas produit.
   dans la liste de `test_pages`, donc ni son script mort ni sa grille
   de travers ne pouvaient être vus. Toute page servie entre dans la
   liste.
+- **Un moteur peut respecter ses constantes et trahir son texte.**
+  L'empreinte de `pead.py` couvrait les seuils, pas leur lecture. Le
+  moteur prenait la date du calendrier pour « jour d'annonce » : toute
+  publication après la clôture voyait son volume mesuré la veille de la
+  réaction, et E3 ne vérifiait plus rien. Rien ne le signalait, et le
+  passage unique serait parti avec. Relire un moteur **contre le texte**,
+  ligne à ligne, avant de dépenser une période de validation — et
+  inscrire au registre l'empreinte du **code** qui a tourné, pas
+  seulement celle des constantes.
+- **Un résultat inscrit au registre doit se reproduire.** Le z tiré au
+  hasard dépendait de l'ordre des titres, donc de l'ordre d'arrivée des
+  téléchargements parallèles. Trier avant de tirer.
 - **Une explication plausible n'est pas une mesure.** Un premier journal
   d'essai a rendu « filtre nuisible » sur des données au hasard. J'y ai
   vu l'effet du regroupement par titre, je l'ai écrit, et j'ai codé le
