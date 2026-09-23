@@ -884,10 +884,10 @@ def main() -> int:
     print("\n  MAJORDOME : LA PORTE EN FRANCAIS")
     from . import dossier as _ds
     ja = _scripts(pages["accueil"])
-    _v("async function majDossier" in ja,
+    _v("async function majCerveau" in ja,
        "le majordome sait ouvrir le dossier d'un titre")
-    _v("/api/dossier" in ja, "il interroge la route dediee")
-    _v("if(await majDossier(q)) return;" in ja.replace("  ", " "),
+    _v("/api/cerveau" in ja, "il interroge la route dediee")
+    _v("if(await majCerveau(q)) return;" in ja.replace("  ", " "),
        "il l'essaie AVANT de dire qu'il n'a pas compris")
     # La reconnaissance du ticker se fait cote SERVEUR : le navigateur
     # n'a pas les donnees pour trancher quel mot est un ticker.
@@ -898,9 +898,32 @@ def main() -> int:
     # Le rappel doit voyager jusqu'a l'ecran, sinon la fiche ressemble
     # a un avis.
     _v("j.rappel" in ja, "le rappel de Phase 0 est affiche avec la reponse")
-    _v("j.voix" in ja, "la voix lit la tete du dossier")
-    _v("_dossier" in open(_app.__file__, encoding="utf-8").read(),
+    _v("_cerveau" in open(_app.__file__, encoding="utf-8").read(),
        "la route a sa fonction dediee cote serveur")
+
+    # --- Le contrat du cerveau, vu depuis la page -------------------
+    #
+    # Les FAITS sont calcules avant tout appel reseau et doivent rester
+    # a l'ecran quoi qu'il arrive au modele. La page doit donc savoir
+    # afficher les trois cas : modele absent, modele en panne, modele
+    # qui repond. Si un seul manque, une panne efface les faits.
+    _v("f.lignes" in ja, "les faits calcules en local sont affiches")
+    _v("m.configure===false" in ja.replace(" ", ""),
+       "cle absente : les faits restent, et la page le dit")
+    _v("m.erreur" in ja,
+       "modele en panne : les faits restent, et la page le dit")
+    _v(ja.index("f.lignes") < ja.index("m.texte"),
+       "les faits sont poses AVANT la prose, jamais l'inverse")
+    # L'etiquette de tracabilite : sans elle, un chiffre invente se lit
+    # exactement comme un chiffre mesure.
+    _v("hors_dossier" in ja,
+       "les chiffres du modele qui ne viennent pas du dossier sont nommes")
+    _v("n_traces" in ja,
+       "et le compte de ceux qui en viennent est affiche")
+    # La cle ne doit jamais repartir vers le navigateur.
+    _v('id="majiak"' in pages["accueil"] and "j.cle" not in ja
+       and "value=j.indice" not in ja,
+       "la cle se saisit mais ne ressort jamais dans la page")
 
     print("\n  PAGE MA LISTE")
     from . import palmares as _pm

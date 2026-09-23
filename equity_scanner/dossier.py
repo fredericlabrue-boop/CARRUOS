@@ -61,6 +61,10 @@ INTENTIONS = [
     ("donnees", r"\b(?:fiab|donnee|qualit|confiance|douteu)\w*"),
     ("seance", r"\b(?:heure|horaire|ouvertur|ouvre|ferme|fermetur|"
                r"seance)\w*|bourse ouverte"),
+    ("profil", r"\b(?:etf|tracker|volatil|amplitude|nerveu|calme|agit|"
+                r"beta|correlation|type|genre|nature|garde|garder|"
+                r"conserv|detention|duree|longevite)\w*"
+                r"|court terme|long terme|moyen terme|combien de temps"),
     ("avis", r"\b(?:pense|avis|opinion|vaut|interess|interet|comment|"
              r"quoi)\w*|dis.?moi|parle.?moi"),
 ]
@@ -230,6 +234,15 @@ def constitue(ticker: str, marche: str | None = None,
         amplitudes = hz.amplitude(serie)
     except Exception:
         amplitudes = []
+    # Le profil : ce qui distingue une action d'un ETF monde, mesure.
+    # Calcule ici parce que c'est le point unique ou les faits d'un
+    # titre se rassemblent — un second endroit finirait par diverger.
+    try:
+        from . import profil as pr
+        prof = pr.mesures(serie, bench=bench, ticker=tk)
+        prof["duree"] = pr.duree_detention(serie, bench, tk)
+    except Exception:
+        prof = None
     try:
         from . import seance as sn
         # La place qui compte pour CE titre, pas les neuf.
@@ -255,6 +268,7 @@ def constitue(ticker: str, marche: str | None = None,
         "chandeliers": chand,
         "horizons": amplitudes,
         "horaires": horaires,
+        "profil": prof,
         "position": position or None,
         "rappel": RAPPEL,
     })
@@ -452,6 +466,28 @@ def _avis(d: dict) -> list[str]:
     return L
 
 
+def _profil(d: dict) -> list[str]:
+    """Ce qui distingue ce titre d'un autre, mesure.
+
+    « On ne traite pas Tesla comme un ETF monde » : c'est vrai, et
+    verifiable. Les lignes viennent de `profil.py`, qui a mesure
+    l'amplitude, le pire recul, le lien au repere — et la duree REELLE
+    des positions que les regles de la specification produisent sur ce
+    titre. L'horizon n'est pas un choix : c'est une consequence des
+    quatre conditions de sortie.
+    """
+    pr = d.get("profil")
+    if not pr:
+        return ["Le profil n'a pas pu être mesuré sur ce titre."]
+    from . import profil as pf
+    out = [f"{lib} : {val}" for lib, val in pf.lignes(pr, pr.get("duree"))]
+    out.append("")
+    out.append(pf.RAPPEL)
+    if (pr.get("declare") or {}).get("disponible"):
+        out.append(pf.RAPPEL_DECLARE)
+    return out
+
+
 SECTIONS = {
     "sortie": ("VOUS SORTEZ QUAND ?", _sortie),
     "entree": ("CE QUE DIT LA SPÉCIFICATION POUR ENTRER", _entree),
@@ -460,6 +496,8 @@ SECTIONS = {
     "horizon": ("CE QUE CE TITRE BOUGE", _horizon),
     "donnees": ("LES DONNÉES SONT-ELLES EXPLOITABLES ?", _donnees),
     "seance": ("LA SÉANCE", _seance),
+    "profil": ("CE QUE CET INSTRUMENT EST, ET COMBIEN DE TEMPS "
+               "LA SPÉCIFICATION LE GARDE", _profil),
     "avis": ("LA FICHE COMPLÈTE", _avis),
 }
 

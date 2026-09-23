@@ -461,6 +461,26 @@ body{overflow:hidden}
 .majr{font-size:12px;line-height:1.55;color:var(--txt-fort);min-height:42px;
  margin-bottom:9px}
 .maje{font-size:9.5px;line-height:1.6;color:#2f5462;margin-top:8px}
+/* --- Le cerveau : la prose du modele, et la tracabilite de ses
+       chiffres. Le bandeau n'est pas decoratif : il dit lesquels se
+       remontent a une mesure, et lesquels ne se remontent a rien. --- */
+.majia{margin-top:10px;padding:9px 10px;border:1px solid #123c47;
+ border-left:2px solid var(--acc);background:rgba(6,24,30,.55);
+ font-size:12px;line-height:1.6;color:var(--txt-fort)}
+.majiat{display:block;font:500 8px ui-monospace,monospace;
+ letter-spacing:.22em;color:var(--acc);margin-bottom:6px}
+.majiax{margin-top:8px;padding-top:6px;border-top:1px solid #3a1c20;
+ font-size:10px;line-height:1.55;color:#c08a92}
+.majiao{margin-top:8px;padding-top:6px;border-top:1px solid #123c47;
+ font-size:10px;line-height:1.55;color:#2f5462}
+.majiab{margin-top:10px;padding-top:9px;border-top:1px solid #0d2a33}
+.majiae{font:500 8px ui-monospace,monospace;letter-spacing:.2em;
+ color:#6b4a4f;margin-bottom:7px}
+.majiae.on{color:var(--acc)}
+.majiab select,.majiab input{min-width:0;background:#070d13;
+ border:1px solid var(--bord);color:var(--txt-fort);padding:6px 8px;
+ font:400 11px inherit}
+.majiab select{flex:0 0 118px}.majiab input{flex:1}
 .raf.occupe{color:var(--txt-faible);border-color:#123c47}
 .raf.occupe span{display:inline-block;animation:tour 1s linear infinite}
 #roue{top:8px;right:13px;width:34px;height:34px;line-height:32px;font-size:15px;
@@ -1066,14 +1086,16 @@ async function majExec(txt){
   $('tk').value=t; go();
   return;
  }
- // Avant d'abandonner : la question porte peut-etre sur un TITRE.
- // C'est le serveur qui tranche quel mot est un ticker — il a les
- // donnees, le navigateur non.
- if(await majDossier(q)) return;
+ // Tout le reste part au majordome complet : il rend les FAITS
+ // calcules par le serveur, et par-dessus, si une cle est enregistree,
+ // la mise en phrases d'un modele. C'est le serveur qui tranche quel
+ // mot est un ticker : il a les donnees, le navigateur non.
+ if(await majCerveau(q)) return;
 
  majDit('Je n\'ai pas compris. Essayez : je sors quand sur TLX, '
   +'combien je peux perdre sur Coin, que penses-tu de Nvidia, '
-  +'analyse Sanofi, scan Cac 40, etat du marche, ou mes positions.');
+  +'on garde TLX combien de temps, analyse Sanofi, scan Cac 40, '
+  +'etat du marche, ou mes positions.');
 }
 
 // --- Le dossier d'un titre -------------------------------------------
@@ -1082,31 +1104,102 @@ async function majExec(txt){
 // partir des chiffres des modules ; le majordome les affiche et en lit
 // les premieres a voix haute. Si un chiffre n'est pas dans le dossier,
 // aucune phrase ne peut le sortir.
-async function majDossier(q){
+var MAJ_HIST=[];
+async function majCerveau(q){
  var dflt = '';
  try{ dflt = ($('tk') && $('tk').value ? $('tk').value.trim() : ''); }catch(e){}
  try{
   majDit('Je regarde.', false);
-  var j = await (await fetch('/api/dossier?q=' + encodeURIComponent(q)
-    + '&ticker=' + encodeURIComponent(dflt))).json();
-  if(!j.ok){
-   if(j.intention){ majDit(j.erreur || 'Titre non reconnu.'); return true; }
-   return false;
+  var j = await (await fetch('/api/cerveau',{method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({q:q, ticker:dflt, historique:MAJ_HIST})})).json();
+  if(!j.ok) return false;
+
+  var f = j.faits, h = '';
+  // --- Les FAITS. Calcules avant tout appel reseau, affiches quoi
+  //     qu'il advienne du modele.
+  if(f && f.ok){
+   h += '<b>' + f.ticker + '</b> &mdash; ' + f.titre + '<br><br>';
+   f.lignes.forEach(function(l){
+    h += (l ? l.replace(/</g,'&lt;') : '') + '<br>'; });
+  }else if(f && f.erreur){
+   h += '<span style="color:var(--neg)">' + f.erreur.replace(/</g,'&lt;')
+     + '</span><br><br>';
   }
-  var h = '<b>' + j.ticker + '</b> &mdash; ' + j.titre
-    + (j.cours ? ' &middot; ' + j.cours + ' ' + (j.devise||'') : '')
-    + '<br><br>';
-  j.lignes.forEach(function(l){
-   if(!l){ h += '<br>'; return; }
-   // Les lignes d'etat des sorties portent leur puce : on les garde
-   // telles quelles, elles se lisent comme une liste.
-   h += l.replace(/</g,'&lt;') + '<br>';
-  });
-  h += '<br><span style="color:var(--txt-faible)">' + j.rappel + '</span>';
+
+  // --- La prose du modele, par-dessus, jamais a la place.
+  var m = j.modele || {};
+  if(m.ok && m.texte){
+   h += '<div class="majia"><span class="majiat">CERVEAU &middot; '
+     + (m.modele||'').replace(/</g,'&lt;') + '</span>'
+     + m.texte.replace(/</g,'&lt;').replace(/\n/g,'<br>');
+   var c = m.chiffres || {};
+   if(c.n_hors){
+    h += '<div class="majiax">' + c.n_hors + ' chiffre'
+      + (c.n_hors>1?'s':'') + ' de cette reponse ne vien'
+      + (c.n_hors>1?'nent':'t') + ' pas du dossier : '
+      + c.hors_dossier.join(', ').replace(/</g,'&lt;')
+      + '. Ils ne sont pas verifiables ici.</div>';
+   }else if(c.n_traces){
+    h += '<div class="majiao">Les ' + c.n_traces
+      + ' chiffres de cette reponse viennent tous du dossier.</div>';
+   }
+   h += '</div>';
+   MAJ_HIST.push({role:'user',content:q},{role:'assistant',content:m.texte});
+   if(MAJ_HIST.length>20) MAJ_HIST=MAJ_HIST.slice(-20);
+  }else if(m.configure===false){
+   h += '<div class="majiax">Le cerveau n\'est pas branche : aucune cle '
+     + 'enregistree. Les faits ci-dessus sont calcules par le programme '
+     + 'et ne demandent aucune cle.</div>';
+  }else if(m.erreur && m.configure){
+   h += '<div class="majiax">Le cerveau n\'a pas repondu : '
+     + String(m.erreur).replace(/</g,'&lt;')
+     + '. Les faits ci-dessus restent valables.</div>';
+  }
+
+  if(!h) return false;
+  if(f && f.ok) h += '<br><span style="color:var(--txt-faible)">'
+    + j.rappel + '</span>';
   $('majr').innerHTML = h;
-  majDit(j.voix || j.titre, false);
+  majDit((m.ok && m.texte) ? m.texte.split(/[.!?]\s/)[0]
+                           : (f && f.ok ? f.titre : 'Voila.'), false);
   return true;
  }catch(e){ return false; }
+}
+
+// --- La cle du cerveau ------------------------------------------------
+//
+// Le programme n'embarque aucune cle et ne peut pas en fabriquer une.
+// Celle-ci est la votre, prise chez le fournisseur, rangee dans
+// ~/.carruos/ia.json en 0600 — jamais dans le code, jamais dans le
+// depot, jamais dans l'archive livree.
+async function majIaEtat(){
+ try{
+  var j = await (await fetch('/api/cerveau/etat')).json();
+  var e = $('majiae'); if(!e) return;
+  e.textContent = j.configure
+    ? ('CERVEAU BRANCHE · ' + j.fournisseur_nom + ' · ' + j.modele)
+    : ('CERVEAU NON BRANCHE · cle a prendre sur ' + j.ou);
+  e.className = 'majiae' + (j.configure ? ' on' : '');
+ }catch(e){}
+}
+async function majIaPose(){
+ var k = ($('majiak').value||'').trim();
+ if(!k){ $('majiae').textContent = 'Collez la cle puis rappuyez.'; return; }
+ $('majiae').textContent = 'Enregistrement...';
+ try{
+  await fetch('/api/cerveau/config',{method:'POST',
+   headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({fournisseur:$('majiaf').value, cle:k})});
+  $('majiak').value='';
+ }catch(e){}
+ majIaEtat();
+}
+async function majIaOublie(){
+ try{ await fetch('/api/cerveau/config',{method:'POST',
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({action:'oublie'})}); }catch(e){}
+ majIaEtat();
 }
 
 async function ouvrirWeb(){
@@ -2231,8 +2324,28 @@ def _accueil(splash: bool = True) -> str:
               '<div class="maje">je sors quand sur TLX &middot; '
               'combien je peux perdre sur Coin &middot; '
               'que penses-tu de Nvidia &middot; une figure sur Hood ? '
-              '&middot; analyse sanofi &middot; scan cac 40 &middot; '
+              '&middot; on garde TLX combien de temps &middot; '
+              'analyse sanofi &middot; scan cac 40 &middot; '
               'etat du marche &middot; mes positions</div>'
+              '<div class="majiab">'
+              '<div class="majiae" id="majiae">&mdash;</div>'
+              '<div class="row">'
+              '<select id="majiaf">'
+              '<option value="anthropic">Claude (Anthropic)</option>'
+              '<option value="openai">OpenAI</option></select>'
+              '<input id="majiak" type="password" '
+              'placeholder="votre cle API"></div>'
+              '<div class="row" style="margin-top:6px">'
+              '<button class="sec" onclick="majIaPose()">BRANCHER</button>'
+              '<button class="sec" onclick="majIaOublie()">EFFACER</button>'
+              '</div>'
+              '<div class="maje">CARRUOS n\'embarque aucune cle et ne '
+              'peut pas en fabriquer une : celle-ci est la votre, prise '
+              'chez le fournisseur. Elle est rangee dans '
+              '~/.carruos/ia.json, jamais dans le programme ni dans '
+              'l\'archive. Sans elle, le majordome repond quand meme : '
+              'les faits sont calcules en local.</div>'
+              '</div>'
               '</div>'
             + '<div id="voile" onclick="voileClic(event)">'
               '<div id="detail"><div class="tete"><h2 id="dtitre"></h2>'
@@ -2347,7 +2460,8 @@ class Bruce(http.server.BaseHTTPRequestHandler):
         u = urllib.parse.urlparse(self.path)
         if u.path not in ("/api/reglages", "/api/positions",
                           "/api/cle", "/api/validation", "/api/phase0",
-                          "/api/carnet"):
+                          "/api/carnet", "/api/cerveau",
+                          "/api/cerveau/config"):
             return self._envoie("<h1>404</h1>", code=404)
         try:
             n = int(self.headers.get("Content-Length") or 0)
@@ -2356,6 +2470,10 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                 return self._json(_val_lance(corps.get("quoi", "phase0")))
             if u.path == "/api/carnet":
                 return self._json(_carnet_ecrit(corps))
+            if u.path == "/api/cerveau":
+                return self._json(_cerveau(corps))
+            if u.path == "/api/cerveau/config":
+                return self._json(_cerveau_config(corps))
             if u.path == "/api/cle":
                 ok = pose_cle(corps.get("cle", ""))
                 return self._json({"ok": True, "pose": ok})
@@ -2448,6 +2566,11 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                 return self._envoie(_page_carnet())
             if u.path == "/api/carnet":
                 return self._json(_carnet(q))
+            if u.path == "/api/cerveau/etat":
+                from . import cerveau as cv
+                return self._json(cv.etat())
+            if u.path == "/api/objectif":
+                return self._json(_objectif(q))
             if u.path == "/api/dossier":
                 return self._json(_dossier(q))
             if u.path == "/api/palmares":
@@ -3437,6 +3560,86 @@ document.addEventListener('DOMContentLoaded', function(){
  crnCharge();
 });
 """
+
+
+def _cerveau(c: dict) -> dict:
+    """Le majordome : les faits d'abord, la prose du modele ensuite.
+
+    L'ordre est le contrat, pas un detail. `cerveau.repond()` calcule la
+    reponse deterministe AVANT tout appel reseau et la rend quoi qu'il
+    arrive au modele. Une cle absente, une API en panne ou une reponse
+    de travers ne font jamais disparaitre les faits de l'ecran.
+    """
+    from . import cerveau as cv
+    from . import cache as ch
+
+    question = (c.get("q") or "").strip()
+    if not question:
+        return {"ok": False, "erreur": "Question vide."}
+    hist = c.get("historique") or []
+    if not isinstance(hist, list):
+        hist = []
+
+    def existe(t):
+        try:
+            d = ch.charge(t, annees=1)
+            return d is not None and len(d) > 30
+        except Exception:
+            return False
+
+    return cv.repond(question, existe=existe,
+                     defaut_ticker=(c.get("ticker") or "").strip(),
+                     historique=hist)
+
+
+def _cerveau_config(c: dict) -> dict:
+    """Enregistre ou efface la cle. Elle ne ressort jamais entiere."""
+    from . import cerveau as cv
+    if c.get("action") == "oublie":
+        return cv.oublie()
+    return cv.configure(fournisseur=(c.get("fournisseur") or "").strip(),
+                        modele=(c.get("modele") or "").strip(),
+                        cle=(c.get("cle") or "").strip())
+
+
+def _objectif(q: dict) -> dict:
+    """Un objectif chiffre, resolu par l'arithmetique.
+
+    Jamais « impossible » : une equation ne dit pas impossible, elle dit
+    ce que ca demande. Et si un ticker est fourni, on ajoute la
+    frequence avec laquelle SON historique a atteint le taux exige — un
+    taux de base, pas une probabilite.
+    """
+    from . import objectif as ob
+
+    def f(cle, defaut=0.0):
+        try:
+            return float(str(q.get(cle, defaut)).replace(",", "."))
+        except (TypeError, ValueError):
+            return defaut
+
+    cible = f("cible", 50000)
+    mois = int(f("mois", 36)) or None
+    taux = f("taux", 0.0) or None
+    if taux is not None and taux > 1.5:
+        taux = taux / 100.0            # saisi en pourcent
+    p = ob.plan(cible=cible, capital=f("capital", 0),
+                versement=f("versement", 0), mois=mois, taux=taux)
+    out = {"ok": True, "plan": p, "texte": ob.texte(p),
+           "rappel_frequence": ob.RAPPEL_FREQUENCE}
+
+    tk = (q.get("ticker") or "").strip().upper()
+    if tk and p.get("taux_exige") is not None and mois:
+        try:
+            from . import cache as ch
+            d = ch.charge(tk, annees=20)
+            out["frequence"] = ob.frequence_historique(
+                d["close"], p["taux_exige"], mois)
+            out["frequence"]["ticker"] = tk
+        except Exception as exc:
+            out["frequence"] = {"assez": False,
+                                "erreur": f"{type(exc).__name__}: {exc}"}
+    return out
 
 
 def _page_carnet() -> str:

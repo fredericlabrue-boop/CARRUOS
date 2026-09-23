@@ -2125,6 +2125,7 @@ def test_dossier() -> None:
                              "risque": "combien je perds",
                              "bougies": "une figure ?", "horizon": "ca bouge",
                              "donnees": "fiable ?", "seance": "quelle heure",
+                             "profil": "on garde combien de temps",
                              "avis": "que penses-tu"}[cle], d_plein)
             txt = " ".join(rep["lignes"])
             hors = sorted({n for n in _re.findall(r"\d+(?:[.,]\d+)?", txt)
@@ -2184,7 +2185,9 @@ def test_dossier() -> None:
             ds.repond({"sortie": "je sors quand", "entree": "je rentre",
                        "risque": "combien je perds", "bougies": "une figure ?",
                        "horizon": "ca bouge", "donnees": "fiable ?",
-                       "seance": "quelle heure", "avis": "que penses-tu"}[cle],
+                       "seance": "quelle heure",
+                       "profil": "on garde combien de temps",
+                       "avis": "que penses-tu"}[cle],
                       vide)
         except Exception as exc:
             casse.append(f"{cle}: {type(exc).__name__}")
