@@ -253,6 +253,24 @@ def _classe_stylee(css: str, classe: str) -> bool:
     return re.search(r"\.%s\b" % re.escape(classe), css) is not None
 
 
+_NOM_CLASSE = re.compile(r"^[A-Za-z_][\w-]*$")
+
+
+def _classes_posees(page: str) -> set:
+    """Toutes les classes qu'une page pose — dans son HTML ET dans ses
+    scripts. Un paragraphe ecrit par `innerHTML` n'existe pas encore
+    quand la page arrive, mais il sera dessine avec la feuille de CETTE
+    page, pas avec une autre."""
+    out = set()
+    for val in re.findall(r'class="([^"]*)"', page):
+        out.update(t for t in val.split() if _NOM_CLASSE.match(t))
+    out.update(re.findall(r"classList\.(?:add|toggle|remove)\(\s*'([\w-]+)'",
+                          page))
+    for val in re.findall(r"className\s*=\s*'([^']*)'", page):
+        out.update(t for t in val.split() if _NOM_CLASSE.match(t))
+    return out
+
+
 def _rangs_onglets(html: str) -> list:
     """Les adresses des onglets, dans l'ordre ou la page les pose."""
     return re.findall(r'data-vers="([^"]*)"', _bloc_barre(html))
@@ -289,7 +307,8 @@ def main() -> int:
                  "strategie": app._page_strategie(),
                  "maliste": app._page_palmares(),
                  "carnet": app._page_carnet(),
-                 "ibkr": app._page_ibkr()}
+                 "ibkr": app._page_ibkr(),
+                 "memoire": app._page_memoire()}
     finally:
         dl.load_yf = vrai
 
@@ -374,6 +393,34 @@ def main() -> int:
            f"{nom} : chaque classe de coquille a sa regle dans SA feuille")
         if orphelines:
             print(f"          -> sans regle ici : {', '.join(orphelines)}")
+
+    # Le meme defaut, un cran plus bas que la coquille. `.ex` — le
+    # paragraphe d'explication — n'etait regle que dans la feuille de
+    # STRATEGIE ; l'accueil, MA LISTE, le carnet, IBKR et la memoire le
+    # posaient aussi, et le dessinaient en 14 px sans marge. Le cerf de
+    # la barre prenait sa couleur dans la feuille de l'accueil : la page
+    # graphique le peignait en noir sur fond noir.
+    #
+    # On ne retient que les classes regles AILLEURS et pas ici : une
+    # classe reglee nulle part est un simple crochet pour un script, pas
+    # un oubli. Et deux familles de modificateurs de <body> sont exemptees
+    # par construction : `theme-…` (un theme qui ne redefinit rien n'a pas
+    # de regle) et `fluide-…` (le mode sobre calme le decor ; une page
+    # sans decor n'a rien a calmer).
+    feuilles = {nom: "\n".join(re.findall(r"<style>(.*?)</style>", pg, re.S))
+                for nom, pg in pages.items()}
+    toutes = "\n".join(feuilles.values())
+    for nom, page in pages.items():
+        ailleurs = sorted(
+            c for c in _classes_posees(page)
+            if not c.startswith(("theme-", "fluide-"))
+            and not _classe_stylee(feuilles[nom], c)
+            and _classe_stylee(toutes, c))
+        _v(not ailleurs,
+           f"{nom} : aucune classe n'est reglee seulement dans la feuille "
+           f"d'une autre page")
+        if ailleurs:
+            print(f"          -> reglees ailleurs : {', '.join(ailleurs)}")
 
     print("\n  FOND HOLOGRAPHIQUE")
     _v('class="fond-anneaux"' in h, "anneaux en rotation a l'echelle de l'ecran")

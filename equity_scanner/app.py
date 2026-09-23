@@ -23,6 +23,7 @@ import http.server
 import json
 import socket
 import threading
+import time
 import traceback
 import urllib.parse
 import webbrowser
@@ -385,6 +386,19 @@ body{background:var(--fond);color:var(--txt);
 @keyframes out{to{opacity:0;visibility:hidden}}
 .rm{fill:#c9b28a;fill-rule:evenodd;mask:url(#mk)}
 .fx{fill:#c9b28a;fill-rule:evenodd}
+/* Paragraphes d'explication, sections et bilans : ecrits par des scripts
+   que PLUSIEURS pages chargent (la fiche de l'accueil, la memoire, le
+   carnet, IBKR). Ils vivaient dans la feuille de la page STRATEGIE, la
+   seule a ne pas en avoir besoin ailleurs : partout ailleurs ils
+   retombaient sur la police par defaut, sans marge. */
+.ex{font-size:11.5px;line-height:1.6;color:var(--txt-mi);margin-bottom:11px}
+.bilan{margin-top:13px;padding-top:11px;border-top:1px solid var(--bord);
+ font-size:12px;line-height:1.75;color:var(--txt-doux)}
+.bilan b{color:var(--acc)}
+.titre-sec{font:500 9px ui-monospace,monospace;letter-spacing:.2em;
+ color:var(--txt-faible);margin:16px 0 9px;padding-top:11px;
+ border-top:1px solid var(--bord)}
+.note{font-size:11px;line-height:1.6;color:var(--txt-faible)}
 .mkr{animation:up 1.9s cubic-bezier(.33,0,.15,1) forwards}
 @keyframes up{from{transform:translateY(800px)}to{transform:translateY(0)}}
 #splash .rule{width:120px;height:1px;background:#c9b28a;opacity:.4;
@@ -2096,6 +2110,54 @@ function detailTechnique(r, tenu){
 # --- Page STRATEGIE ---------------------------------------------------
 # Deux colonnes : a gauche de l'arithmetique, a droite des faits mesures.
 # Aucune animation de mise en page : uniquement transform et opacity.
+CSS_MEMOIRE = """
+.app.mem-page{grid-template-rows:auto minmax(0,1fr)}
+.mem{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+ grid-template-rows:minmax(0,1fr);gap:var(--gap);min-height:0;overflow:hidden}
+@media(max-width:1000px){.mem{grid-template-columns:minmax(0,1fr);
+ grid-template-rows:minmax(0,1fr) minmax(0,1fr)}}
+.mem>section{min-width:0;min-height:0;display:flex;flex-direction:column}
+.mem .corps{overflow:auto;min-height:0}
+.mem-h{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.mem-h button.on{background:#0c3340;color:var(--txt-fort);border-color:var(--acc)}
+.mem-cpt{font:400 9px ui-monospace,monospace;letter-spacing:.14em;
+ color:var(--txt-faible);margin-bottom:10px;line-height:1.7}
+/* Le tableau a quatre cases. Les deux lignes se lisent ENSEMBLE : c'est
+   toute la raison d'etre de la page. */
+table.mem-4{width:100%;border-collapse:collapse;margin-bottom:10px;
+ font:400 12px ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.mem-4 th,.mem-4 td{border:1px solid var(--bord);padding:8px 9px;text-align:center}
+.mem-4 th{font-weight:500;font-size:8.5px;letter-spacing:.16em;color:var(--txt-faible)}
+.mem-4 td b{display:block;font-size:17px;color:var(--txt-fort);font-weight:500}
+.mem-4 td span{font-size:9px;letter-spacing:.12em;color:var(--txt-faible)}
+.mem-4 td.bon b{color:var(--pos)}.mem-4 td.mal b{color:var(--neg)}
+.mem-taux{font-size:12px;line-height:1.7;color:var(--txt-doux);margin-bottom:8px}
+.mem-taux b{color:var(--txt-fort);font-variant-numeric:tabular-nums}
+.mem-lec{border-left:2px solid var(--acc);padding:8px 11px;margin:10px 0;
+ font-size:12.5px;line-height:1.6;color:var(--txt-fort);background:rgba(6,24,30,.45)}
+/* Les deux colonnes d'extremes : TOUJOURS cote a cote, toujours en
+   meme nombre. Une colonne seule serait le regret selectif. */
+.mem-duo{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:9px;
+ margin-bottom:12px}
+.mem-duo>div{min-width:0;border:1px solid var(--bord);padding:8px 9px}
+.mem-duo h4{margin:0 0 7px;font:500 8.5px ui-monospace,monospace;letter-spacing:.18em;
+ color:var(--txt-faible)}
+.mem-duo .l{display:flex;justify-content:space-between;gap:8px;padding:3px 0;
+ font:400 11.5px ui-monospace,monospace;font-variant-numeric:tabular-nums;
+ border-bottom:1px solid #0b2028}
+.mem-duo .l span:first-child{color:var(--acc);cursor:pointer;min-width:0;
+ overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mem-duo .l .p{color:var(--pos)}.mem-duo .l .n{color:var(--neg)}
+.mem-duo .m{font-size:10px;color:var(--txt-faible);padding:0 0 4px}
+table.mem-b{width:100%;border-collapse:collapse;font:400 11.5px ui-monospace,monospace;
+ font-variant-numeric:tabular-nums;margin-bottom:8px}
+.mem-b th{text-align:right;padding:5px 6px;font-weight:500;font-size:8.5px;
+ letter-spacing:.14em;color:var(--txt-faible);border-bottom:1px solid var(--bord)}
+.mem-b td{text-align:right;padding:5px 6px;border-bottom:1px solid #0b2028}
+.mem-b th:first-child,.mem-b td:first-child{text-align:left}
+.mem-b tr.net td{background:rgba(8,34,42,.55)}
+"""
+
 CSS_IBKR = """
 .app.ibk-page{grid-template-rows:auto minmax(0,1fr)}
 .ibk{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);
@@ -2302,7 +2364,6 @@ CSS_STRAT = """
 .champs label{display:flex;flex-direction:column;gap:4px;
  font:400 10px ui-monospace,monospace;letter-spacing:.14em;color:var(--txt-faible)}
 .champs input{width:100%}
-.ex{font-size:11.5px;line-height:1.6;color:var(--txt-mi);margin-bottom:11px}
 .tproj{width:100%;border-collapse:collapse;margin-top:12px;
  font:400 11.5px ui-monospace,monospace}
 .tproj th{text-align:right;padding:5px 6px;font-weight:500;font-size:9.5px;
@@ -2310,12 +2371,6 @@ CSS_STRAT = """
 .tproj th:first-child,.tproj td:first-child{text-align:left}
 .tproj td{text-align:right;padding:4px 6px;border-bottom:1px solid #0b2028}
 .tproj tr.fort td{color:var(--txt-fort);font-weight:600}
-.bilan{margin-top:13px;padding-top:11px;border-top:1px solid var(--bord);
- font-size:12px;line-height:1.75;color:var(--txt-doux)}
-.bilan b{color:var(--acc)}
-.titre-sec{font:500 9px ui-monospace,monospace;letter-spacing:.2em;
- color:var(--txt-faible);margin:16px 0 9px;padding-top:11px;
- border-top:1px solid var(--bord)}
 """
 
 JS_STRAT = r"""
@@ -2793,13 +2848,19 @@ class Bruce(http.server.BaseHTTPRequestHandler):
             if u.path.startswith("/statique/"):
                 return self._statique(u.path[len("/statique/"):])
             if u.path == "/graphique":
-                return self._envoie(_page_graphique(q.get("ticker", "")))
+                page = _page_graphique(q.get("ticker", ""))
+                _journalise_etat(q.get("ticker", "").strip().upper())
+                return self._envoie(page)
             if u.path == "/palmares":
                 return self._envoie(_page_palmares())
             if u.path == "/carnet":
                 return self._envoie(_page_carnet())
             if u.path == "/ibkr":
                 return self._envoie(_page_ibkr())
+            if u.path == "/memoire":
+                return self._envoie(_page_memoire())
+            if u.path == "/api/memoire":
+                return self._json(_memoire(q))
             if u.path == "/api/ibkr":
                 return self._json(_ibkr_etat())
             if u.path == "/api/carnet":
@@ -3155,6 +3216,69 @@ def _verifie(saisie):
                 "erreur": f"{saisie.upper()} introuvable. Utilise Chercher "
                           f"pour trouver le bon ticker."}
     return {"ok": True, "ticker": tk}
+
+
+def _releve_etat(tk: str, source: str, avant: str = "",
+                 fichier=None) -> dict | None:
+    """Ecrit dans le journal l'etat COMPLET d'un titre, tel que le
+    programme le voit maintenant — ou tel qu'il le voyait a la cloture
+    de la veille de `avant` (une date ISO), si elle est donnee.
+
+    Le graphique evalue les blocs sans le veto des resultats ; journaliser
+    cette version-la inscrirait un « oui » que la specification n'aurait
+    pas donne, et la memoire compterait ensuite une decision qui n'a
+    jamais existe. On refait donc l'evaluation complete — sur les series
+    deja en cache, donc sans reseau la plupart du temps.
+
+    `avant` sert a vos ordres : un achat du jour D se compare a ce que la
+    specification disait a la cloture de D-1, puisqu'elle decide a la
+    cloture et execute a l'ouverture suivante. On coupe donc les series
+    AVANT D : rien de ce qui s'est passe le jour de l'ordre, ni apres,
+    n'entre dans l'etat releve.
+    """
+    import pandas as pd
+
+    from . import audit as ad
+    from . import cache as ch
+    from . import dossier as ds
+    from .indicators import enrich
+    from .rules import evaluate, market_regime_ok
+    marche = "europe" if tk.endswith(SUF_EU) else "us"
+    bench_tk = INDICES[marche][0]
+    brut, bb = ch.charge(tk, annees=3), ch.charge(bench_tk, annees=3)
+    if avant:
+        jour = pd.Timestamp(avant[:10])
+        brut, bb = brut[brut.index < jour], bb[bb.index < jour]
+    if len(brut) < 220 or len(bb) < 220:
+        return None
+    d = enrich(brut, bench_close=bb["close"])
+    ok = bool(market_regime_ok(enrich(bb)))
+    sig = evaluate(d, tk, ok, days_to_earnings=ds.jours_resultats(
+        tk, marche, REGLAGES.get("av_key")))
+    return ad.enregistre(sig, d, source=source, fichier=fichier)
+
+
+def _journalise_etat(tk: str, source: str = "consultation",
+                     avant: str = "") -> None:
+    """`_releve_etat`, en arriere-plan : la page ne doit pas attendre.
+    Une erreur se trace au lieu de disparaitre — sinon la memoire
+    perdrait des releves sans que personne ne le sache."""
+    def travail():
+        try:
+            _releve_etat(tk, source, avant)
+        except Exception as exc:
+            print(f"  memoire : releve impossible pour {tk} "
+                  f"({type(exc).__name__}: {exc})")
+    if tk:
+        threading.Thread(target=travail, daemon=True).start()
+
+
+def _apres_execution(nouvelles: list[dict]) -> None:
+    """Appele par la liaison IBKR pour chaque execution nouvellement
+    consignee : on releve l'etat du programme a la veille de l'ordre."""
+    for x in nouvelles:
+        if x.get("ticker"):
+            _journalise_etat(x["ticker"], "execution", str(x.get("quand", "")))
 
 
 def _page_graphique(tk):
@@ -3980,6 +4104,210 @@ def _objectif(q: dict) -> dict:
 
 
 # ---------------------------------------------------------------------
+# LA MEMOIRE : ce que le programme a dit, et ce qui a suivi
+# ---------------------------------------------------------------------
+
+JS_MEMOIRE = r"""
+function $(i){ return document.getElementById(i); }
+function e(s){ return (s==null?'':String(s))
+ .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function pc(x){ return (x==null||!isFinite(x)) ? '—'
+ : Number(x).toLocaleString('fr-FR',{minimumFractionDigits:1,maximumFractionDigits:1})+' %'; }
+function sgn(x){ return (x==null) ? '—' : (x>=0?'+':'')+pc(x); }
+function wil(w){ return (!w||w[0]==null) ? '' : ' — intervalle '+pc(w[0])+' à '+pc(w[1]); }
+var MEM_H = 20;
+
+function memHorizons(hs){
+ var h = '';
+ hs.forEach(function(x){
+  h += '<button class="sec'+(x===MEM_H?' on':'')+'" data-h="'+x+'">'
+     + x+' SÉANCES</button>'; });
+ $('mh').innerHTML = h;
+}
+
+function memBilan(j){
+ var t = j.tableau, c = t.cases;
+ var h = '<div class="mem-cpt">'+j.n_etats+' ÉTATS RELEVÉS SUR '+j.n_titres
+   + ' TITRES · '+j.n_obs+' MESURÉS À '+j.horizon+' SÉANCES · '
+   + j.en_attente+' EN ATTENTE DE LEUR HORIZON</div>';
+ h += '<table class="mem-4"><tr><th></th><th>LE TITRE A BATTU LE MARCHÉ</th>'
+   + '<th>IL NE L\'A PAS BATTU</th></tr>'
+   + '<tr><th>LE PROGRAMME<br>DISAIT OUI</th>'
+   + '<td class="bon"><b>'+c['signal confirmé']+'</b><span>SIGNAL CONFIRMÉ</span></td>'
+   + '<td class="mal"><b>'+c['faux signal']+'</b><span>FAUX SIGNAL</span></td></tr>'
+   + '<tr><th>LE PROGRAMME<br>DISAIT NON</th>'
+   + '<td class="mal"><b>'+c['occasion manquée']+'</b><span>OCCASION MANQUÉE</span></td>'
+   + '<td class="bon"><b>'+c['piège évité']+'</b><span>PIÈGE ÉVITÉ</span></td></tr>'
+   + '</table>';
+ function fs(c){ return c.n ? 'le titre a battu le marché <b>'+c.k+' fois sur '
+   + c.n+'</b>'+wil(c.wilson_pc) : 'aucun cas pour l\'instant'; }
+ h += '<div class="mem-taux">Quand il disait <b>oui</b> : '+fs(t.oui)+'.<br>'
+   + 'Quand il disait <b>non</b> : '+fs(t.non)+'.<br>'
+   + 'Tous états confondus : '+t.base.k+' sur '+t.base.n+wil(t.base.wilson_pc)+'.</div>';
+ h += '<div class="mem-lec">'+e(j.lectures[t.lecture])+'</div>';
+ $('mb').innerHTML = h;
+}
+
+function memOrdres(j){
+ var o = j.vos_ordres, h = '';
+ if(!o.n_achats){
+  h = '<p class="ex">Aucun achat consigné pour l\'instant. Vos exécutions '
+    + 'sont lues sur IBKR et écrites ici au fil de l\'eau quand l\'onglet '
+    + 'IBKR est branché — l\'API ne rend que celles du jour, donc la mémoire '
+    + 'commence le jour du premier branchement.</p>';
+ }else{
+  // Zero achat d'un cote : on le dit en mots. « 0 fois sur 0 — intervalle
+  // 0 % à 100 % » est exact et ne dit rien.
+  function cote(c){
+   return c.n ? 'le titre a battu le marché <b>'+c.k+' fois sur '+c.n+'</b>'
+     + wil(c.wilson_pc)+' ; écart médian '+sgn(c.ecart_median_pc)
+     : 'aucun pour l\'instant';
+  }
+  h = '<div class="mem-taux">Achats pris <b>avec</b> le signal : '+cote(o.avec)
+    + '.<br>Achats pris <b>contre</b> lui : '+cote(o.contre)+'.</div>'
+    + '<p class="ex">'+o.sans_releve+' achat(s) sans état relevé du programme '
+    + 'dans les '+o.fenetre_jours+' jours qui précédaient : ils ne sont pas jugés après coup. '
+    + o.en_attente+' en attente de leur horizon.</p>';
+ }
+ $('mo').innerHTML = h;
+}
+
+function memExtremes(j){
+ var x = j.extremes;
+ function col(lst, cls){
+  if(!lst.length) return '<div class="m">Rien encore.</div>';
+  return lst.map(function(o){
+   return '<div class="l"><span data-vers="/graphique?ticker='
+     + encodeURIComponent(o.ticker)+'" data-fen="carruos-'+e(o.ticker)+'">'
+     + e(o.ticker)+' · '+e(o.date)+'</span><span class="'+cls+'">'
+     + sgn(o.ecart_pc)+'</span></div>'
+     + '<div class="m">'+o.n_blocs+'/'+o.total_blocs+' blocs'
+     + (o.manquants.length?' — manquait : '+e(o.manquants.join(', ')):'')
+     + (o.vetos.length?' — veto : '+e(o.vetos.join(', ')):'')+'</div>';
+  }).join('');
+ }
+ $('mx').innerHTML = '<div class="mem-duo">'
+  + '<div><h4>OCCASIONS MANQUÉES ('+x.n_manquees+' AU TOTAL)</h4>'
+  + col(x.manquees, 'p')+'</div>'
+  + '<div><h4>PIÈGES ÉVITÉS ('+x.n_evites+' AU TOTAL)</h4>'
+  + col(x.evites, 'n')+'</div></div>'
+  + '<p class="ex">Écart au marché sur '+j.horizon+' séances. Les deux colonnes '
+  + 'ont toujours le même nombre de lignes : montrer les seules fusées '
+  + 'manquées, c\'est reproduire l\'oubli sélectif qu\'on veut corriger.</p>';
+}
+
+function memBlocs(j){
+ var b = j.par_bloc, h = '';
+ if(!b.lignes.length){ $('mbl').innerHTML = '<p class="ex">Rien encore.</p>'; return; }
+ h = '<table class="mem-b"><tr><th>BLOC EN ÉCHEC</th><th>FOIS</th>'
+   + '<th>FUSÉES ÉCARTÉES</th><th>PIÈGES ÉCARTÉS</th><th>TAUX</th></tr>';
+ b.lignes.forEach(function(l){
+  h += '<tr'+(l.net?' class="net"':'')+'><td>'+e(l.bloc)+'</td><td>'+l.n+'</td>'
+     + '<td>'+l.manquees+'</td><td>'+l.evites+'</td><td>'+pc(l.taux_pc)
+     + (l.net?' ·':'')+'</td></tr>'; });
+ h += '</table><p class="ex">Taux de base quand le programme disait non : '
+   + pc(b.taux_base_pc)+'. Une ligne marquée d\'un point s\'en écarte nettement '
+   + '('+b.mini+' cas au moins). '+e(j.rappel_blocs)+'</p>';
+ $('mbl').innerHTML = h;
+}
+
+async function memLit(){
+ $('mb').innerHTML = '<p class="msg">Je relis le journal et ce qui a suivi…</p>';
+ try{
+  var j = await (await fetch('/api/memoire?h='+MEM_H)).json();
+  memHorizons(j.horizons); memBilan(j); memOrdres(j); memExtremes(j); memBlocs(j);
+  $('mr').textContent = j.rappel;
+ }catch(err){ $('mb').innerHTML = '<p class="msg">'+e(err.message)+'</p>'; }
+}
+document.addEventListener('click', function(ev){
+ var b = ev.target.closest && ev.target.closest('[data-h]');
+ if(!b) return;
+ MEM_H = Number(b.getAttribute('data-h')); memLit();
+});
+document.addEventListener('DOMContentLoaded', memLit);
+"""
+
+
+def _page_memoire() -> str:
+    """L'onglet MEMOIRE : ce que le programme a dit, et ce qui a suivi.
+
+    Le calcul est fait cote serveur, par `memoire.bilan()` ; la page ne
+    fait que poser des chiffres deja calcules. Les occasions manquees ne
+    s'y affichent jamais sans les pieges evites en face.
+    """
+    reg = rg.charge()
+    return (
+        '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<link rel="icon" type="image/svg+xml" href="/carruos.svg">'
+        '<link rel="alternate icon" href="/favicon.ico">'
+        f"<title>{NOM} - mémoire</title>"
+        f"<style>{rg.variables(reg)}{CSS}{CSS_MEMOIRE}</style></head>"
+        f'<body class="{rg.classes(reg)}"{rg.corps_attrs(reg)}>'
+        + rg.tiroir_html(reg)
+        + hd.fond(TRACE_D)
+        + '<div class="app mem-page">'
+        + hd.barre(TRACE_D, NOM, actif="memoire", soustitre="MÉMOIRE")
+        + '<div class="mem">'
+
+          '<section class="pan"><div class="trait"><i></i></div>'
+          '<h2>CE QUE LE PROGRAMME A DIT, ET CE QUI A SUIVI</h2>'
+          '<div class="corps">'
+          '<p class="ex">Chaque état du programme est écrit <b>avant</b> que '
+          'le titre ne bouge. On regarde ensuite ce qui a suivi, et on range '
+          'chaque cas dans l\'une des quatre cases. Un filtre ne se juge que '
+          'sur les <b>deux lignes ensemble</b> : il trie seulement si le '
+          'taux de réussite quand il dit oui dépasse nettement celui quand '
+          'il dit non.</p>'
+          '<div class="mem-h" id="mh"></div>'
+          '<div id="mb"></div>'
+          '<h2 style="margin-top:14px">VOS ORDRES, FACE AU PROGRAMME</h2>'
+          '<div id="mo"></div>'
+          '<p class="ex" id="mr"></p>'
+          '</div></section>'
+
+          '<section class="pan"><div class="trait"><i></i></div>'
+          '<h2>LES OCCASIONS MANQUÉES, ET LES PIÈGES ÉVITÉS</h2>'
+          '<div class="corps">'
+          '<div id="mx"></div>'
+          '<h2 style="margin-top:6px">CE QUE CHAQUE BLOC A COÛTÉ ET ÉPARGNÉ</h2>'
+          '<div id="mbl"></div>'
+          '</div></section>'
+
+          '</div></div>'
+        + f"<script>{hd.BARRE_JS}{JS_MEMOIRE}{rg.tiroir_js()}</script>"
+          "</body></html>")
+
+
+# Le bilan relit tout le journal et les cours de chaque titre qui y
+# figure : on le garde quelques minutes, tant que le journal ne bouge pas.
+_MEMOIRE_CACHE: dict = {}
+
+
+def _memoire(q: dict) -> dict:
+    from . import audit as ad
+    from . import memoire as me
+    try:
+        h = int(q.get("h") or me.HORIZON_DEFAUT)
+    except ValueError:
+        h = me.HORIZON_DEFAUT
+
+    def age(f):
+        try:
+            return f.stat().st_mtime
+        except OSError:
+            return 0
+    cle = (h, age(ad.FICHIER), age(me.EXECUTIONS))
+    ancien = _MEMOIRE_CACHE.get(cle)
+    if ancien and time.time() - ancien[0] < 600:
+        return ancien[1]
+    r = me.bilan(h)
+    _MEMOIRE_CACHE.clear()
+    _MEMOIRE_CACHE[cle] = (time.time(), r)
+    return r
+
+
+# ---------------------------------------------------------------------
 # IBKR : le compte en direct, en lecture seule
 # ---------------------------------------------------------------------
 
@@ -4690,6 +5018,7 @@ def main():
     # plan : un TWS absent ne doit pas retarder l'ouverture de la fenetre.
     try:
         from . import ibkr as ik
+        ik.APRES_EXECUTION = _apres_execution
         ik.demarre_auto()
     except Exception:
         pass

@@ -238,6 +238,71 @@ def franchissements(lignes: list[dict], registre: list[dict]) -> list[dict]:
     return out
 
 
+def consigne(fills, fichier: Path | None = None, vus: set | None = None,
+             apres=None) -> int:
+    """Ecrit vos executions dans la memoire de CARRUOS. Rend le nombre
+    de nouvelles lignes.
+
+    L'API d'IBKR ne rend que les executions du JOUR (sept jours au plus
+    si TWS est regle pour les garder). Pour qu'elles servent un jour a
+    comparer vos decisions a celles du programme, il faut donc les
+    ecrire au fil de l'eau : c'est ce que fait cette fonction, a chaque
+    tour de la liaison. Fichier en ajout seul, jamais reecrit, et
+    dedoublonne par l'identifiant d'execution d'IBKR.
+
+    C'est une LECTURE de ce qui a deja ete execute sur IBKR. Rien ne
+    part vers le compte.
+
+    `apres`, s'il est donne, recoit les lignes nouvellement ecrites :
+    l'application s'en sert pour relever l'etat du programme a la veille
+    de chaque ordre, pendant que c'est encore le jour de l'ordre.
+    """
+    from . import memoire as me
+    f = fichier or me.EXECUTIONS
+    if vus is None:
+        vus = {r.get("id") for r in me.lit_executions(f)}
+    n = 0
+    lignes = []
+    for fl in fills or []:
+        ex = getattr(fl, "execution", None)
+        c = getattr(fl, "contract", None)
+        if ex is None or c is None:
+            continue
+        ident = str(getattr(ex, "execId", "") or "")
+        if not ident or ident in vus:
+            continue
+        vus.add(ident)
+        place = getattr(c, "primaryExchange", "") or getattr(c, "exchange", "")
+        cote = str(getattr(ex, "side", "")).upper()
+        quand = getattr(fl, "time", None) or getattr(ex, "time", None)
+        lignes.append({
+            "id": ident,
+            "quand": quand.isoformat() if hasattr(quand, "isoformat") else str(quand),
+            "ticker": vers_ticker(getattr(c, "symbol", ""), place,
+                                  getattr(c, "currency", ""),
+                                  getattr(c, "secType", "STK")),
+            "symbole": getattr(c, "symbol", ""), "place": place,
+            "devise": getattr(c, "currency", ""),
+            "sens": "achat" if cote in ("BOT", "BUY") else
+                    ("vente" if cote in ("SLD", "SELL") else cote.lower()),
+            "quantite": _num(getattr(ex, "shares", None)),
+            "prix": _num(getattr(ex, "price", None)),
+            "compte": getattr(ex, "acctNumber", ""),
+        })
+    if lignes:
+        f.parent.mkdir(parents=True, exist_ok=True)
+        with f.open("a", encoding="utf-8") as fp:
+            for l in lignes:
+                fp.write(json.dumps(l, ensure_ascii=False) + "\n")
+        n = len(lignes)
+        if apres is not None:
+            try:
+                apres(lignes)
+            except Exception as exc:
+                print(f"  ibkr : releve apres execution impossible ({exc})")
+    return n
+
+
 def sans_fraicheur(lignes: list[dict]) -> list[str]:
     """Les lignes dont le cours n'est PAS en temps reel. Dit a l'ecran."""
     return sorted(l.get("ticker") or l.get("libelle", "?")
@@ -319,6 +384,11 @@ def _diagnostic(exc: Exception, port: int) -> str:
 # TWS. Meme principe que `data.load_yf` : le module de test remplace la
 # source, le code qui s'en sert ne change pas d'une ligne.
 FABRIQUE = None
+
+# Ce que l'application veut faire de chaque execution nouvellement
+# consignee (relever l'etat du programme a la veille de l'ordre). Pose
+# par `app.main()` ; ce module n'a pas a connaitre l'application.
+APRES_EXECUTION = None
 
 
 class Liaison:
@@ -431,6 +501,7 @@ class Liaison:
         ib.reqMarketDataType(3)
         pnl_compte = ib.reqPnL(numero) if numero else None
         cours, pnl_ligne = {}, {}
+        vus_ex = None           # identifiants deja consignes, lus une fois
         self._pose(etat="connecte", numero=numero, simulation=simulation,
                    message=f"Session ouverte en lecture seule sur "
                            f"{hote}:{port}.")
@@ -465,6 +536,16 @@ class Liaison:
                 pnl = {"jour": _num(pnl_compte.dailyPnL),
                        "latent": _num(pnl_compte.unrealizedPnL),
                        "realise": _num(pnl_compte.realizedPnL)}
+            # Vos executions, pour la memoire. Une erreur ici ne doit
+            # jamais couper la lecture du compte.
+            try:
+                if vus_ex is None:
+                    from . import memoire as me
+                    vus_ex = {r.get("id") for r in me.lit_executions()}
+                fl = ib.fills() if hasattr(ib, "fills") else []
+                consigne(fl, vus=vus_ex, apres=APRES_EXECUTION)
+            except Exception:
+                pass
             self._pose(lignes=lignes, compte=compte, pnl=pnl,
                        quand=time.strftime("%H:%M:%S"))
             ib.sleep(1.0)

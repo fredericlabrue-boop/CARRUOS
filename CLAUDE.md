@@ -249,6 +249,23 @@ jeu de paramètres qui ne l'a pas produit.
   **en cours**, pas le dernier réglage enregistré : un sélecteur sur
   « 7497 — simulation » à côté de « CONNECTÉ — COMPTE RÉEL » était
   exactement la confusion à rendre impossible.
+- **Un seuil ajusté par la mémoire.** « Quand il a loupé une action
+  qui a explosé, il apprend » : la réponse tentante est d'assouplir le
+  bloc qui l'a écartée, et de recommencer à chaque fusée. Au bout de six
+  mois le filtre ne filtre plus rien — il a été ajusté sur un passé
+  qu'il connaît déjà. `memoire.py` tient le **compte complet** : chaque
+  état écrit au journal d'audit **avant** que le titre ne bouge, rangé
+  après coup dans l'une des quatre cases (signal confirmé, faux signal,
+  occasion manquée, piège évité). Il ne touche à **aucun** seuil —
+  `test_moteur` vérifie par l'AST qu'il n'écrit l'attribut d'aucun
+  module. Ce qu'il révèle est, au mieux, l'idée d'une nouvelle
+  spécification.
+- **Une occasion manquée affichée seule.** On se souvient de l'action
+  qu'on n'a pas achetée, pas des quarante au même profil que le filtre a
+  écartées et qui se sont effondrées. Les occasions manquées sont
+  **toujours** en face des pièges évités, **en même nombre** — même quand
+  l'une des colonnes est plus longue. Le cerveau a la même consigne :
+  jamais une fusée manquée citée seule.
 - Une ligne de prédiction de prix. Le cône de dispersion existe : dérive
   fixée à zéro, il donne l'amplitude, jamais le sens.
 - Un take-profit **actif**. Les spécifications 2 et 3 disent « aucun
@@ -347,6 +364,12 @@ jeu de paramètres qui ne l'a pas produit.
 | `veille.py` | rapproche l'actualité de vos lignes — une **jointure**, jamais une analyse |
 | | trois niveaux de force, étiquetés : nommé par la source, même secteur déclaré, mot trouvé dans le titre. À l'écran, le plein et le pointillé les distinguent sans légende |
 | | la table thème → secteur est délibérément **pauvre** : chaque maillon ajouté serait une supposition. Les thèmes macro ne pointent vers rien, parce qu'ils concernent tout le marché |
+| `memoire.py` | ce que le programme a dit, et ce qui a suivi : le **compte complet**, jamais le regret sélectif |
+| | horizons **écrits d'avance** (5, 20, 60 séances), écart au marché (SPY ou ^STOXX selon la place) ; une même barre relevée deux fois ne compte qu'une fois, et un même titre ne donne qu'**une observation par fenêtre** de l'horizon |
+| | un verdict (« filtre utile » / « nuisible ») seulement si **deux** mesures de l'incertitude l'accordent : non-recouvrement des Wilson, et bootstrap qui tire les **titres**. Sur du bruit, le bootstrap seul rend 5,5 à 8,5 % de faux verdicts, la règle moins de 1 % ; `test_moteur` le remesure |
+| | vos achats IBKR rangés **avec** ou **contre** le signal — seulement si un état a été relevé au plus 5 jours **avant** l'ordre. Jamais reconstitué après coup : ce serait juger avec un regard qui connaît la suite |
+| | chaque exécution consignée fait relever l'état **à la clôture de la veille** de l'ordre (`app._releve_etat(avant=…)`), séries coupées avant le jour de l'ordre : la spécification décide à la clôture et exécute à l'ouverture suivante. `test_moteur` vérifie que rien du jour même n'y entre |
+| | chaque ouverture d'une page graphique écrit son état au journal (fil de fond) : c'est ce qui nourrit la mémoire, titre après titre |
 | `reglages.py` | **13 thèmes**, 13 effets visuels débrayables |
 | | un thème porte une `forme` : biseau, arrondi, équerres, densité, matière, typographie. Les valeurs par défaut **sont** l'apparence d'origine, donc un thème qui n'en redéfinit aucune ne change rien |
 | | **aucun thème clair** : ce n'est pas au goût du propriétaire, et `test_pages` le vérifie |
@@ -548,7 +571,15 @@ jeu de paramètres qui ne l'a pas produit.
   vide sous eux. `test_pages` compare désormais, pour chaque page, les
   classes de sa **coquille** (`<body>` et `.app`) aux règles de **sa**
   feuille. Les classes `theme-…` en sont exemptées : un thème qui ne
-  redéfinit rien n'a légitimement aucune règle.
+  redéfinit rien n'a légitimement aucune règle. Le même défaut vivait **un cran
+  plus bas** : `.ex`, `.bilan` et `.titre-sec` n'étaient réglés que
+  dans la feuille de STRATÉGIE, et cinq autres pages les posaient — en
+  14 px sans marge ; le cerf de la barre prenait sa couleur dans la
+  feuille de l'accueil, et la page graphique le peignait en **noir sur
+  noir**. `test_pages` relève maintenant toutes les classes qu'une page
+  pose, HTML **et** scripts, et refuse celles qui ne sont réglées que
+  dans la feuille d'une autre. Une classe réglée nulle part reste
+  permise : c'est un crochet de script, pas un oubli.
 - **Une grille dimensionne ses enfants par ses lignes EXPLICITES.**
   Ajouter un panneau à une grille qui n'en déclarait qu'une envoie le
   nouveau dans une ligne implicite calée sur son contenu. Sur la page
@@ -566,6 +597,16 @@ jeu de paramètres qui ne l'a pas produit.
   dans la liste de `test_pages`, donc ni son script mort ni sa grille
   de travers ne pouvaient être vus. Toute page servie entre dans la
   liste.
+- **Une explication plausible n'est pas une mesure.** Un premier journal
+  d'essai a rendu « filtre nuisible » sur des données au hasard. J'y ai
+  vu l'effet du regroupement par titre, je l'ai écrit, et j'ai codé le
+  bootstrap par titres pour le corriger. La mesure sur 200 journaux de
+  bruit a dit autre chose : le critère d'origine ne se trompait que
+  dans 0,5 à 2,5 % des cas, et c'est le nouveau qui en rendait le plus.
+  Le « nuisible » était un tirage malchanceux. La règle retenue exige
+  que les deux s'accordent, sur le modèle de `phase0.z_retenu()` : elle
+  ne peut que rendre moins de verdicts. Mesurer d'abord, expliquer
+  ensuite.
 - Les chaînes JavaScript dans le code Python doivent être des chaînes
   **brutes** (`r"""`). Sinon `\'` devient une apostrophe nue et casse
   tout le script de la page.

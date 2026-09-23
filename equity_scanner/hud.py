@@ -173,6 +173,9 @@ BARRE_CSS = """
  color:var(--txt-faible);white-space:nowrap;font-variant-numeric:tabular-nums;
  margin:0;padding:0;border:0;background:none}
 .bar .horl b{color:var(--txt-fort);font-weight:400}
+/* Le cerf de la barre. Sa couleur etait dans la feuille de l'ACCUEIL :
+   la page graphique, qui a la sienne, le peignait en noir sur fond noir. */
+.bar .fx{fill:#c9b28a;fill-rule:evenodd}
 .raf{background:#08222a;border:1px solid var(--bord-fort);color:var(--acc);
  padding:6px 12px;font:500 10px ui-monospace,monospace;letter-spacing:.14em;
  cursor:pointer;flex:none;white-space:nowrap;
@@ -195,6 +198,7 @@ ONGLETS = (("/", "ACCUEIL", "accueil"),
            ("/palmares", "MA LISTE", "palmares"),
            ("/strategie", "STRATÉGIE", "strategie"),
            ("/carnet", "CARNET", "carnet"),
+           ("/memoire", "MÉMOIRE", "memoire"),
            ("/ibkr", "IBKR", "ibkr"))
 
 

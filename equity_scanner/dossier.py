@@ -47,6 +47,9 @@ VERSION = "dossier-v1.0"
 # sortie » tomberait sur « avis ».
 # --------------------------------------------------------------------
 INTENTIONS = [
+    ("memoire", r"\b(?:tromp|erreur|appris|apprend|memoire|souvien|"
+                r"bilan|loupe|rate)\w*|derniere fois|la fois ou"
+                r"|avais dit|disais"),
     ("sortie", r"\b(?:sors|sortir|sorti|vend|vends|vendre|solder|clotur|"
                r"liquid|degager)\w*|quand.*(?:sort|vend)|quelles? conditions?"),
     ("entree", r"\b(?:achet|rentr|entrer|renforc|rajout|repren|"
@@ -141,6 +144,40 @@ def jetons_tickers(question: str) -> list[str]:
 # Le dossier : rien n'est calcule ici, tout vient des autres modules
 # --------------------------------------------------------------------
 
+def _memoire(tk, serie, bench):
+    """Ce que le programme a deja dit de ce titre, et ce qui a suivi."""
+    try:
+        from . import memoire as me
+        return me.pour_titre(tk, serie["close"], bench["close"])
+    except Exception:
+        return None
+
+
+def jours_resultats(tk: str, marche: str, av_key: str | None = None):
+    """Seances avant les prochains resultats, ou None si inconnu.
+
+    Les resultats sont un VETO de la specification : « inconnu » n'est
+    pas « sans risque ». Calendrier Alpha Vantage si une cle existe,
+    yfinance sinon pour les titres americains.
+    """
+    jours = None
+    if av_key:
+        try:
+            from . import news as nw
+            cal = nw.earnings_map(av_key)
+            if tk in cal:
+                jours = nw.seances_avant(cal[tk])
+        except Exception:
+            jours = None
+    if jours is None and marche == "us":
+        try:
+            from . import data as dl
+            jours = dl.days_to_earnings_yf(tk)
+        except Exception:
+            jours = None
+    return jours
+
+
 def constitue(ticker: str, marche: str | None = None,
               av_key: str | None = None, sleeve: float = 8000.0,
               position: dict | None = None) -> dict:
@@ -178,25 +215,19 @@ def constitue(ticker: str, marche: str | None = None,
     marche_ok = bool(R.market_regime_ok(bench))
     rap = ql.controle(brut, bench=bench_brut, ticker=tk)
 
-    # Les resultats sont un VETO de la specification : « inconnu » n'est
-    # pas « sans risque ».
-    jours = None
-    if av_key:
-        try:
-            from . import news as nw
-            cal = nw.earnings_map(av_key)
-            if tk in cal:
-                jours = nw.seances_avant(cal[tk])
-        except Exception:
-            jours = None
-    if jours is None and marche == "us":
-        try:
-            from . import data as dl
-            jours = dl.days_to_earnings_yf(tk)
-        except Exception:
-            jours = None
-
+    jours = jours_resultats(tk, marche, av_key)
     sig = R.evaluate(serie, tk, marche_ok, days_to_earnings=jours)
+    # La memoire : l'etat que le programme montre AUJOURD'HUI, ecrit
+    # avant que le titre ne bouge. C'est l'evaluation COMPLETE — veto des
+    # resultats compris — et pas celle du graphique, qui l'omet : un
+    # « oui » que la specification n'aurait pas donne fausserait tout ce
+    # que la memoire comptera ensuite.
+    try:
+        from . import audit as ad
+        ad.enregistre(sig, serie, source="dossier",
+                      qualite={"utilisable": rap.utilisable})
+    except Exception:
+        pass
     sorties = R.evaluate_exit(serie, marche_ok)
     etats = gr._bloc_etats(serie, sig)
     inter = it.lire_unite(serie, bench, sig, sorties, etats,
@@ -269,6 +300,7 @@ def constitue(ticker: str, marche: str | None = None,
         "horizons": amplitudes,
         "horaires": horaires,
         "profil": prof,
+        "memoire": _memoire(tk, serie, bench),
         "position": position or None,
         "rappel": RAPPEL,
     })
@@ -466,6 +498,37 @@ def _avis(d: dict) -> list[str]:
     return L
 
 
+def _memoire_titre(d: dict) -> list[str]:
+    """Ce que le programme a dit de ce titre, et ce qui a suivi.
+
+    Les releves sont tous donnes, dans l'ordre — ceux ou le programme a
+    eu raison comme ceux ou il a eu tort. Choisir lesquels montrer, ce
+    serait refaire l'oubli selectif que la memoire existe pour corriger.
+    """
+    m = d.get("memoire") or {}
+    rel = m.get("releves") or []
+    if not rel:
+        return ["Aucun état de ce titre n'a encore été relevé. La mémoire "
+                "commence à la première consultation : chaque fois que le "
+                "titre est ouvert, l'état du programme est écrit avant que "
+                "le titre ne bouge."]
+    out = [f"{m.get('n', len(rel))} état(s) relevé(s) sur ce titre ; "
+           f"les derniers :"]
+    from . import memoire as me
+    for r in rel:
+        bouts = []
+        for h in me.HORIZONS:
+            v = r.get(f"ecart_{h}_pc")
+            bouts.append(f"{h} séances : "
+                         + ("en attente" if v is None else _n(v, 1, " %")))
+        out.append(f"● {r['date']} — le programme disait {r['programme'].upper()} "
+                   f"({r['blocs']} blocs). Écart au marché : "
+                   + " · ".join(bouts) + ".")
+    out.append("")
+    out.append(me.RAPPEL)
+    return out
+
+
 def _profil(d: dict) -> list[str]:
     """Ce qui distingue ce titre d'un autre, mesure.
 
@@ -498,6 +561,8 @@ SECTIONS = {
     "seance": ("LA SÉANCE", _seance),
     "profil": ("CE QUE CET INSTRUMENT EST, ET COMBIEN DE TEMPS "
                "LA SPÉCIFICATION LE GARDE", _profil),
+    "memoire": ("CE QUE LE PROGRAMME A DIT DE CE TITRE, ET CE QUI A SUIVI",
+                _memoire_titre),
     "avis": ("LA FICHE COMPLÈTE", _avis),
 }
 

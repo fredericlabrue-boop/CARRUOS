@@ -625,6 +625,103 @@ lignes du compte lui-même, pas seulement de celles du registre.
 
 ---
 
+## 5 decies. La mémoire — `memoire.py`
+
+**Ce que le programme a dit, et ce qui a suivi.** Chaque état — oui ou
+non, avec ses blocs manquants — est écrit dans le journal d'audit
+**avant** que le titre ne bouge : au scan, à chaque question au
+majordome, à chaque ouverture d'une page graphique. La mémoire va
+chercher ensuite ce que le titre a fait **contre son marché** (SPY pour
+un titre américain, ^STOXX pour un titre européen), à trois horizons
+écrits d'avance : **5**, **20** et **60** séances.
+
+### Le tableau à quatre cases
+
+| | Le titre a battu le marché | Il ne l'a pas battu |
+|---|---|---|
+| **Le programme disait oui** | signal confirmé | faux signal |
+| **Le programme disait non** | occasion manquée | piège évité |
+
+Un filtre ne se juge que sur les **deux lignes ensemble** : il trie
+seulement si le taux de réussite quand il dit oui dépasse nettement celui
+quand il dit non.
+
+### Deux précautions de comptage
+
+- La même barre relevée deux fois (un scan, puis une consultation) ne
+  compte **qu'une** fois : la première écriture, la plus éloignée de
+  tout résultat connu.
+- Deux relevés du même titre à trois jours d'écart partagent presque
+  toute leur fenêtre : ce n'est pas deux preuves. Pour un même titre et
+  une même réponse, **une observation par fenêtre** de l'horizon.
+
+### Quand la mémoire rend-elle un verdict ?
+
+Seulement si **deux mesures de l'incertitude l'accordent**, dans le même
+sens :
+
+1. les intervalles de Wilson du « oui » et du « non » ne se recouvrent
+   pas ;
+2. l'écart entre les deux taux reste du même côté de zéro quand on tire
+   les **titres** au hasard, avec remise — **2000** tirages. Ce tirage
+   respecte le fait qu'un même titre revient plusieurs fois.
+
+Sur **200** journaux de pur bruit, où chaque titre a son propre taux de
+réussite et sa propre fréquence de « oui », la règle rend moins de 1 %
+de faux verdicts (le tirage seul en rendait 5,5 à 8,5 %). Un filtre qui
+apporte vraiment 15 points est reconnu dans plus de trois cas sur
+quatre. `test_moteur` refait cette mesure à chaque passage.
+
+### Les occasions manquées, toujours en face des pièges évités
+
+Les **6** plus fortes occasions manquées s'affichent à côté des **6**
+pièges évités les plus profonds — **le même nombre des deux côtés,
+toujours**, même quand l'une des colonnes est plus longue. Montrer les
+seules fusées manquées, c'est reproduire l'oubli sélectif qu'on veut
+corriger : on se souvient de l'action qui a explosé, pas des quarante au
+profil identique qui se sont effondrées.
+
+### Ce que chaque bloc a coûté et épargné
+
+Pour chaque bloc, parmi les « non » où il était en échec : combien de
+fusées il a écartées, combien de pièges. Une ligne n'est dite nette
+qu'à partir de **10** cas, et quand son intervalle de Wilson exclut le
+taux de base. Treize blocs, trois horizons : environ deux lignes
+« nettes » sont attendues **par le seul hasard**.
+
+### Vos ordres, face au programme
+
+Vos exécutions sont lues sur IBKR (onglet branché) et écrites dans
+`~/.carruos/executions-ibkr.jsonl`, sans doublon. Chaque achat est rangé
+**avec** ou **contre** le signal — à condition qu'un état du programme
+ait été relevé au plus **5** jours avant l'ordre. Un achat sans relevé
+est compté à part : reconstituer aujourd'hui ce que le programme aurait
+dit, ce serait le juger avec un regard qui connaît déjà la suite.
+
+Pour que vos ordres aient presque toujours leur relevé, chaque exécution
+qui arrive fait relever l'état du programme **à la clôture de la
+veille** de l'ordre — les cours sont coupés avant le jour de l'ordre, et
+rien de ce jour-là n'y entre. C'est la question que se pose la
+spécification : elle décide à la clôture et exécute à l'ouverture
+suivante. Le relevé se fait le jour même, jamais des semaines plus tard.
+
+L'API d'IBKR ne rend que les exécutions du jour : la mémoire de vos
+ordres commence au premier branchement.
+
+### Ce que la mémoire ne fait pas
+
+**Elle ne touche à aucun seuil.** Assouplir un filtre parce qu'une
+action a explosé, c'est l'ajuster sur un passé qu'il connaît déjà ;
+recommencé à chaque fusée, le filtre finit par ne plus rien filtrer.
+Ce qu'elle révèle peut devenir l'idée d'une **nouvelle spécification**,
+écrite avant son test, avec sa propre empreinte, sur une période que
+personne n'a regardée. C'est ainsi qu'un système apprend sans se
+mentir : entre deux spécifications, jamais en déplaçant la règle après
+avoir vu le résultat. `test_moteur` vérifie que `memoire.py` ne modifie
+l'attribut d'aucun module.
+
+---
+
 ## 6. Ce que le programme refuse d'afficher
 
 Rappel, parce que c'est la colonne vertébrale du projet :
@@ -641,7 +738,9 @@ Rappel, parce que c'est la colonne vertébrale du projet :
   **zéro** : il donne l'amplitude, jamais le sens ;
 - un take-profit actif ;
 - un gain espéré en euros tant qu'aucune hypothèse n'a passé sa
-  Phase 0.
+  Phase 0 ;
+- une occasion manquée affichée seule — toujours en face des pièges
+  évités, en même nombre.
 
 ---
 

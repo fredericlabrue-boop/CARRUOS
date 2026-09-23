@@ -2126,6 +2126,7 @@ def test_dossier() -> None:
                              "bougies": "une figure ?", "horizon": "ca bouge",
                              "donnees": "fiable ?", "seance": "quelle heure",
                              "profil": "on garde combien de temps",
+                             "memoire": "tu t es trompe ?",
                              "avis": "que penses-tu"}[cle], d_plein)
             txt = " ".join(rep["lignes"])
             hors = sorted({n for n in _re.findall(r"\d+(?:[.,]\d+)?", txt)
@@ -2187,6 +2188,7 @@ def test_dossier() -> None:
                        "horizon": "ca bouge", "donnees": "fiable ?",
                        "seance": "quelle heure",
                        "profil": "on garde combien de temps",
+                             "memoire": "tu t es trompe ?",
                        "avis": "que penses-tu"}[cle],
                       vide)
         except Exception as exc:
@@ -2544,6 +2546,176 @@ def test_memo() -> None:
     ok("une option ou un contrat a terme n'est pas pris pour une action",
        _ik.vers_ticker("ES", "CME", "USD", "FUT") is None)
 
+    # ------------------------------------------------------------------
+    # La memoire : le compte COMPLET, jamais le regret selectif
+    # ------------------------------------------------------------------
+    print("\n— Memoire : ce que le programme a dit, et ce qui a suivi —")
+    import tempfile as _tf
+    from types import SimpleNamespace as _NS2
+
+    import pandas as _pd2
+
+    from . import memoire as _me
+
+    _idx = _pd2.bdate_range("2025-01-02", periods=300)
+
+    def _s(pente):
+        return _pd2.Series(100 * np.exp(pente * np.arange(300)), index=_idx)
+
+    _mk = _s(0.0005)
+    _ser = {"FUSEE": _s(0.004), "PLOMB": _s(-0.003), "TIEDE": _s(0.0003),
+            "BON": _s(0.003)}
+    _ben = {t: _mk for t in _ser}
+
+    def _l(tk, i, oui, manq=()):
+        bl = {f"b{k}": True for k in range(13)}
+        for m_ in manq:
+            bl[m_] = False
+        d_ = str(_idx[i].date())
+        return {"ticker": tk, "date_barre": d_, "declenche": oui, "blocs": bl,
+                "blocs_manquants": list(manq), "horodatage": d_ + "T20:00:00"}
+    _jr = [_l("FUSEE", 10, False, ["b3"]), _l("FUSEE", 12, False, ["b3"]),
+           _l("FUSEE", 12, False, ["b3"]), _l("PLOMB", 10, False, ["b3"]),
+           _l("PLOMB", 40, False, ["b7"]), _l("TIEDE", 10, False, ["b7"]),
+           _l("BON", 10, True), _l("PLOMB", 80, True), _l("BON", 290, True)]
+    _et = _me.etats(_jr)
+    ok("un doublon exact du journal ne compte qu'une fois", len(_et) == 8)
+    _ob = _me.observations(_et, _ser, _ben, 20)
+    ok("deux releves dans la meme fenetre ne font pas deux preuves",
+       sum(1 for o in _ob["obs"] if o["ticker"] == "FUSEE") == 1)
+    ok("un horizon pas encore ecoule est mis en attente, pas devine",
+       _ob["en_attente"] == 1)
+    _tb = _me.tableau(_ob["obs"])
+    ok("les quatre cases sont comptees juste",
+       _tb["cases"] == {"signal confirmé": 1, "faux signal": 1,
+                        "occasion manquée": 1, "piège évité": 3})
+    _ex = _me.extremes(_ob["obs"])
+    ok("occasions manquees et pieges evites : toujours en MEME nombre",
+       len(_ex["manquees"]) == len(_ex["evites"]) == 1
+       and _ex["n_evites"] == 3)
+    # Sur un echantillon plus large, l'egalite doit tenir quel que soit le
+    # desequilibre des deux cotes.
+    _gros = ([{"oui": False, "bat": True, "ecart": 0.01 * k, "ticker": "A",
+               "date": "d", "rendement": 0.0, "n_blocs": 12, "total_blocs": 13,
+               "manquants": [], "vetos": []} for k in range(9)]
+             + [{"oui": False, "bat": False, "ecart": -0.01 * k, "ticker": "B",
+                 "date": "d", "rendement": 0.0, "n_blocs": 12, "total_blocs": 13,
+                 "manquants": [], "vetos": []} for k in range(1, 3)])
+    _ex2 = _me.extremes(_gros)
+    ok("meme quand les fusees sont plus nombreuses que les pieges",
+       len(_ex2["manquees"]) == len(_ex2["evites"]) == 2)
+    _pb = {l["bloc"]: l for l in _me.par_bloc(_ob["obs"])["lignes"]}
+    ok("chaque bloc dit ce qu'il a coute ET ce qu'il a epargne",
+       _pb["b3"]["manquees"] == 1 and _pb["b3"]["evites"] == 1
+       and _pb["b7"]["manquees"] == 0 and _pb["b7"]["evites"] == 2)
+    _ordres = [{"id": "1", "ticker": "FUSEE", "sens": "achat",
+                "quand": str(_idx[11].date()) + "T15:00"},
+               {"id": "2", "ticker": "BON", "sens": "achat",
+                "quand": str(_idx[11].date()) + "T15:00"},
+               {"id": "3", "ticker": "TIEDE", "sens": "achat",
+                "quand": str(_idx[200].date()) + "T15:00"}]
+    _vo = _me.vos_ordres(_ordres, _et, _ser, _ben, 20)
+    ok("un ordre est range AVEC ou CONTRE le signal du jour",
+       _vo["avec"]["n"] == 1 and _vo["contre"]["n"] == 1)
+    ok("un ordre sans etat releve n'est pas juge apres coup",
+       _vo["sans_releve"] == 1)
+
+    # Le verdict de la memoire, mis a l'epreuve sur du bruit. Chaque
+    # titre a son propre taux de reussite ET sa propre frequence de
+    # « oui » : c'est le regroupement qui rend les observations
+    # dependantes. Le « oui » n'y apporte rien — un verdict est donc
+    # toujours faux. On exige au plus 5 % de faux verdicts, et qu'un
+    # filtre qui apporte vraiment quelque chose soit reconnu.
+    def _bruit(rng, effet=0.0):
+        obs = []
+        for t in range(25):
+            base, p_oui = rng.uniform(0.3, 0.7), rng.uniform(0.05, 0.6)
+            for _ in range(int(rng.integers(8, 40))):
+                oui = bool(rng.random() < p_oui)
+                obs.append({"ticker": f"T{t}", "oui": oui, "bat": bool(
+                    rng.random() < min(1.0, base + (effet if oui else 0.0)))})
+        return obs
+    _rng = np.random.default_rng(21)
+    _faux = sum(_me.tableau(_bruit(_rng))["lecture"]
+                in ("filtre_utile", "filtre_nuisible") for _ in range(200))
+    ok(f"sur 200 journaux de bruit, {_faux} faux verdicts (au plus 10)",
+       _faux <= 10)
+    _rng = np.random.default_rng(12)
+    _vus = sum(_me.tableau(_bruit(_rng, 0.15))["lecture"] == "filtre_utile"
+               for _ in range(40))
+    ok(f"un filtre qui apporte 15 points est reconnu {_vus} fois sur 40 "
+       f"(au moins 25)", _vus >= 25)
+
+    # La memoire ne touche a AUCUN seuil : elle ne modifie l'attribut
+    # d'aucun module. (L'empreinte des parametres geles, plus haut, le
+    # verifie aussi par l'autre bout.)
+    _arb = _ast.parse(Path(_me.__file__).read_text(encoding="utf-8"))
+    _ecrit = [n for n in _ast.walk(_arb)
+              if (isinstance(n, _ast.Attribute) and isinstance(n.ctx, _ast.Store))
+              or (isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name)
+                  and n.func.id == "setattr")]
+    ok("la memoire ne modifie l'attribut d'aucun module", not _ecrit)
+
+    # Les executions IBKR : ajout seul, dedoublonne, lecture de ce qui a
+    # DEJA ete execute.
+    import datetime as _dt2
+    _fx = Path(_tf.mkdtemp()) / "ex.jsonl"
+
+    def _fill(i, cote):
+        return _NS2(time=_dt2.datetime(2026, 9, 23, 15, 31), commissionReport=None,
+                    contract=_NS2(symbol="TLX", primaryExchange="IBIS",
+                                  exchange="SMART", currency="EUR",
+                                  secType="STK"),
+                    execution=_NS2(execId=i, side=cote, shares=10, price=296.4,
+                                   acctNumber="U1"))
+    _n1 = _ik.consigne([_fill("a", "BOT"), _fill("b", "SLD")], _fx)
+    _n2 = _ik.consigne([_fill("a", "BOT"), _fill("c", "BOT")], _fx)
+    _lus = _me.lit_executions(_fx)
+    ok("une execution deja consignee ne l'est pas deux fois",
+       _n1 == 2 and _n2 == 1 and len(_lus) == 3)
+    ok("le sens et le ticker CARRUOS sont ecrits",
+       [(r["sens"], r["ticker"]) for r in _lus]
+       == [("achat", "TLX.DE"), ("vente", "TLX.DE"), ("achat", "TLX.DE")])
+    _recus = []
+    _ik.consigne([_fill("c", "BOT"), _fill("d", "BOT")], _fx,
+                 apres=_recus.extend)
+    ok("seules les executions NOUVELLES sont passees au releve",
+       [r["id"] for r in _recus] == ["d"])
+
+    # L'etat compare a un ordre du jour D est celui de la cloture de
+    # D-1 : rien du jour de l'ordre, ni d'apres, ne doit y entrer.
+    from . import app as _app2
+    from . import audit as _ad2
+    from . import cache as _ch2
+    from . import data as _dl2
+
+    def _faux2(tk, years=3, **_kw):
+        import zlib
+        return serie(n=900, seed=zlib.crc32(tk.encode()) % 500, derive=0.0005,
+                     debut=(_pd2.bdate_range(
+                         end=_pd2.Timestamp.today().normalize(),
+                         periods=900)[0]).date().isoformat())
+    _vrai2 = _dl2.load_yf
+    _dl2.load_yf = _faux2
+    _ch2.oublie()
+    try:
+        _jx = Path(_tf.mkdtemp()) / "audit.jsonl"
+        _d_ordre = str((_pd2.Timestamp.today().normalize()
+                        - _pd2.tseries.offsets.BDay(30)).date())
+        _app2._releve_etat("AAA", "execution", _d_ordre + "T15:31:00",
+                           fichier=_jx)
+        _rl = _ad2.lit(_jx)
+    finally:
+        _dl2.load_yf = _vrai2
+        _ch2.oublie()
+    ok("un ordre est compare a l'etat de la VEILLE, jamais du jour meme",
+       len(_rl) == 1 and _rl[0]["date_barre"] < _d_ordre
+       and _rl[0]["source"] == "execution")
+    ok("et cet etat tombe dans la fenetre que la memoire accepte",
+       len(_rl) == 1 and (_pd2.Timestamp(_d_ordre)
+                          - _pd2.Timestamp(_rl[0]["date_barre"])).days
+       <= _me.FENETRE_RELEVE)
+
     print("\n— Memo de lecture —")
     f = Path(__file__).resolve().parent.parent / "MEMO-LECTURE.md"
     ok("MEMO-LECTURE.md existe a la racine", f.exists())
@@ -2631,6 +2803,15 @@ def test_memo() -> None:
         ("port Gateway reel", f"| **{ik_.PORTS[3][0]}** | IB Gateway | réel |"),
         ("premiere reprise", f"attendant **{ik_.REPRISE[0]}**, puis"),
         ("derniere reprise", f"**{ik_.REPRISE[-1]}** secondes"),
+        # --- memoire.py
+        ("horizons de la memoire",
+         f"**{_me.HORIZONS[0]}**, **{_me.HORIZONS[1]}** et "
+         f"**{_me.HORIZONS[2]}** séances"),
+        ("tirages du bootstrap", f"**{_me.TIRAGES}** tirages"),
+        ("extremes affiches", f"Les **{_me.N_EXTREMES}** plus fortes"),
+        ("extremes en face", f"à côté des **{_me.N_EXTREMES}**"),
+        ("cas minimum par bloc", f"à partir de **{_me.MINI_BLOC}** cas"),
+        ("fenetre du releve", f"au plus **{_me.FENETRE_RELEVE}** jours"),
     ]
     absents = [(nom, val) for nom, val in ATTENDU if val not in m]
     ok(f"les {len(ATTENDU)} seuils cites dans le memo sont ceux qui "
