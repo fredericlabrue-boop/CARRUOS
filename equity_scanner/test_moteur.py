@@ -2567,6 +2567,25 @@ def test_brain2() -> None:
         ecrit = cv.FICHIER.read_text(encoding="utf-8")
         ok("une cle venue de l'environnement n'est jamais ecrite sur le "
            "disque", "specifique" not in ecrit and "generique" not in ecrit)
+
+        # --- la cle est essayee au moment de BRANCHER -----------------
+        import io as _io2
+        cv.configure(fournisseur="anthropic", cle="cle-essai-9999")
+        vrai_p = cv._poste
+        try:
+            def sans_credit(url, charge, entetes, delai=180):
+                raise urllib.error.HTTPError(url, 400, "x", {}, _io2.BytesIO(
+                    b'{"error":{"type":"invalid_request_error","message":'
+                    b'"Your credit balance is too low"}}'))
+            cv._poste = sans_credit
+            e1 = cv.essai()
+            cv._poste = lambda *a, **k: {"content": [], "stop_reason": "end_turn"}
+            e2 = cv.essai()
+        finally:
+            cv._poste = vrai_p
+        ok("au branchement, une cle bonne sur un compte sans credit est dite "
+           "tout de suite", e1["ok"] is False and "crédit" in e1["erreur"])
+        ok("et une cle qui marche aussi", e2["ok"] is True)
     finally:
         cv.FICHIER, cv.DOSSIER = sauve[0], sauve[1]
         cv.APPELS.clear()
@@ -2651,6 +2670,46 @@ def test_brain2() -> None:
             decline = "décliné" in str(exc)
         ok("un refus du modele est dit, pas rendu comme une reponse vide",
            decline)
+
+        # --- un refus du FOURNISSEUR, dit en francais ----------------
+        # Ce que Frederic a vu en branchant sa cle : le JSON brut d'un
+        # compte API sans credit, et une seconde question posee pour
+        # rien, sans l'outil, comme si l'outil etait en cause.
+        import io as _io
+        CREDIT = ('{"type":"error","error":{"type":"invalid_request_error",'
+                  '"message":"Your credit balance is too low to access the '
+                  'Anthropic API. Please go to Plans & Billing to upgrade or '
+                  'purchase credits."},"request_id":"req_011CfQ"}')
+        appels = []
+
+        def poste_sans_credit(url, charge, entetes, delai=180):
+            appels.append(charge)
+            raise urllib.error.HTTPError(url, 400, "Bad Request", {},
+                                         _io.BytesIO(CREDIT.encode()))
+        cv._poste = poste_sans_credit
+        txt, code = "", None
+        try:
+            cv._anthropic([{"role": "user", "content": "q"}],
+                          "claude-opus-5", "k")
+        except urllib.error.HTTPError as exc:
+            code = exc.code
+            txt = cv.explique_erreur("anthropic", exc.code,
+                                     cv._corps_erreur(exc), "claude-opus-5")
+        ok("un compte sans credit ne fait pas reposer la question",
+           code == 400 and len(appels) == 1)
+        ok("il est dit en francais, avec ce qu'il faut faire",
+           "crédit" in txt and "console.anthropic.com" in txt
+           and "claude.ai" in txt and "{" not in txt
+           and "req_011CfQ" in txt)
+        ok("une cle refusee est dite comme telle",
+           "refusée" in cv.explique_erreur(
+               "anthropic", 401, '{"error":{"type":"authentication_error"}}'))
+        ok("un compte OpenAI sans credit aussi",
+           "Billing" in cv.explique_erreur(
+               "openai", 429,
+               '{"error":{"type":"insufficient_quota","code":"insufficient_quota"}}'))
+        ok("un corps illisible ne fait pas planter l'explication",
+           "code 500" in cv.explique_erreur("anthropic", 500, "<html>"))
     finally:
         cv._poste = vrai_poste
 

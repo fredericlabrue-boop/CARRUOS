@@ -747,43 +747,111 @@ FOND_CSS = """
 """
 
 
-def icone(trace: str) -> str:
-    """Le logo CARRUOS : le cerf dore dans un medaillon sombre.
+# L'hologramme de l'accueil, en petit. Deux usages, un seul dessin :
+# le logo (onglet, fenetres, raccourci du Bureau — fige, rasterise par
+# icone.py) et le cerf du majordome (anime, calque par calque). Il
+# reprend les pieces du fond : anneaux en tirets, lueur, cone de
+# projection, socle, et le cerf en trait net sur halo, avec son
+# aberration chromatique (un trait cyan decale a gauche, un trait dore a
+# droite).
+HOLO = "34,211,238"          # l'hologramme du theme CARRUOS
+_BOITE_CERF = (106, 62, 300, 360)     # x, y, largeur, hauteur dans 512
+_ECH_CERF = min(300 / 313, 360 / 371)
+
+
+def holo_calques(trace: str, px: float = 64, holo: str = HOLO,
+                 acc: str = "#22d3ee", pfx: str = "cr") -> dict:
+    """Les calques de l'hologramme, dans une boite de 512 x 512.
+
+    `px` est la taille a laquelle il sera AFFICHE : les traits sont donnes
+    en pixels d'ecran, comme dans le fond (vector-effect), sinon un logo
+    de 16 px n'aurait plus de cerf et un de 256 px en aurait un trop
+    epais. `holo` et `acc` suivent le theme quand on leur passe
+    `var(--holo)` et `var(--acc)` ; le fichier .ico, lui, n'a pas de
+    theme et recoit les couleurs d'origine.
+    """
+    k = 512.0 / max(px, 8)                 # unites par pixel affiche
+    net = max(1.15, px / 140) * k          # trait net du cerf
+    anneau = max(0.9, px / 210) * k
+    c = f"rgba({holo},"
+
+    def rond(r, a, w, tirets=""):
+        t = f' stroke-dasharray="{tirets}"' if tirets else ""
+        return (f'<circle cx="256" cy="256" r="{r}" fill="none" '
+                f'stroke="{c}{a})" stroke-width="{w:.2f}"{t}/>')
+
+    defs = (
+        f'<radialGradient id="{pfx}-f" cx=".5" cy=".42" r=".62">'
+        f'<stop offset="0" stop-color="#0d2a36"/>'
+        f'<stop offset=".62" stop-color="#050d13"/>'
+        f'<stop offset="1" stop-color="#020507"/></radialGradient>'
+        f'<radialGradient id="{pfx}-l"><stop offset="0" stop-color="{c}.22)"/>'
+        f'<stop offset=".55" stop-color="{c}.07)"/>'
+        f'<stop offset="1" stop-color="{c}0)"/></radialGradient>'
+        f'<linearGradient id="{pfx}-c" x1="0" y1="1" x2="0" y2="0">'
+        f'<stop offset="0" stop-color="{c}.30)"/>'
+        f'<stop offset=".85" stop-color="{c}0)"/></linearGradient>'
+        f'<radialGradient id="{pfx}-s"><stop offset="0" '
+        f'stop-color="rgba(120,240,255,.85)"/>'
+        f'<stop offset=".45" stop-color="{c}.30)"/>'
+        f'<stop offset="1" stop-color="{c}0)"/></radialGradient>'
+        f'<clipPath id="{pfx}-d"><circle cx="256" cy="256" r="250"/>'
+        f'</clipPath>')
+    fond = (
+        f'<circle cx="256" cy="256" r="252" fill="url(#{pfx}-f)"/>'
+        f'<g clip-path="url(#{pfx}-d)">'
+        f'<circle cx="256" cy="250" r="215" fill="url(#{pfx}-l)"/>'
+        f'<polygon points="226,452 286,452 468,30 44,30" '
+        f'fill="url(#{pfx}-c)"/>'
+        f'<ellipse cx="256" cy="440" rx="128" ry="20" fill="url(#{pfx}-s)"/>'
+        f'</g>'
+        + rond(247, ".45", anneau * 1.2))
+    # Sous 40 px, les tirets deviennent une bouillie grise autour du
+    # cerf : un seul anneau plein, le plus lisible, reste.
+    petit = px < 40
+    anneaux_a = ("" if petit else
+                 rond(228, ".55", anneau * 1.1, "4 18")
+                 + rond(186, ".28", anneau * 2.8, "2 30"))
+    anneaux_b = (rond(208, ".7", anneau * 1.2) if petit else
+                 rond(208, ".85", anneau * 1.3, "86 53 16 53")
+                 + rond(162, ".38", anneau, "37 14 6 14"))
+    e = _ECH_CERF
+    x, y, w, h = _BOITE_CERF
+
+    def trait(coul, larg, op, dx=0.0, rond_=True):
+        j = ' stroke-linejoin="round" stroke-linecap="round"' if rond_ else ""
+        tr = f' transform="translate({dx / e:.2f},0)"' if dx else ""
+        return (f'<path d="{trace}" fill="none" stroke="{coul}" '
+                f'stroke-width="{larg / e:.2f}" opacity="{op}"{j}{tr}/>')
+    cerf = (f'<svg x="{x}" y="{y}" width="{w}" height="{h}" '
+            f'viewBox="34 11 313 371">'
+            # En petit, un halo large noie les bois du cerf : il se resserre.
+            + trait(acc, net * (2.0 if petit else 3.6), ".16")
+            + trait("#f5e3b8", net * (1.4 if petit else 1.9), ".24")
+            + trait("#5ce6ff", net * 0.8, ".7", -net * 0.5, False)
+            + trait("#ffd089", net * 0.8, ".7", net * 0.5, False)
+            + trait("#fff4d6", net, ".96")
+            + '</svg>')
+    return {"defs": defs, "fond": fond, "anneaux_a": anneaux_a,
+            "anneaux_b": anneaux_b, "cerf": cerf}
+
+
+def icone(trace: str, px: float = 64) -> str:
+    """Le logo CARRUOS : l'hologramme de l'accueil, en medaillon.
 
     Onglet du navigateur, icone de chaque fenetre, raccourci du Bureau :
     le meme dessin partout. `carruos.ico` est fabrique a partir de ce SVG
-    (`py -m equity_scanner.icone`) — une seule source, donc pas de derive
-    entre l'onglet et le raccourci.
+    (`py -m equity_scanner.icone`), taille par taille — `px` donne
+    l'epaisseur des traits pour la taille ou il sera vu.
 
-    Le medaillon n'est pas decoratif. Le cerf seul, trait dore sur fond
-    transparent, disparaissait sur un fond d'ecran clair et se perdait
-    sur un fond charge : sur le Bureau, une icone se pose sur n'importe
-    quoi. Le disque sombre, cercle d'or et anneau cyan, le detache de
-    tout, et reprend les deux couleurs du programme.
+    Le medaillon sombre n'est pas decoratif : sur le Bureau, une icone se
+    pose sur n'importe quel fond d'ecran, et un hologramme transparent
+    disparaitrait sur un fond clair.
     """
-    return (
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">'
-        '<defs>'
-        '<radialGradient id="cr-f" cx=".5" cy=".36" r=".72">'
-        '<stop offset="0" stop-color="#15384a"/>'
-        '<stop offset=".55" stop-color="#08161e"/>'
-        '<stop offset="1" stop-color="#03070a"/></radialGradient>'
-        '<linearGradient id="cr-o" x1="0" y1="0" x2="0" y2="1">'
-        '<stop offset="0" stop-color="#f6e4b4"/>'
-        '<stop offset=".45" stop-color="#dcc28b"/>'
-        '<stop offset="1" stop-color="#b48f55"/></linearGradient>'
-        '</defs>'
-        '<circle cx="256" cy="256" r="246" fill="url(#cr-f)"/>'
-        '<circle cx="256" cy="256" r="240" fill="none" stroke="url(#cr-o)" '
-        'stroke-width="12"/>'
-        '<circle cx="256" cy="256" r="218" fill="none" stroke="#22d3ee" '
-        'stroke-opacity=".6" stroke-width="5" stroke-dasharray="34 16"/>'
-        '<svg x="100" y="66" width="312" height="380" viewBox="34 11 313 371">'
-        f'<path d="{trace}" fill="none" stroke="#000" stroke-width="30" '
-        'stroke-linejoin="round" stroke-linecap="round" opacity=".45"/>'
-        f'<path d="{trace}" fill="none" stroke="url(#cr-o)" '
-        'stroke-width="15" stroke-linejoin="round" stroke-linecap="round"/>'
-        '</svg></svg>')
+    c = holo_calques(trace, px)
+    return ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">'
+            f'<defs>{c["defs"]}</defs>' + c["fond"] + c["anneaux_a"]
+            + c["anneaux_b"] + c["cerf"] + '</svg>')
 
 
 def fond(trace: str) -> str:

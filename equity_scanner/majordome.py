@@ -40,7 +40,7 @@ from . import reglages as rg
 
 # La taille de l'avatar, en pixels. Le script la relit dans le DOM :
 # une seule valeur, pas deux qui divergent.
-TAILLE = 58
+TAILLE = 64
 
 CSS = """
 /* --- Le majordome compagnon (majordome.py). Pose sur TOUTES les pages :
@@ -49,32 +49,44 @@ CSS = """
        l'accueil par hasard, ils sont regles ici. --- */
 /* Sous le tiroir des reglages (59) : ouvert, il passe devant le cerf au
    lieu d'avoir le bas de sa liste cache par lui. */
-.mjc{position:fixed;left:0;top:0;z-index:58;width:58px;height:58px;
+.mjc{position:fixed;left:0;top:0;z-index:58;width:64px;height:64px;
  transform:translate3d(-300px,-300px,0);visibility:hidden}
 .mjc.pret{visibility:visible}
 .mjc.cache{display:none}
-.mj-a{position:relative;z-index:3;width:58px;height:58px;padding:0;
- border-radius:50%;display:grid;place-items:center;cursor:grab;
+/* L'avatar est l'HOLOGRAMME de l'accueil, en petit : le meme dessin
+   que le logo (hud.holo_calques), en quatre calques superposes. Chaque
+   calque bouge en entier — rotation des anneaux, souffle du cerf — donc
+   par transform et opacity seulement, comme tout ce qui bouge ici. Les
+   couleurs suivent le theme : sur Matrix, l'hologramme est vert. */
+.mj-a{position:relative;z-index:3;width:64px;height:64px;padding:0;
+ border:0;border-radius:50%;background:none;cursor:grab;
  touch-action:none;user-select:none;
- background:radial-gradient(circle at 50% 36%,rgba(var(--holo),.16),
- var(--fond) 70%);
- border:1px solid var(--bord-fort);
- box-shadow:0 0 22px rgba(var(--holo),.2),0 6px 18px rgba(0,0,0,.5);
- transition:box-shadow .18s ease,border-color .18s ease}
-.mj-a:hover{border-color:var(--acc);
- box-shadow:0 0 32px rgba(var(--holo),.38),0 6px 18px rgba(0,0,0,.5)}
+ box-shadow:0 0 24px rgba(var(--holo),.28),0 6px 18px rgba(0,0,0,.55);
+ transition:box-shadow .18s ease}
+.mj-a:hover{box-shadow:0 0 38px rgba(var(--holo),.55),0 6px 18px rgba(0,0,0,.55)}
 .mjc.glisse .mj-a{cursor:grabbing}
-.mj-a svg{width:40px;height:46px;pointer-events:none;overflow:visible}
-.mj-a .mj-cerf{fill:none;stroke:url(#mj-or);stroke-width:13;
- stroke-linejoin:round;stroke-linecap:round}
-.mj-a .mj-ombre{fill:none;stroke:#0b1016;stroke-width:26;
- stroke-linejoin:round;opacity:.55}
+/* `>` : les calques seulement. Le cerf est un <svg> IMBRIQUE, place par
+   ses attributs x/y/width/height ; une regle sur `.mj-a svg` l'etirait a
+   toute la boite, et il debordait du medaillon. */
+.mj-a>svg{position:absolute;inset:0;width:100%;height:100%;
+ pointer-events:none;overflow:visible}
+.mj-c1{animation:mj-tour 26s linear infinite}
+.mj-c2{animation:mj-tour-inv 38s linear infinite}
+.mj-c3{animation:mj-souffle 6s ease-in-out infinite}
+@keyframes mj-tour-inv{to{transform:rotate(-360deg)}}
+@keyframes mj-souffle{0%,100%{transform:translateY(0) scale(1);opacity:.92}
+ 50%{transform:translateY(-1.5px) scale(1.035);opacity:1}}
+.fluide-sobre .mj-c1,.fluide-sobre .mj-c2,.fluide-sobre .mj-c3{animation:none}
+@media (prefers-reduced-motion: reduce){
+ .mj-c1,.mj-c2,.mj-c3{animation:none}}
+/* L'anneau d'etat : invisible au repos, il dit quand le majordome parle
+   ou ecoute. */
 .mj-o{position:absolute;inset:-5px;border-radius:50%;pointer-events:none;
- border:1px dashed rgba(var(--holo),.5);animation:mj-tour 24s linear infinite}
-.mjc.parle .mj-o{border-color:var(--marque);border-style:solid;
- animation:mj-tour 24s linear infinite,mj-pouls 1.2s ease-in-out infinite}
-.mjc.ecoute .mj-o{border-color:var(--pos);border-style:solid;
- animation:mj-tour 24s linear infinite,mj-pouls 1.4s ease-in-out infinite}
+ border:1px solid transparent;opacity:0}
+.mjc.parle .mj-o{border-color:var(--marque);opacity:1;
+ animation:mj-pouls 1.2s ease-in-out infinite}
+.mjc.ecoute .mj-o{border-color:var(--pos);opacity:1;
+ animation:mj-pouls 1.4s ease-in-out infinite}
 @keyframes mj-tour{to{transform:rotate(360deg)}}
 @keyframes mj-pouls{0%,100%{opacity:.35}50%{opacity:1}}
 /* La bulle. Placee par le script, du cote ou il y a de la place. */
@@ -144,18 +156,17 @@ CSS = """
 """
 
 
-def _svg_cerf() -> str:
-    # Le meme cerf que l'icone et que le fond : une seule source, le trace
-    # de hud.py. Degrade propre (`mj-or`) : l'identifiant `or` de
-    # hud.icone() pourrait un jour cohabiter dans la meme page.
-    return ('<svg viewBox="34 11 313 371" aria-hidden="true">'
-            '<defs><linearGradient id="mj-or" x1="0" y1="0" x2="0" y2="1">'
-            '<stop offset="0" stop-color="#f3dfae"/>'
-            '<stop offset=".45" stop-color="#d8bd86"/>'
-            '<stop offset="1" stop-color="#b8945a"/>'
-            '</linearGradient></defs>'
-            f'<path class="mj-ombre" d="{hd.TRACE}"/>'
-            f'<path class="mj-cerf" d="{hd.TRACE}"/></svg>')
+def _avatar() -> str:
+    """L'hologramme du majordome : le dessin du logo (une seule source,
+    `hud.holo_calques`), aux couleurs du theme, en quatre calques qui
+    s'animent chacun en entier."""
+    c = hd.holo_calques(hd.TRACE, px=TAILLE, holo="var(--holo)",
+                        acc="var(--acc)", pfx="mj")
+    b = '<svg class="{}" viewBox="0 0 512 512" aria-hidden="true">{}</svg>'
+    return (b.format("mj-c0", f'<defs>{c["defs"]}</defs>{c["fond"]}')
+            + b.format("mj-c1", c["anneaux_a"])
+            + b.format("mj-c2", c["anneaux_b"])
+            + b.format("mj-c3", c["cerf"]))
 
 
 def etat(reg: dict | None) -> dict:
@@ -178,7 +189,7 @@ def html(reg: dict | None = None, ticker: str = "", champ: str = "") -> str:
         f'data-y="{e["y"]:.4f}" data-ticker="{tk}" data-champ="{ch}">'
         '<button class="mj-a" id="mja" type="button" '
         'title="Majordome : cliquer pour lui parler, glisser pour le '
-        'déplacer" aria-label="Majordome">' + _svg_cerf()
+        'déplacer" aria-label="Majordome">' + _avatar()
         + '<i class="mj-o"></i></button>'
         '<i class="mj-q" id="mjq"></i>'
         '<div class="mj-b" id="mjb" role="dialog" aria-label="Majordome">'
@@ -244,7 +255,7 @@ var C=_mj('mjc');
 if(!C) return;
 var A=_mj('mja'), B=_mj('mjb'), Q=_mj('mjq'), H=_mj('mjh'), R=_mj('mjr'),
     I=_mj('mji');
-var T=A.offsetWidth || 58;
+var T=A.offsetWidth || 64;
 var E={actif:C.getAttribute('data-actif')==='1',
        x:parseFloat(C.getAttribute('data-x')), y:parseFloat(C.getAttribute('data-y')),
        ouvert:false};
@@ -281,7 +292,9 @@ function bulle(){
  var bw=Math.min(360, W-16);
  B.style.width=bw+'px';
  var cy=P.y+T/2, haut=cy>Ht/2;
- var dispo=haut ? (P.y-14-10) : (Ht-(P.y+T)-14-10);
+ // En haut, la bulle s'arrete sous la barre et la roue des reglages
+ // (60 px) : montee jusqu'au bord, sa croix passait sous la roue.
+ var dispo=haut ? (P.y-14-60) : (Ht-(P.y+T)-14-10);
  B.style.maxHeight=Math.max(150, Math.min(560, dispo))+'px';
  var g=borne(P.x+T/2-bw/2, 8, Math.max(8, W-bw-8));
  B.style.left=Math.round(g-P.x)+'px';
@@ -675,10 +688,20 @@ async function iaPose(){
  if(!k){ _mj('mjiae').textContent='Collez la clé puis rappuyez.'; return; }
  _mj('mjiae').textContent='Enregistrement…';
  try{
-  await fetch('/api/cerveau/config',{method:'POST',
+  var r=await (await fetch('/api/cerveau/config',{method:'POST',
    headers:{'Content-Type':'application/json'},
-   body:JSON.stringify({fournisseur:_mj('mjiaf').value, cle:k})});
+   body:JSON.stringify({fournisseur:_mj('mjiaf').value, cle:k})})).json();
   _mj('mjiak').value='';
+  // La cle est essayee aussitot : une cle bonne sur un compte sans
+  // credit se dit ici, pas a la premiere vraie question.
+  var es=r && r.essai;
+  if(es){
+   R.innerHTML = es.ok
+    ? '<div class="mj-iao">'+esc(es.message)+'</div>'
+    : '<div class="mj-iax">La clé est enregistrée, mais '+esc(es.erreur)
+      +'.</div>';
+   bulle();
+  }
  }catch(e){}
  iaEtat();
 }

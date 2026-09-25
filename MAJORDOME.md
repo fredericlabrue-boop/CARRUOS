@@ -3,7 +3,8 @@
 ## Le faire apparaître
 
 L'onglet **MAJORDOME** de la barre, sur toutes les pages. Un clic : le
-cerf du logo apparaît, bulle ouverte. Bulle ouverte, un second clic le
+cerf hologramme apparaît — celui de l'accueil, en petit, aux couleurs
+du thème —, bulle ouverte. Bulle ouverte, un second clic le
 range. Toutes les fenêtres ouvertes suivent.
 
 - **Cliquer le cerf** ouvre ou ferme la bulle ; **Échap** la ferme.
@@ -77,3 +78,8 @@ votre profil Windows. À défaut, les variables `CARRUOS_ANTHROPIC_API_KEY` /
 `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`. La bulle dit d'où vient la clé
 utilisée. Une clé venue d'une variable d'environnement n'est jamais écrite
 sur le disque.
+
+Au moment de **BRANCHER**, la clé est essayée. « La clé est bonne, mais
+votre compte API n'a pas de crédit » veut dire ce qu'il dit :
+l'abonnement Claude (claude.ai) ne donne pas de crédit API. Il s'achète
+sur console.anthropic.com → Settings → Billing.

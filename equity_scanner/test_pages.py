@@ -1087,13 +1087,24 @@ def main() -> int:
     _v(not sans_js, "et son script les accompagne")
     for n in sans_js:
         print(f"          -> page sans script du compagnon : {n}")
-    _v("mj-cerf" in _mjm.html({}) and _hd.TRACE[:40] in _mjm.html({}),
-       "l'avatar est le cerf du logo, le meme trace que le fond")
+    _v('class="mj-c3"' in _mjm.html({}) and _hd.TRACE[:40] in _mjm.html({})
+       and _hd.holo_calques(_hd.TRACE, px=_mjm.TAILLE, holo="var(--holo)",
+                            acc="var(--acc)", pfx="mj")["cerf"]
+       in _mjm.html({}),
+       "l'avatar est l'hologramme du logo, le meme dessin que l'icone")
+    # Un logo et un avatar dessines chacun de leur cote finissent par ne
+    # plus se ressembler : le .ico et le cerf du majordome sortent de la
+    # meme fonction.
+    _v(_hd.holo_calques(_hd.TRACE, px=256)["cerf"]
+       in _hd.icone(_hd.TRACE, 256),
+       "le logo du Bureau est ce meme hologramme")
     # Il se deplace par `transform`, jamais par left/top : la regle de
     # tout ce qui bouge dans le projet.
     _v("C.style.transform=" in _mjm.JS
        and "C.style.left" not in _mjm.JS and "C.style.top" not in _mjm.JS,
        "le cerf se deplace par transform, jamais par left/top")
+    _v("(P.y-14-60)" in _mjm.JS,
+       "la bulle ne monte pas sous la roue des reglages")
     _v("setPointerCapture" in _mjm.JS
        and "el.addEventListener('pointerdown', debut)" in _mjm.JS
        and "[A, H].forEach" in _mjm.JS,

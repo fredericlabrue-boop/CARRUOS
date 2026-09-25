@@ -339,9 +339,9 @@ jeu de paramètres qui ne l'a pas produit.
 | | la fenêtre affichée sous chaque onglet est **calculée sur les vraies dates** : une constante mentirait dès que l'historique du titre est plus court |
 | | `chart.source_trace()` choisit **côté serveur** où prendre la bibliothèque de tracé : la copie locale (`equity_scanner/statique/lightweight-charts.js`) si elle existe, sinon le CDN. **Une seule balise, bloquante.** Jamais de repli `onerror` : il ajouterait le script de façon asynchrone, le code de la page tournerait avant, et la bibliothèque serait toujours absente |
 | `hud.py` | éléments visuels : cerf, cadrans, rails, radar, **icône** |
-| | `hud.icone(trace)` dessine le logo — le cerf doré dans un **médaillon** sombre, pour qu'il se détache de n'importe quel fond d'écran : une seule source pour l'onglet du navigateur, la fenêtre et `carruos.ico` du raccourci — sinon les trois divergent |
-| `icone.py` | rasterise `hud.icone()` **taille par taille** (16 à 256) et assemble `carruos.ico` à la main. Outil de fabrication (Playwright), lancé quand le logo change ; le fichier est livré |
-| `majordome.py` | le **compagnon** : le cerf et sa bulle, posés sur **toutes** les pages sauf sa vue complète |
+| | `hud.holo_calques()` dessine **l'hologramme de l'accueil en petit** — anneaux, lueur, cône, socle, cerf en trait net sur halo avec son aberration chromatique. `hud.icone()` le pose en **médaillon** sombre (onglet, fenêtres, `carruos.ico`) ; le majordome en fait son avatar, calque par calque. Une seule source — sinon le logo et l'avatar divergent. Les traits sont donnés **en pixels affichés** : un logo de 16 px n'aurait plus de cerf, un de 256 px en aurait un trop épais |
+| `icone.py` | rasterise `hud.icone(trace, n)` **à chaque taille** (16 à 256) — dessiné à cette taille, pas réduit — et assemble `carruos.ico` à la main. Outil de fabrication (Playwright), lancé quand le logo change ; le fichier est livré |
+| `majordome.py` | le **compagnon** : le cerf **hologramme** et sa bulle, posés sur **toutes** les pages sauf sa vue complète. Quatre calques animés chacun en entier, aux couleurs du thème |
 | | l'onglet MAJORDOME le sort, bulle ouverte, puis le range ; on le déplace par le cerf ou l'entête, **par `transform`**. Position enregistrée en **fraction** de la fenêtre, hors de la `version` du visuel : le déplacer ne repeint rien, mais les autres fenêtres le suivent |
 | | son script est **isolé** dans une fonction anonyme (seul `window.CARRUOS_MAJ` sort) ; les commandes propres à l'accueil (`scan`, `toutRafraichir`) ne sont appelées que là où elles existent |
 | | le décor de fond est **isolé** (`contain:strict`) et ses tailles sont **plafonnées en pixels** : son coût est proportionnel à la surface, et une taille en `vh` double quand l'écran double |
@@ -399,6 +399,7 @@ jeu de paramètres qui ne l'a pas produit.
 | | les faits d'abord, la prose ensuite ; le modèle ne voit jamais les cours ; chaque nombre de sa réponse est confronté au dossier envoyé et ceux qui n'y sont pas sont **nommés** à l'écran |
 | | le dossier trop lourd est **réduit, jamais coupé** (`compacte`) : listes ramenées à 12, 6 puis 3 éléments, puis sections lourdes retirées **en le disant** (`_omis`). Les sections protégées ne sont ni retirées ni raccourcies. Les chiffres se vérifient contre ce qui a été **envoyé** |
 | | recherche Web chez **les deux** fournisseurs (la v29 ne l'avait branchée que pour OpenAI, alors que le fournisseur par défaut est Anthropic) ; sources rendues **à part** du texte ; un modèle qui refuse l'outil répond sans lui |
+| | un refus du fournisseur est **dit en français avec ce qu'il faut faire** (`explique_erreur`) : compte sans crédit, clé refusée, quota, surcharge. Un refus **définitif** (crédit, clé) ne fait plus reposer la question sans l'outil. La clé est **essayée au moment de BRANCHER** (`essai()`, quelques dizaines de jetons) |
 | | clés : celles de CARRUOS d'abord, les variables génériques (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`) en dernier recours — la v29 laissait la générique écraser la spécifique. Une clé d'environnement n'est jamais écrite sur le disque |
 | | la tolérance de cette comparaison vaut une **demi-unité du dernier chiffre écrit** : « 12 % » peut venir de 11,83 %, « 11,8 % » ne peut venir que d'entre 11,75 et 11,85. Une première version arrondissait les deux côtés à zéro décimale — 0,38 et 0,62 s'écrasaient sur 0 et 1, et « 73 % » tombait sur le même 1 que 0,62. Le contrôle validait un chiffre inventé |
 | `profil.py` | ce qui distingue une action d'un ETF monde, **mesuré** |
@@ -683,6 +684,17 @@ jeu de paramètres qui ne l'a pas produit.
   existaient. Un module, posé partout, et un `typeof` devant tout ce qui
   appartient à une seule page. `test_pages` exige le compagnon sur
   chaque page servie.
+- **Un message d'erreur doit dire quoi faire.** « anthropic a répondu 400 :
+  {"type":"error",…"credit balance is too low"…} » : la clé était bonne,
+  c'est le compte API qui n'avait pas de crédit — et l'abonnement Claude
+  n'en donne pas. Rien ne le disait, et le programme reposait la question
+  une seconde fois, comme si l'outil de recherche était en cause. Un refus
+  se traduit, et un refus définitif ne se repose pas.
+- **Une règle CSS sur `svg` descend dans les `<svg>` imbriqués.**
+  `.mj-a svg{width:100%;height:100%}` visait les calques de l'avatar et
+  étirait aussi le cerf, un `<svg>` placé par ses attributs x/y : il
+  débordait du médaillon. `.mj-a>svg`. Et un serveur d'essai lancé
+  **avant** une correction sert l'ancien code : relancer avant de regarder.
 - **Un `.bat` en fins de ligne Unix** fait rater des `goto` à `cmd.exe`
   quand une étiquette tombe à cheval sur son tampon de 512 octets.
   `Carruos.bat` était le seul de sa famille dans ce cas ; `test_pages`

@@ -497,6 +497,16 @@ lourdes sont retirées — en le disant au modèle et à l'écran. Les sections 
 sortie, la position, la mémoire, le portefeuille) ne sont ni retirées ni
 raccourcies. Les chiffres se vérifient contre ce qui a été **envoyé**.
 
+### Quand le cerveau ne répond pas
+
+Le refus du fournisseur est dit en français, avec ce qu'il faut faire.
+Le plus courant : **« la clé est bonne, mais votre compte API n'a pas de
+crédit »**. L'abonnement Claude (claude.ai, Pro ou Max) et l'API sont
+deux comptes séparés : l'abonnement ne donne aucun crédit API. On en
+achète sur console.anthropic.com → Settings → Billing ; la clé n'a pas à
+être recollée. Au moment de **BRANCHER**, la clé est essayée par une
+question minuscule, et la bulle dit tout de suite si elle marche.
+
 ### La recherche Web
 
 Les deux fournisseurs peuvent chercher sur le Web : **3** recherches au
@@ -813,7 +823,8 @@ Le registre est `~/.carruos/registre-tests.md`, les rapports sont dans
 
 ## 5 duodecies. Le majordome à l'écran — `majordome.py`
 
-L'onglet **MAJORDOME** fait apparaître le cerf du logo, bulle ouverte,
+L'onglet **MAJORDOME** fait apparaître le cerf — l'hologramme de
+l'accueil en petit, aux couleurs du thème —, bulle ouverte,
 sur la page où l'on est ; bulle ouverte, il le range. **Toutes** les
 fenêtres le suivent.
 
@@ -833,9 +844,10 @@ par-dessus, chaque chiffre du modèle confronté au dossier.
 
 ## 5 terdecies. Le logo et le raccourci du Bureau
 
-Le logo est le cerf doré dans un **médaillon** sombre, cerclé d'or,
-anneau cyan : il se détache de n'importe quel fond d'écran. Le même
-dessin sert à l'onglet du navigateur, à chaque fenêtre et au raccourci.
+Le logo est **l'hologramme de l'accueil** — anneaux, cône de lumière,
+socle, cerf lumineux — dans un **médaillon** sombre qui le détache de
+n'importe quel fond d'écran. Le même dessin sert à l'onglet du
+navigateur, à chaque fenêtre, au raccourci et au cerf du majordome.
 
 Pour le poser sur le Bureau : la roue des réglages, **Créer le raccourci
 « Carruos Alice »** — ou Carruos.bat, choix 3. Un double-clic lance

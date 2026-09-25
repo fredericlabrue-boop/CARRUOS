@@ -4,7 +4,7 @@
 
 Le dessin vient de `hud.icone()`, et de nulle part ailleurs : l'onglet
 du navigateur, l'icone de chaque fenetre et le raccourci du Bureau sont
-le meme SVG. Ce module ne fait que le RASTERISER, taille par taille —
+le meme SVG — l'hologramme de l'accueil, en medaillon. Ce module ne fait que le RASTERISER, taille par taille —
 un cerf reduit de 256 a 16 pixels par Windows devient une tache ; dessine
 directement a 16, il reste un cerf.
 
@@ -115,7 +115,6 @@ def main() -> None:
               "  que si le logo change.")
         return
     import os
-    svg = hd.icone(hd.TRACE)
 
     async def dessine():
         async with async_playwright() as pw:
@@ -125,7 +124,9 @@ def main() -> None:
             await pg.goto("about:blank")
             images = []
             for n in TAILLES:
-                rgba = await pg.evaluate(_PEINT, [svg, n])
+                # Dessine A CETTE TAILLE : les traits sont donnes en
+                # pixels d'ecran, pas reduits d'un grand dessin.
+                rgba = await pg.evaluate(_PEINT, [hd.icone(hd.TRACE, n), n])
                 # BMP pour les petites tailles (compatibilite maximale),
                 # PNG pour les grandes (poids).
                 corps = png(n, rgba) if n >= 128 else bmp(n, rgba)

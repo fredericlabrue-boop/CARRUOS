@@ -3634,9 +3634,15 @@ def _cerveau_config(c: dict) -> dict:
     from . import cerveau as cv
     if c.get("action") == "oublie":
         return cv.oublie()
-    return cv.configure(fournisseur=(c.get("fournisseur") or "").strip(),
-                        modele=(c.get("modele") or "").strip(),
-                        cle=(c.get("cle") or "").strip())
+    r = cv.configure(fournisseur=(c.get("fournisseur") or "").strip(),
+                     modele=(c.get("modele") or "").strip(),
+                     cle=(c.get("cle") or "").strip())
+    # Une cle qu'on vient de poser est essayee tout de suite : une cle
+    # bonne sur un compte sans credit ne se decouvrait qu'a la premiere
+    # vraie question.
+    if r.get("ok") and (c.get("cle") or "").strip():
+        r["essai"] = cv.essai()
+    return r
 
 
 def _quota():

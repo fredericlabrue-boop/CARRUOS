@@ -266,6 +266,41 @@ def configure(fournisseur: str = "", modele: str = "", cle: str = "") -> dict:
     return {"ok": True, **etat()}
 
 
+def essai() -> dict:
+    """Une question minuscule, posee au moment de BRANCHER.
+
+    Sans elle, une cle bonne sur un compte sans credit ne se decouvrait
+    qu'a la premiere vraie question, noyee sous les faits. Le cout est
+    de quelques dizaines de jetons, et seulement quand on branche.
+    """
+    c = _config()
+    f = c.get("fournisseur", "anthropic")
+    cle = (c.get("cles") or {}).get(f, "")
+    if not cle:
+        return {"ok": False, "erreur": "Aucune clé enregistrée."}
+    modele = c.get("modele") or FOURNISSEURS[f]["modele"]
+    try:
+        if f == "anthropic":
+            _poste(FOURNISSEURS[f]["url"],
+                   {"model": modele, "max_tokens": 64, "messages": [
+                       {"role": "user", "content": "Réponds : ok"}]},
+                   {"x-api-key": cle, "anthropic-version": "2023-06-01"},
+                   delai=45)
+        else:
+            _poste(FOURNISSEURS[f]["url"],
+                   {"model": modele, "input": "Réponds : ok",
+                    "max_output_tokens": 64},
+                   {"Authorization": f"Bearer {cle}"}, delai=45)
+    except urllib.error.HTTPError as exc:
+        return {"ok": False,
+                "erreur": explique_erreur(f, exc.code, _corps_erreur(exc),
+                                          modele)}
+    except Exception as exc:
+        return {"ok": False, "erreur": "le fournisseur est injoignable "
+                                       f"({type(exc).__name__})."}
+    return {"ok": True, "message": f"Clé acceptée : {modele} répond."}
+
+
 def oublie() -> dict:
     """Efface la cle. Il faut pouvoir la retirer aussi simplement qu'on
     l'a mise, sinon on hesite a la mettre."""
@@ -446,6 +481,101 @@ def _poste(url: str, charge: dict, entetes: dict, delai: int = 180) -> dict:
 
 
 # ---------------------------------------------------------------------
+# Les refus du fournisseur, dits en francais
+# ---------------------------------------------------------------------
+#
+# « Le cerveau n'a pas repondu : anthropic a repondu 400 :
+# {"type":"error","error":{"type":"invalid_request_error","message":"Your
+# credit balance is too low…"}} » — c'est ce que Frederic a vu en
+# branchant sa cle. La cle etait BONNE : c'est le compte API qui n'avait
+# pas de credit, et l'abonnement Claude (claude.ai) n'en donne pas. Rien a
+# l'ecran ne le disait, et le programme reposait meme la question une
+# seconde fois, sans l'outil de recherche, comme si l'outil etait en
+# cause. Un refus DEFINITIF (credit, cle) ne se repose plus, et chaque
+# refus connu est dit avec ce qu'il faut faire.
+
+def _corps_erreur(exc) -> str:
+    """Le corps d'une erreur HTTP, lu UNE fois : le flux ne se relit pas."""
+    c = getattr(exc, "_carruos_corps", None)
+    if c is None:
+        try:
+            c = exc.read().decode("utf-8", "replace")
+        except Exception:
+            c = ""
+        try:
+            exc._carruos_corps = c
+        except Exception:
+            pass
+    return c
+
+
+def _refus(corps: str) -> tuple:
+    """(type, message, identifiant de requete) d'un corps d'erreur."""
+    try:
+        d = json.loads(corps)
+    except Exception:
+        return "", (corps or "").strip()[:300], ""
+    e = d.get("error") if isinstance(d, dict) else None
+    e = e if isinstance(e, dict) else {}
+    return (str(e.get("type") or e.get("code") or ""),
+            str(e.get("message") or "")[:300],
+            str(d.get("request_id") or ""))
+
+
+def _sans_credit(corps: str) -> bool:
+    b = (corps or "").lower()
+    return ("credit balance" in b or "billing_error" in b
+            or "insufficient_quota" in b)
+
+
+def _definitif(code: int, corps: str) -> bool:
+    """Un refus qu'aucune autre forme de la question ne levera."""
+    return code in (401, 402, 403) or _sans_credit(corps)
+
+
+def explique_erreur(fournisseur: str, code: int, corps: str,
+                    modele: str = "") -> str:
+    """Le refus du fournisseur, en francais, avec ce qu'il faut faire."""
+    typ, msg, req = _refus(corps)
+    ou = FOURNISSEURS.get(fournisseur, {}).get("ou", "le site du fournisseur")
+    nom = FOURNISSEURS.get(fournisseur, {}).get("nom", fournisseur)
+    if _sans_credit(corps) or code == 402:
+        if fournisseur == "openai":
+            t = ("la clé est bonne, mais le compte OpenAI n'a pas de crédit. "
+                 "Pour en ajouter : platform.openai.com → Settings → "
+                 "Billing. Inutile de recoller la clé")
+        else:
+            t = ("la clé est bonne, mais votre compte API Anthropic n'a pas "
+                 "de crédit. L'abonnement Claude (claude.ai, Pro ou Max) et "
+                 "l'API sont deux comptes séparés : l'abonnement ne donne "
+                 "aucun crédit API. Pour en ajouter : console.anthropic.com "
+                 "→ Settings → Billing → acheter des crédits. Inutile de "
+                 "recoller la clé")
+    elif code == 401:
+        t = (f"la clé est refusée — mal copiée, révoquée, ou d'un autre "
+             f"fournisseur. Créez-en une sur {ou} (API Keys), collez-la en "
+             f"bas de la bulle, puis BRANCHER")
+    elif code == 403:
+        t = (f"cette clé n'a pas le droit d'utiliser {modele or 'ce modèle'} "
+             f"— réglages de l'organisation sur {ou}")
+    elif code == 404:
+        t = (f"le modèle {modele} n'est pas disponible pour ce compte"
+             if modele else "ce modèle n'est pas disponible pour ce compte")
+    elif code == 413:
+        t = "la demande est trop lourde pour le fournisseur"
+    elif code == 429:
+        t = ("trop de demandes en peu de temps, ou plafond de dépense du "
+             f"compte atteint ({ou}). Réessayez dans une minute")
+    elif code >= 500:
+        t = ("le service du fournisseur est surchargé ou en panne. "
+             "Réessayez dans un instant")
+    else:
+        t = f"{nom} a refusé la demande : {msg or 'sans explication'}"
+    fin = f" ({nom}, code {code}" + (f", {req}" if req else "") + ")"
+    return t + fin
+
+
+# ---------------------------------------------------------------------
 # La recherche Web — un outil du FOURNISSEUR, execute chez lui
 # ---------------------------------------------------------------------
 #
@@ -500,7 +630,8 @@ def _anthropic(msgs: list, modele: str, cle: str, web: bool = True) -> tuple:
     try:
         d = _poste(FOURNISSEURS["anthropic"]["url"], charge, entetes)
     except urllib.error.HTTPError as exc:
-        if exc.code == 400 and ("tools" in charge or "fallbacks" in charge):
+        if (exc.code == 400 and ("tools" in charge or "fallbacks" in charge)
+                and not _definitif(exc.code, _corps_erreur(exc))):
             return _anthropic_nu(msgs, modele, cle)
         raise
     # Une recherche longue peut s'interrompre (« pause_turn ») : on renvoie
@@ -552,7 +683,8 @@ def _openai(msgs: list, modele: str, cle: str, web: bool = True) -> tuple:
         d = _poste(FOURNISSEURS["openai"]["url"], charge,
                    {"Authorization": f"Bearer {cle}"})
     except urllib.error.HTTPError as exc:
-        if exc.code == 400 and "tools" in charge:
+        if (exc.code == 400 and "tools" in charge
+                and not _definitif(exc.code, _corps_erreur(exc))):
             return _openai(msgs, modele, cle, web=False)
         raise
     bouts, sources = [], []
@@ -704,12 +836,9 @@ def demande(question: str, dossier: dict | None = None,
     try:
         texte, sources = APPELS[f](msgs, c["modele"], cle)
     except urllib.error.HTTPError as exc:
-        try:
-            detail = exc.read().decode("utf-8", "replace")[:400]
-        except Exception:
-            detail = str(exc)
         return {"ok": False, "configure": True,
-                "erreur": f"{f} a répondu {exc.code} : {detail}"}
+                "erreur": explique_erreur(f, exc.code, _corps_erreur(exc),
+                                          c["modele"])}
     except Exception as exc:
         return {"ok": False, "configure": True,
                 "erreur": f"{type(exc).__name__} : {exc}"}
