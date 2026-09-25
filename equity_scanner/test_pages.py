@@ -308,7 +308,8 @@ def main() -> int:
                  "maliste": app._page_palmares(),
                  "carnet": app._page_carnet(),
                  "ibkr": app._page_ibkr(),
-                 "memoire": app._page_memoire()}
+                 "memoire": app._page_memoire(),
+                 "brain2": app._page_brain2()}
     finally:
         dl.load_yf = vrai
 
@@ -1042,6 +1043,32 @@ def main() -> int:
     _v('id="majiak"' in pages["accueil"] and "j.cle" not in ja
        and "value=j.indice" not in ja,
        "la cle se saisit mais ne ressort jamais dans la page")
+
+    print("\n  PAGE BRAIN 2.0")
+    hb = pages["brain2"]
+    jb = _scripts(hb)
+    src_app = open(_app.__file__, encoding="utf-8").read()
+    # La v29 servait la page sous /api/brain2 et aucun onglet n'y menait.
+    _v('if u.path == "/brain2":' in src_app,
+       "la page a son adresse, /brain2")
+    _v(src_app.count("self._envoie(_page_brain2())") == 1,
+       "et une seule : plus de page servie sous une adresse d'API")
+    _v('data-vers="/brain2"' in _bloc_barre(pages["accueil"]),
+       "un onglet de la barre y mene, depuis toutes les pages")
+    _v("b2Faits(j);" in jb and "b2Modele(q, j.modele" in jb
+       and jb.index("b2Faits(j);") < jb.index("b2Modele(q, j.modele"),
+       "les faits sont poses AVANT la prose du modele")
+    _v("hors_dossier" in jb and "n_traces" in jb,
+       "les chiffres du modele sont etiquetes, comme au majordome")
+    _v("m.sources" in jb and "m.omis" in jb,
+       "les sources Web et les sections non envoyees sont affichees")
+    _v("historique:B2_HIST" in jb.replace(" ", ""),
+       "la conversation suit : les echanges precedents sont renvoyes")
+    _v("m.configure===false" in jb.replace(" ", "") and "m.erreur" in jb,
+       "cle absente ou modele en panne : les faits restent, et c'est dit")
+    _v("--ligne" not in hb and "--accent)" not in hb,
+       "aucune variable CSS inexistante (les cadres de la v29 etaient "
+       "invisibles)")
 
     print("\n  PAGE MA LISTE")
     from . import palmares as _pm

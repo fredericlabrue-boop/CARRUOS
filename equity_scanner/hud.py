@@ -173,6 +173,13 @@ BARRE_CSS = """
  color:var(--txt-faible);white-space:nowrap;font-variant-numeric:tabular-nums;
  margin:0;padding:0;border:0;background:none}
 .bar .horl b{color:var(--txt-fort);font-weight:400}
+/* Sept onglets et l'horloge complete tiennent sur une ligne a partir de
+   1 300 px. En dessous, la date et « PARIS » s'effacent, puis le
+   sous-titre : la barre reste sur UNE ligne, 30 px, au lieu de passer a
+   48 et de prendre ces 18 px au contenu. La barre couvre toute la
+   largeur de la fenetre : la requete porte bien sur son conteneur. */
+@media(max-width:1299px){.bar .horl .hj{display:none}}
+@media(max-width:1119px){.bar .sst{display:none}}
 /* Le cerf de la barre. Sa couleur etait dans la feuille de l'ACCUEIL :
    la page graphique, qui a la sienne, le peignait en noir sur fond noir. */
 .bar .fx{fill:#c9b28a;fill-rule:evenodd}
@@ -199,7 +206,8 @@ ONGLETS = (("/", "ACCUEIL", "accueil"),
            ("/strategie", "STRATÉGIE", "strategie"),
            ("/carnet", "CARNET", "carnet"),
            ("/memoire", "MÉMOIRE", "memoire"),
-           ("/ibkr", "IBKR", "ibkr"))
+           ("/ibkr", "IBKR", "ibkr"),
+           ("/brain2", "BRAIN 2.0", "brain2"))
 
 
 def barre(trace: str, nom: str, actif: str = "", soustitre: str = "",
@@ -272,7 +280,8 @@ function horloge(){
    minute:'2-digit',second:'2-digit'});
  var j=d.toLocaleDateString('fr-FR',{timeZone:'Europe/Paris',weekday:'short',
    day:'2-digit',month:'short'});
- h.innerHTML=j.toUpperCase()+'  <b>'+p+'</b>  PARIS';
+ h.innerHTML='<span class="hj">'+j.toUpperCase()+'  </span><b>'+p
+   +'</b><span class="hj">  PARIS</span>';
 }
 horloge(); setInterval(horloge,1000);
 """

@@ -186,6 +186,17 @@ jeu de paramètres qui ne l'a pas produit.
   c'est une étiquette : le lecteur voit ce qui remonte à une mesure.
   Le modèle ajoute de la prose par-dessus les faits ; il ne les
   remplace jamais.
+- **Une consigne de modèle qui l'autorise à trancher.** La version 29,
+  écrite ailleurs, avait remplacé la consigne par celle d'un « trader
+  fictif de 50 ans d'expérience » chargé de donner un « avis de travail »
+  sur « je garde ? », d'expliquer ce qu'une bougie « signifie » et de
+  choisir un horizon. Chacune de ces trois choses est interdite plus
+  haut, et pour la même raison : le modèle ne voit pas les cours, et
+  aucune hypothèse n'a passé sa Phase 0. La consigne garde le ton du
+  mentor — faits, lecture selon la spécification, ce qui manque, ce qui
+  changerait le tableau, les questions à se poser — et **aucun**
+  verdict. `test_moteur` vérifie que chaque ligne rouge y figure : une
+  consigne se réécrit en une minute, et rien d'autre ne le verrait.
 - **Aucune clé API dans le programme.** CARRUOS n'en embarque aucune et
   ne peut pas en fabriquer. Celle du cerveau est celle du propriétaire,
   prise chez le fournisseur, rangée dans `~/.carruos/ia.json` en 0600 —
@@ -326,6 +337,11 @@ jeu de paramètres qui ne l'a pas produit.
 | | deux temps : `prepare()` (répétable) relève et **fige** les dates dans un instantané, compte sans rendement sur 2024–2026 et fait une répétition générale sur la période de conception ; `valide()` est le **passage unique** — inscrit au registre avant le calcul, fermé avant l'affichage, refusé la seconde fois |
 | | il **ne part pas** sur des données incomplètes (univers tronqué, dates manquantes, heures absentes) : une période de validation brûlée ne se rend pas |
 | | le témoin de chaque annonce neutre est simulé **une fois**, puis tiré ; les titres sont parcourus dans l'ordre **alphabétique** — l'ordre d'arrivée des téléchargements parallèles faisait bouger le z au deuxième chiffre |
+| `brain2.py` | **BRAIN 2.0** : le titre et le portefeuille ensemble, sous le contrat du majordome — faits d'abord, prose ensuite |
+| | les faits du portefeuille sont **comptés ici** (poids, latent, écart au stop inscrit, stops franchis, lignes sans stop, cours différés, conditions de sortie ligne par ligne) : laissés au modèle, ils seraient invérifiables |
+| | le plafond de 25 % ne se vérifie que si **toutes les lignes sont dans une même devise**. Deux lignes en dollars et deux en euros dépassent chacune 25 % « de leur devise » sans rien dire du portefeuille : la première version les signalait toutes |
+| | le numéro de compte, l'hôte, le port et le client ne partent **jamais** au fournisseur — deux couches, testées chacune |
+| | la page vit à `/brain2`, dans la barre ; la v29 la servait sous `/api/brain2` et aucun onglet n'y menait |
 | `registre.py` | le registre des tests, étape 10 du protocole : `~/.carruos/registre-tests.md` pour être lu, `.json` pour refuser un second passage. Aucune ligne n'est jamais réécrite |
 | `short.py` | stratégie 3, vente à découvert — **constantes gelées** |
 | `comparatif.py` | système contre SMH buy & hold net de PFU |
@@ -363,6 +379,9 @@ jeu de paramètres qui ne l'a pas produit.
 | | la projection sépare **ce que vous versez** de **ce que le fonds capitalise tout seul**, année par année, et donne l'année où le second dépasse le premier |
 | `cerveau.py` | le modèle de langage du majordome, **sous contrat vérifié** |
 | | les faits d'abord, la prose ensuite ; le modèle ne voit jamais les cours ; chaque nombre de sa réponse est confronté au dossier envoyé et ceux qui n'y sont pas sont **nommés** à l'écran |
+| | le dossier trop lourd est **réduit, jamais coupé** (`compacte`) : listes ramenées à 12, 6 puis 3 éléments, puis sections lourdes retirées **en le disant** (`_omis`). Les sections protégées ne sont ni retirées ni raccourcies. Les chiffres se vérifient contre ce qui a été **envoyé** |
+| | recherche Web chez **les deux** fournisseurs (la v29 ne l'avait branchée que pour OpenAI, alors que le fournisseur par défaut est Anthropic) ; sources rendues **à part** du texte ; un modèle qui refuse l'outil répond sans lui |
+| | clés : celles de CARRUOS d'abord, les variables génériques (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`) en dernier recours — la v29 laissait la générique écraser la spécifique. Une clé d'environnement n'est jamais écrite sur le disque |
 | | la tolérance de cette comparaison vaut une **demi-unité du dernier chiffre écrit** : « 12 % » peut venir de 11,83 %, « 11,8 % » ne peut venir que d'entre 11,75 et 11,85. Une première version arrondissait les deux côtés à zéro décimale — 0,38 et 0,62 s'écrasaient sur 0 et 1, et « 73 % » tombait sur le même 1 que 0,62. Le contrôle validait un chiffre inventé |
 | `profil.py` | ce qui distingue une action d'un ETF monde, **mesuré** |
 | | la durée de détention n'est pas déclarée, elle est **rejouée** : les règles de la spécification tournent sur tout l'historique et on relève la durée des trades obtenus |
@@ -610,6 +629,24 @@ jeu de paramètres qui ne l'a pas produit.
   dans la liste de `test_pages`, donc ni son script mort ni sa grille
   de travers ne pouvaient être vus. Toute page servie entre dans la
   liste.
+- **Couper un texte au caractère près fait tomber sa FIN.** Le dossier
+  envoyé au modèle était tronqué à 24 000 caractères par une tranche de
+  chaîne. Un dossier de titre ordinaire en fait 32 000 : le profil, la
+  mémoire et la position détenue — posés en dernier — n'ont jamais été
+  vus par le modèle. Dans BRAIN 2.0 (70 000 caractères), c'était le
+  portefeuille entier, c'est-à-dire la raison d'être de la page. Et la
+  vérification des chiffres se faisait contre le dossier complet : une
+  valeur jamais envoyée « justifiait » un chiffre écrit. Réduire par
+  structure, protéger ce qui compte, dire ce qui manque, vérifier contre
+  ce qui est parti.
+- **Une page que rien n'ouvre n'existe pas.** La v29 annonçait « le
+  bouton BRAIN 2.0 ajouté au logiciel » et l'adresse `/brain2` : ni l'un
+  ni l'autre n'existaient. Les trois suites passaient, parce que la page
+  n'était dans aucune. Elle y est, et le test vérifie que la barre y mène.
+- **Un septième onglet a fait repasser la barre sur deux lignes** à
+  1 180 px (48 px au lieu de 30). En dessous de 1 300 px, la date et
+  « PARIS » s'effacent de l'horloge, puis le sous-titre sous 1 120 px : la
+  barre tient sur une ligne de 1 000 à 1 400 px, mieux qu'avant.
 - **Un moteur peut respecter ses constantes et trahir son texte.**
   L'empreinte de `pead.py` couvrait les seuils, pas leur lecture. Le
   moteur prenait la date du calendrier pour « jour d'annonce » : toute

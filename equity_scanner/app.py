@@ -489,6 +489,9 @@ body{overflow:hidden}
 .majiao{margin-top:8px;padding-top:6px;border-top:1px solid #123c47;
  font-size:10px;line-height:1.55;color:#2f5462}
 .majiab{margin-top:10px;padding-top:9px;border-top:1px solid #0d2a33}
+.majst{font-size:.68em;opacity:.7;letter-spacing:.14em}
+.majias{margin-top:8px;display:flex;flex-direction:column;gap:3px}
+.majias a{color:var(--acc);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .majiae{font:500 8px ui-monospace,monospace;letter-spacing:.2em;
  color:#6b4a4f;margin-bottom:7px}
 .majiae.on{color:var(--acc)}
@@ -1230,13 +1233,24 @@ async function majCerveau(q){
    h += '<div class="majia"><span class="majiat">CERVEAU &middot; '
      + (m.modele||'').replace(/</g,'&lt;') + '</span>'
      + m.texte.replace(/</g,'&lt;').replace(/\n/g,'<br>');
+   var src = m.sources || [];
+   if(src.length){
+    h += '<div class="majias"><span class="majiat">SOURCES WEB</span>';
+    src.forEach(function(s){
+     h += '<a href="' + String(s.url).replace(/"/g,'&quot;').replace(/</g,'&lt;')
+       + '" target="_blank" rel="noopener">'
+       + String(s.titre).replace(/</g,'&lt;') + '</a>'; });
+    h += '</div>';
+   }
    var c = m.chiffres || {};
    if(c.n_hors){
     h += '<div class="majiax">' + c.n_hors + ' chiffre'
       + (c.n_hors>1?'s':'') + ' de cette réponse ne vien'
       + (c.n_hors>1?'nent':'t') + ' pas du dossier : '
       + c.hors_dossier.join(', ').replace(/</g,'&lt;')
-      + '. Ils ne sont pas vérifiables ici.</div>';
+      + (src.length ? '. S\'ils viennent d\'une source Web citée, c\'est '
+         + 'elle qui fait foi ; sinon, ils ne sont pas vérifiables ici.</div>'
+         : '. Ils ne sont pas vérifiables ici.</div>');
    }else if(c.n_traces){
     h += '<div class="majiao">Les ' + c.n_traces
       + ' chiffres de cette réponse viennent tous du dossier.</div>';
@@ -2592,11 +2606,13 @@ def _accueil(splash: bool = True) -> str:
               'stroke="currentColor" stroke-width="1.6" '
               'stroke-linecap="round"/></svg></div>'
               '<div class="majp" id="majp">'
-              '<div class="majh"><div class="majt">MAJORDOME</div>'
+              '<div class="majh"><div class="majt">MAJORDOME '
+              '<span class="majst">MENTOR · BRAIN 2.0</span></div>'
               '<div class="majx" id="majx" onclick="majFerme()" '
               'title="Fermer (Echap)">&times;</div></div>'
-              '<div class="majr" id="majr">Ecris ton instruction. '
-              'Je reponds a voix haute.</div>'
+              '<div class="majr" id="majr">Parle-moi de tout : un titre, '
+              'ton portefeuille, un problème, un projet. Je raisonne avec '
+              'toi, à partir de faits. Je réponds à voix haute.</div>'
               '<div class="row"><input id="majc" '
               'placeholder="ton instruction ici">'
               '<button onclick="majExec($(\'majc\').value)">ENVOYER</button>'
@@ -2747,7 +2763,7 @@ class Bruce(http.server.BaseHTTPRequestHandler):
         u = urllib.parse.urlparse(self.path)
         if u.path not in ("/api/reglages", "/api/positions",
                           "/api/cle", "/api/validation", "/api/phase0",
-                          "/api/carnet", "/api/cerveau",
+                          "/api/carnet", "/api/cerveau", "/api/brain2",
                           "/api/cerveau/config", "/api/ibkr"):
             return self._envoie("<h1>404</h1>", code=404)
         try:
@@ -2759,6 +2775,8 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                 return self._json(_carnet_ecrit(corps))
             if u.path == "/api/cerveau":
                 return self._json(_cerveau(corps))
+            if u.path == "/api/brain2":
+                return self._json(_brain2(corps))
             if u.path == "/api/ibkr":
                 return self._json(_ibkr_commande(corps))
             if u.path == "/api/cerveau/config":
@@ -2859,6 +2877,8 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                 return self._envoie(_page_ibkr())
             if u.path == "/memoire":
                 return self._envoie(_page_memoire())
+            if u.path == "/brain2":
+                return self._envoie(_page_brain2())
             if u.path == "/api/memoire":
                 return self._json(_memoire(q))
             if u.path == "/api/ibkr":
@@ -3929,6 +3949,255 @@ document.addEventListener('DOMContentLoaded', function(){
  crnCharge();
 });
 """
+
+
+def _brain2(c: dict) -> dict:
+    """CARRUOS BRAIN 2.0 : le titre et le portefeuille, faits d'abord."""
+    from . import brain2 as b2
+    try:
+        return b2.analyse((c.get("ticker") or "").strip(),
+                          (c.get("q") or "Analyse complète").strip(),
+                          c.get("historique") or [])
+    except Exception as exc:
+        traceback.print_exc()
+        return {"ok": False, "erreur": f"{type(exc).__name__}: {exc}"}
+
+
+# La page BRAIN 2.0. La version 29 la servait sous /api/brain2 — une
+# adresse d'API — et aucun onglet n'y menait : la page existait sans
+# qu'on puisse l'ouvrir. Elle vit maintenant a /brain2, dans la barre.
+#
+# Meme contrat que le majordome, et dans le meme ordre : les FAITS
+# calcules par le programme d'abord, a gauche, affiches quoi qu'il
+# arrive au modele ; la prose du modele ensuite, a droite, avec ses
+# sources et l'etiquette des chiffres qui ne viennent pas du dossier.
+JS_BRAIN2 = r"""
+function $(i){ return document.getElementById(i); }
+function e(s){ return (s==null?'':String(s))
+ .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function nf(x, d){
+ if(x==null || !isFinite(x)) return '—';
+ return Number(x).toLocaleString('fr-FR',{minimumFractionDigits:d==null?1:d,
+   maximumFractionDigits:d==null?1:d});
+}
+function sg(x){ return (x==null||!isFinite(x)) ? '' : (x>=0 ? 'pos' : 'neg'); }
+var B2_HIST = [];
+
+async function b2Etat(){
+ try{
+  var j = await (await fetch('/api/cerveau/etat')).json();
+  $('b2ia').textContent = j.configure
+   ? 'CERVEAU BRANCHÉ — ' + j.fournisseur_nom + ' · ' + j.modele
+     + (j.source && j.source!=='fichier' ? ' (clé lue dans ' + j.source + ')' : '')
+   : 'CERVEAU NON BRANCHÉ — les faits s’affichent quand même. La clé se '
+     + 'pose dans le majordome de l’accueil.';
+  $('b2ia').className = 'b2-ia' + (j.configure ? ' on' : '');
+ }catch(err){}
+}
+
+function b2Faits(j){
+ var h = '', f = j.faits;
+ if(f && f.ok){
+  h += '<h3>' + e(f.ticker) + ' — ' + e(f.titre) + '</h3><div class="b2-l">';
+  f.lignes.forEach(function(l){ h += e(l) + '<br>'; });
+  h += '</div>';
+ }else if(f && f.erreur){
+  h += '<p class="b2-err">' + e(f.erreur) + '</p>';
+ }
+ if((j.horizons||[]).length){
+  h += '<h3>CE QUE CE TITRE BOUGE, SANS DIRECTION</h3><table class="b2-t">'
+    + '<tr><th>horizon</th><th>mouvement typique</th>'
+    + '<th>deux fenêtres sur trois</th><th>fenêtres</th></tr>';
+  j.horizons.forEach(function(x){
+   h += '<tr><td>' + e(x.nom) + '</td><td>' + nf(x.typique) + ' %</td><td>'
+     + nf(x.bas68) + ' % à ' + nf(x.haut68) + ' %</td><td>'
+     + x.fenetres + ' (' + x.independantes + ' indép.)</td></tr>';
+  });
+  h += '</table>';
+ }
+ var du = j.duree;
+ if(du && du.n){
+  h += '<p class="ex">Combien de temps la spécification a tenu ce titre : '
+    + 'médiane ' + du.mediane + ' séances, la moitié entre ' + du.q1 + ' et '
+    + du.q3 + ', sur ' + du.n + ' trades rejoués. L’horizon n’est '
+    + 'pas un choix : c’est la conséquence des règles de sortie.</p>';
+ }
+ var p = j.portefeuille || {};
+ if(p.ok){
+  h += '<h3>VOS LIGNES, COMPTÉES</h3><div class="b2-l">';
+  (j.portefeuille_lignes||[]).forEach(function(l){ h += e(l) + '<br>'; });
+  h += '</div>';
+  if((p.lignes||[]).length){
+   h += '<table class="b2-t"><tr><th>ligne</th><th>poids</th><th>latent</th>'
+     + '<th>au stop</th><th>sortie</th></tr>';
+   p.lignes.forEach(function(x){
+    h += '<tr' + (x.sous_le_stop ? ' class="franchi"' : '') + '><td>'
+      + e(x.titre) + ' <small>' + e(x.devise) + '</small></td><td>'
+      + nf(x.poids_pc) + ' %</td><td class="' + sg(x.latent_pc) + '">'
+      + nf(x.latent_pc) + ' %</td><td>'
+      + (x.stop_inscrit ? nf(x.ecart_au_stop_pc) + ' %' : 'aucun stop')
+      + '</td><td>' + e(x.conditions_sortie || x.conditions_erreur || '—')
+      + '</td></tr>';
+   });
+   h += '</table>';
+  }
+  h += '<p class="ex">' + e(p.rappel) + '</p>';
+ }else if(p.erreur){
+  h += '<p class="b2-err">Portefeuille illisible : ' + e(p.erreur) + '</p>';
+ }
+ if(f && f.ok) h += '<p class="ex">' + e(j.rappel) + '</p>';
+ $('b2f').innerHTML = h || '<p class="ex">Rien à montrer pour ce titre.</p>';
+}
+
+function b2Modele(q, m){
+ var h = '<div class="majia"><span class="majiat">VOUS</span>' + e(q) + '</div>';
+ if(m.ok && m.texte){
+  h += '<div class="majia"><span class="majiat">CERVEAU &middot; '
+    + e(m.modele) + '</span>' + e(m.texte).replace(/\n/g,'<br>');
+  if((m.sources||[]).length){
+   h += '<div class="b2-src"><span class="majiat">SOURCES WEB CONSULTÉES</span>';
+   m.sources.forEach(function(s){
+    h += '<a href="' + e(s.url) + '" target="_blank" rel="noopener">'
+      + e(s.titre) + '</a>';
+   });
+   h += '</div>';
+  }
+  var c = m.chiffres || {};
+  if(c.n_hors){
+   h += '<div class="majiax">' + c.n_hors + ' chiffre' + (c.n_hors>1?'s':'')
+     + ' de cette réponse ne vien' + (c.n_hors>1?'nent':'t')
+     + ' pas du dossier : ' + e(c.hors_dossier.join(', ')) + '. '
+     + ((m.sources||[]).length ? 'S’ils viennent d’une source Web '
+        + 'ci-dessus, c’est elle qui fait foi ; sinon, ils ne sont pas '
+        + 'vérifiables ici.' : 'Ils ne sont pas vérifiables ici.') + '</div>';
+  }else if(c.n_traces){
+   h += '<div class="majiao">Les ' + c.n_traces
+     + ' chiffres de cette réponse viennent tous du dossier.</div>';
+  }
+  if((m.omis||[]).length){
+   h += '<div class="majiax">Sections trop lourdes, non envoyées au modèle : '
+     + e(m.omis.join(', ')) + '.</div>';
+  }
+  h += '</div>';
+  B2_HIST.push({role:'user',content:q},{role:'assistant',content:m.texte});
+  if(B2_HIST.length>20) B2_HIST = B2_HIST.slice(-20);
+ }else if(m.configure===false){
+  h += '<div class="majiax">Le cerveau n’est pas branché. Les faits, à '
+    + 'gauche, sont calculés par le programme et ne demandent aucune clé.</div>';
+ }else if(m.erreur){
+  h += '<div class="majiax">Le cerveau n’a pas répondu : ' + e(m.erreur)
+    + '. Les faits, à gauche, restent valables.</div>';
+ }
+ $('b2c').insertAdjacentHTML('beforeend', h);
+ $('b2c').scrollTop = $('b2c').scrollHeight;
+}
+
+async function b2Analyse(){
+ var tk = ($('b2tk').value||'').trim(), q = ($('b2q').value||'').trim()
+   || (tk ? 'Analyse complète' : 'Analyse mon portefeuille');
+ $('b2st').textContent = 'Je rassemble les faits…';
+ try{
+  var j = await (await fetch('/api/brain2',{method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({ticker:tk, q:q, historique:B2_HIST})})).json();
+  if(!j.ok){ $('b2st').textContent = 'Erreur : ' + (j.erreur||''); return; }
+  var p = j.portefeuille || {};
+  $('b2st').textContent = (p.branche ? 'IBKR BRANCHÉ, LECTURE SEULE' :
+    'IBKR NON BRANCHÉ — registre local') + ' · ' + (p.n_lignes||0)
+    + ' ligne(s)' + (tk ? ' · ' + tk : '');
+  b2Faits(j);
+  b2Modele(q, j.modele || {});
+  $('b2q').value = '';
+ }catch(err){ $('b2st').textContent = 'Erreur réseau : ' + err.message; }
+}
+document.addEventListener('keydown', function(ev){
+ if(ev.key==='Enter' && ev.target && (ev.target.id==='b2q'||ev.target.id==='b2tk'))
+  b2Analyse();
+});
+document.addEventListener('DOMContentLoaded', b2Etat);
+"""
+
+CSS_BRAIN2 = """
+.app.b2-page{grid-template-rows:auto minmax(0,1fr)}
+.b2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+ grid-template-rows:minmax(0,1fr);gap:var(--gap);min-height:0;overflow:hidden}
+@media(max-width:1000px){.b2{grid-template-columns:minmax(0,1fr);
+ grid-template-rows:minmax(0,1fr) minmax(0,1fr)}}
+.b2>section{min-width:0;min-height:0;display:flex;flex-direction:column}
+.b2 .corps{overflow:auto;min-height:0}
+.b2-f{display:grid;grid-template-columns:minmax(0,9em) minmax(0,1fr) auto;
+ gap:6px;margin-bottom:8px}
+.b2-f input{width:100%;min-width:0}
+.b2-st{font:400 9px ui-monospace,monospace;letter-spacing:.14em;
+ color:var(--txt-faible);margin:4px 0 10px}
+.b2-ia{font:400 9px ui-monospace,monospace;letter-spacing:.14em;
+ color:var(--txt-faible);margin-bottom:10px}
+.b2-ia.on{color:var(--acc)}
+.b2 h3{font:500 9px ui-monospace,monospace;letter-spacing:.2em;
+ color:var(--txt-faible);margin:14px 0 7px;padding-top:9px;
+ border-top:1px solid var(--bord)}
+.b2-l{font-size:12px;line-height:1.7;color:var(--txt-doux)}
+.b2-err{color:var(--neg);font-size:12px}
+table.b2-t{width:100%;border-collapse:collapse;margin:6px 0 8px;
+ font:400 11.5px ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.b2-t th{text-align:right;padding:4px 6px;font-weight:500;font-size:8.5px;
+ letter-spacing:.14em;color:var(--txt-faible);border-bottom:1px solid var(--bord)}
+.b2-t td{text-align:right;padding:4px 6px;border-bottom:1px solid var(--bord)}
+.b2-t th:first-child,.b2-t td:first-child{text-align:left}
+.b2-t td small{color:var(--txt-faible)}
+.b2-t .pos{color:var(--pos)}.b2-t .neg{color:var(--neg)}
+.b2-t tr.franchi td{color:var(--neg)}
+.b2-src{margin-top:8px;display:flex;flex-direction:column;gap:3px;font-size:11px}
+.b2-src a{color:var(--acc);overflow:hidden;text-overflow:ellipsis;
+ white-space:nowrap}
+"""
+
+
+def _page_brain2() -> str:
+    reg = rg.charge()
+    return (
+        '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<link rel="icon" type="image/svg+xml" href="/carruos.svg">'
+        '<link rel="alternate icon" href="/favicon.ico">'
+        f"<title>{NOM} - BRAIN 2.0</title>"
+        f"<style>{rg.variables(reg)}{CSS}{CSS_BRAIN2}</style></head>"
+        f'<body class="{rg.classes(reg)}"{rg.corps_attrs(reg)}>'
+        + rg.tiroir_html(reg)
+        + hd.fond(TRACE_D)
+        + '<div class="app b2-page">'
+        + hd.barre(TRACE_D, NOM, actif="brain2", soustitre="BRAIN 2.0")
+        + '<div class="b2">'
+
+          '<section class="pan"><div class="trait"><i></i></div>'
+          '<h2>LES FAITS — LE TITRE ET VOS LIGNES</h2><div class="corps">'
+          '<div class="b2-f">'
+          '<input id="b2tk" placeholder="Titre : NVDA, TLX.DE…" '
+          'autocomplete="off" spellcheck="false">'
+          '<input id="b2q" placeholder="Votre question — ou rien : '
+          'analyse complète" autocomplete="off">'
+          '<button onclick="b2Analyse()">ANALYSER</button></div>'
+          '<div class="b2-st" id="b2st">Sans titre, c’est votre '
+          'portefeuille qui est analysé.</div>'
+          '<div id="b2f"><p class="ex">Les faits sont calculés par le '
+          'programme, avant tout appel au modèle, et restent ici quoi '
+          'qu’il arrive. Le portefeuille est celui du compte IBKR s’il '
+          'est branché, sinon celui du registre local.</p></div>'
+          '</div></section>'
+
+          '<section class="pan"><div class="trait"><i></i></div>'
+          '<h2>LE CERVEAU — EN PHRASES, SOUS CONTRAT</h2><div class="corps" '
+          'id="b2c"><div class="b2-ia" id="b2ia"></div>'
+          '<p class="ex">Il ne voit jamais les cours : il reçoit les faits de '
+          'gauche et les met en phrases. Il peut chercher sur le Web ; ses '
+          'sources sont listées. Chaque chiffre qu’il écrit est confronté '
+          'au dossier, et ceux qui n’en viennent pas sont nommés. Il ne dit '
+          'ni « achète », ni « vends », ni « garde » : aucune hypothèse n’a '
+          'passé sa validation.</p></div></section>'
+
+          '</div></div>'
+        + f"<script>{hd.BARRE_JS}{JS_BRAIN2}{rg.tiroir_js()}</script>"
+          "</body></html>")
 
 
 def _cerveau(c: dict) -> dict:

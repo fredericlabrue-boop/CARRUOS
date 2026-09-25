@@ -50,8 +50,14 @@ INTENTIONS = [
     ("memoire", r"\b(?:tromp|erreur|appris|apprend|memoire|souvien|"
                 r"bilan|loupe|rate)\w*|derniere fois|la fois ou"
                 r"|avais dit|disais"),
+    # « Combien de temps on garde » demande une DUREE ; « je garde ? »
+    # demande s'il faut sortir. Le premier doit passer avant le second.
+    ("profil", r"combien de temps|duree de detention|on garde combien"),
     ("sortie", r"\b(?:sors|sortir|sorti|vend|vends|vendre|solder|clotur|"
-               r"liquid|degager)\w*|quand.*(?:sort|vend)|quelles? conditions?"),
+               r"liquid|degager)\w*|quand.*(?:sort|vend)|quelles? conditions?"
+               r"|\bje (?:la |le |les )?(?:garde|conserve)\b"
+               r"|\b(?:garder|conserver) (?:ma|la|mes|cette|ces) "
+               r"(?:position|ligne)"),
     ("entree", r"\b(?:achet|rentr|entrer|renforc|rajout|repren|"
                r"positionn)\w*|prendre une ligne"),
     ("risque", r"\b(?:risqu|stop|perdre|pert|dimension|taille)\w*"

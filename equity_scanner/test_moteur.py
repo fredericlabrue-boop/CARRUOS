@@ -2263,6 +2263,12 @@ def test_dossier() -> None:
         ("ca bouge combien", "horizon"),
         ("les donnees sont fiables ?", "donnees"),
         ("a quelle heure ferme la bourse", "seance"),
+        # « je garde ? » demande s'il faut sortir : c'est la revue des
+        # conditions de sortie qui repond, pas la duree de detention.
+        ("je garde ma position ?", "sortie"),
+        ("JE LA GARDE OU PAS", "sortie"),
+        ("on garde combien de temps", "profil"),
+        ("combien de temps je garde", "profil"),
     ]
     faux = [(q, ds.intention(q), att) for q, att in CAS
             if ds.intention(q) != att]
@@ -2464,6 +2470,248 @@ def test_dossier() -> None:
        isinstance(ds.phrase(rep), str) and "\n" not in ds.phrase(rep))
 
 
+def test_brain2() -> None:
+    """BRAIN 2.0 et le contrat du cerveau. Aucun appel reseau : chaque
+    fournisseur est remplace par une reponse ecrite ici, au format de
+    son API."""
+    import json
+    import tempfile
+    import urllib.error
+    from pathlib import Path
+
+    from . import brain2 as b2
+    from . import cerveau as cv
+
+    print("\n— BRAIN 2.0 : le contrat du cerveau —")
+    # --- la consigne garde les lignes rouges du projet ----------------
+    lignes_rouges = {
+        "pas de verdict": "ne réponds ni « achète », ni « vends », ni « garde »",
+        "il ne voit pas les cours": "Tu ne vois jamais les",
+        "aucun chiffre invente": "n'écris AUCUN nombre",
+        "comparaisons multiples": "environ 72 mesures",
+        "memoire en entier": "cite-la EN ENTIER",
+        "pas de prediction": "Une prédiction de prix",
+        "pas de gain espere": "Un gain espéré en euros",
+        "pas de meilleur horizon": "Un « meilleur horizon »",
+        "sources web": "attribue chaque chiffre trouvé à sa source",
+    }
+    manque = [k for k, v in lignes_rouges.items() if v not in cv.CONSIGNE]
+    ok("la consigne du modele garde les lignes rouges du projet",
+       not manque)
+    for k in manque:
+        print(f"          -> absente : {k}")
+
+    # --- le dossier est reduit, jamais coupe --------------------------
+    gros = {"question": "q", "portefeuille": {"lignes": [
+                {"titre": f"T{i}", "poids_pc": 12.5} for i in range(8)]},
+            "chandeliers": {"liste": [{"nom": "x" * 40, "k": i}
+                                      for i in range(900)]},
+            "horizons": [{"typique": 1.5} for _ in range(300)],
+            # Un dictionnaire ne se raccourcit pas : s'il est trop lourd,
+            # il tombe en entier, et c'est dit dans « _omis ».
+            "annexe": {f"cle_{i}": 4321.5 + i for i in range(3000)},
+            "_proteges": ["question", "portefeuille"]}
+    env = cv.compacte(gros)
+    txt = json.dumps(env, ensure_ascii=False, indent=1, default=str)
+    ok(f"un dossier de {cv._taille(gros)} caracteres passe sous le plafond "
+       f"({len(txt)})", len(txt) <= cv.MAX_DOSSIER)
+    ok("et reste du JSON entier, portefeuille compris",
+       json.loads(txt)["portefeuille"] == gros["portefeuille"])
+    ok("la liste des protections ne part pas chez le fournisseur",
+       "_proteges" not in env)
+    petit = {"a": 1, "_proteges": ["a"]}
+    ok("un petit dossier part tel quel", cv.compacte(petit) == {"a": 1})
+
+    # --- les chiffres se verifient sur ce qui a ete ENVOYE ------------
+    tmp = Path(tempfile.mkdtemp())
+    sauve = (cv.FICHIER, cv.DOSSIER, dict(cv.APPELS),
+             {k: os.environ.get(k) for k in ("CARRUOS_ANTHROPIC_API_KEY",
+              "CARRUOS_OPENAI_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
+              "CARRUOS_IA_FOURNISSEUR", "CARRUOS_IA_MODELE")})
+    cv.FICHIER, cv.DOSSIER = tmp / "ia.json", tmp
+    for k in sauve[3]:
+        os.environ.pop(k, None)
+    try:
+        recu = {}
+
+        def faux(msgs, modele, cle):
+            recu["contenu"] = msgs[-1]["content"]
+            return "Le poids est de 12,5 %, et 4321,5 aussi.", []
+        cv.APPELS["anthropic"] = faux
+        os.environ["CARRUOS_ANTHROPIC_API_KEY"] = "cle-essai-1234"
+        r = cv.demande("q", dossier=gros)
+        ok("le portefeuille arrive jusqu'au modele",
+           '"portefeuille"' in recu.get("contenu", "")
+           and len(recu.get("contenu", "")) < cv.MAX_DOSSIER + 200)
+        ok("un chiffre present seulement dans ce qui n'a PAS ete envoye "
+           "n'est pas « verifie »",
+           "4321,5" in r["chiffres"]["hors_dossier"]
+           and "12,5" not in r["chiffres"]["hors_dossier"]
+           and "annexe" in r.get("omis", []))
+        v = cv.verifie_chiffres(
+            "Voir https://exemple.org/2026/09/25/depeche-12 : 12,4 %", {})
+        ok("les chiffres d'une adresse Web ne sont pas des mesures",
+           v["hors_dossier"] == ["12,4"])
+
+        # --- les cles : la specifique d'abord, la generique en dernier
+        os.environ.pop("CARRUOS_ANTHROPIC_API_KEY", None)
+        os.environ["OPENAI_API_KEY"] = "generique-aaaa"
+        e = cv.etat()
+        ok("une cle generique sert quand aucune n'est enregistree, et la "
+           "page dit d'ou elle vient",
+           e["fournisseur"] == "openai" and e["source"] == "OPENAI_API_KEY")
+        os.environ["CARRUOS_OPENAI_API_KEY"] = "specifique-bbbb"
+        ok("la cle propre a CARRUOS l'emporte sur la generique",
+           cv._config()["cles"]["openai"] == "specifique-bbbb")
+        cv.configure(fournisseur="openai")
+        ecrit = cv.FICHIER.read_text(encoding="utf-8")
+        ok("une cle venue de l'environnement n'est jamais ecrite sur le "
+           "disque", "specifique" not in ecrit and "generique" not in ecrit)
+    finally:
+        cv.FICHIER, cv.DOSSIER = sauve[0], sauve[1]
+        cv.APPELS.clear()
+        cv.APPELS.update(sauve[2])
+        for k, val in sauve[3].items():
+            if val is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = val
+
+    # --- la recherche Web, aux deux formats d'OpenAI ------------------
+    vrai_poste = cv._poste
+    envois = []
+
+    def poste_openai(url, charge, entetes, delai=180):
+        envois.append(charge)
+        return {"output": [
+            {"type": "web_search_call", "status": "completed"},
+            {"type": "message", "content": [{
+                "type": "output_text", "text": "Selon Reuters, 3 usines.",
+                "annotations": [
+                    {"type": "url_citation", "url": "https://a.org/x",
+                     "title": "A"},
+                    {"type": "url_citation",
+                     "url_citation": {"url": "https://b.org/y",
+                                      "title": "B"}}]}]}]}
+    cv._poste = poste_openai
+    try:
+        t, src = cv._openai([{"role": "user", "content": "q"}], "m", "k")
+        ok("OpenAI : texte lu, et les deux formes de citation donnent leur "
+           "source", t == "Selon Reuters, 3 usines."
+           and [x["url"] for x in src] == ["https://a.org/x",
+                                           "https://b.org/y"])
+        ok("OpenAI : l'outil de recherche est demande",
+           envois[-1].get("tools") == [{"type": "web_search"}])
+
+        def poste_refus(url, charge, entetes, delai=180):
+            envois.append(charge)
+            if "tools" in charge:
+                raise urllib.error.HTTPError(url, 400, "outil", {}, None)
+            return {"output": [{"type": "message", "content": [
+                {"type": "output_text", "text": "sans outil"}]}]}
+        cv._poste = poste_refus
+        t, _s = cv._openai([{"role": "user", "content": "q"}], "m", "k")
+        ok("un modele qui refuse l'outil repond quand meme, sans lui",
+           t == "sans outil")
+
+        # --- Anthropic : reprise apres pause, citations, refus -------
+        etapes = []
+
+        def poste_anthropic(url, charge, entetes, delai=180):
+            etapes.append((charge, entetes))
+            if len(etapes) == 1:
+                return {"stop_reason": "pause_turn", "content": [
+                    {"type": "server_tool_use", "name": "web_search"}]}
+            return {"stop_reason": "end_turn", "content": [
+                {"type": "text", "text": "Selon la dépêche, ",
+                 "citations": [{"type": "web_search_result_location",
+                                "url": "https://c.org/z", "title": "C"}]},
+                {"type": "text", "text": "rien d'autre."}]}
+        cv._poste = poste_anthropic
+        try:
+            t, src = cv._anthropic([{"role": "user", "content": "q"}],
+                                   "claude-opus-5", "k")
+        except RuntimeError:
+            t, src = "", []
+        ok("Anthropic : la recherche interrompue reprend, et le texte cite "
+           "se recolle", t == "Selon la dépêche, rien d'autre."
+           and len(etapes) == 2 and src and src[0]["url"] == "https://c.org/z")
+        c0, h0 = etapes[0]
+        ok("Anthropic : outil de recherche du modele, et repli en cas de "
+           "refus", c0["tools"][0]["type"] == "web_search_20260209"
+           and c0.get("fallbacks") == "default"
+           and h0.get("anthropic-beta") == "server-side-fallback-2026-07-01")
+        cv._poste = lambda *a, **k: {"stop_reason": "refusal",
+                                     "stop_details": {"explanation": "x"},
+                                     "content": []}
+        try:
+            cv._anthropic([{"role": "user", "content": "q"}], "m", "k")
+            decline = False
+        except RuntimeError as exc:
+            decline = "décliné" in str(exc)
+        ok("un refus du modele est dit, pas rendu comme une reponse vide",
+           decline)
+    finally:
+        cv._poste = vrai_poste
+
+    # --- les faits du portefeuille, comptes par le programme ---------
+    photo = {"etat": "connecte", "simulation": False, "numero": "U7654321",
+             "hote": "127.0.0.1", "port": 7496, "quand": "10:00:00",
+             "lignes": [
+                 {"ticker": "AAA", "devise": "USD", "quantite": 10,
+                  "prix_revient": 100, "cours": 150, "valeur": 1500,
+                  "latent": 500, "type_cours_libelle": "TEMPS RÉEL"},
+                 {"ticker": "BBB", "devise": "USD", "quantite": 10,
+                  "prix_revient": 50, "cours": 40, "valeur": 400,
+                  "latent": -100, "type_cours_libelle": "DIFFÉRÉ"},
+                 {"ticker": "CCC", "devise": "USD", "quantite": 1,
+                  "prix_revient": 100, "cours": 100, "valeur": 100,
+                  "latent": 0, "type_cours_libelle": "TEMPS RÉEL"}],
+             "franchissements": [{"ticker": "BBB"}],
+             "sans_fraicheur": ["BBB"]}
+    reg = [{"ticker": "AAA", "stop": 120}, {"ticker": "BBB", "stop": 45}]
+    f = b2.faits_portefeuille(photo, reg, conditions=False)
+    poids = {x["titre"]: x["poids_pc"] for x in f["lignes"]}
+    ok("les poids se comptent, et font 100 %",
+       poids == {"AAA": 75.0, "BBB": 20.0, "CCC": 5.0})
+    ok("une seule devise : le plafond de 25 % se verifie",
+       f["plafond_verifiable"] and f["au_dessus_du_plafond"] == ["AAA"])
+    ok("stops franchis, lignes sans stop et cours differes sont comptes",
+       f["stops_franchis"] == ["BBB"] and f["sans_stop_inscrit"] == ["CCC"]
+       and f["cours_non_temps_reel"] == ["BBB"])
+    ok("le gain latent se rapporte au prix de revient",
+       [x["latent_pc"] for x in f["lignes"]] == [50.0, -20.0, 0.0])
+    deux = {**photo, "lignes": photo["lignes"] + [
+        {"ticker": "DDD.PA", "devise": "EUR", "quantite": 1, "cours": 10,
+         "valeur": 10, "latent": 0}]}
+    f2 = b2.faits_portefeuille(deux, reg, conditions=False)
+    ok("deux devises sans taux de change : le plafond n'est PAS verifie, "
+       "et c'est dit", not f2["plafond_verifiable"]
+       and not f2["au_dessus_du_plafond"]
+       and any("ne se vérifie pas" in l for l in b2.lignes_portefeuille(f2)))
+    ctx = json.dumps(b2.contexte("q", None, f), default=str)
+    ok("ni le numero de compte, ni l'hote, ni le port ne partent au modele",
+       "U7654321" not in ctx and "7496" not in ctx
+       and "127.0.0.1" not in ctx)
+    # Deux couches, testees chacune : les faits n'en portent pas, et le
+    # filtre les retirerait s'ils en portaient.
+    ok("les faits du portefeuille ne portent aucun identifiant de session",
+       not set(b2.SECRETS) & set(f))
+    ok("et le filtre les retire d'une photo qui en porterait",
+       not set(b2.SECRETS) & set(b2._sans_secrets(photo)))
+
+    # --- le majordome reconnait une question sur le portefeuille -----
+    vrai = b2.faits_portefeuille
+    b2.faits_portefeuille = lambda *a, **k: f
+    try:
+        r = cv.repond("que penses tu de mon portefeuille IBKR ?",
+                      existe=lambda t: t == "IBKR", avec_modele=False)
+    finally:
+        b2.faits_portefeuille = vrai
+    ok("« mon portefeuille IBKR » : le courtier, pas le titre Interactive "
+       "Brokers", r["ticker"] is None
+       and (r["faits"] or {}).get("ticker") == "PORTEFEUILLE")
+
 def test_memo() -> None:
     """Le memo cite des seuils : ils doivent etre ceux qui tournent.
 
@@ -2478,6 +2726,7 @@ def test_memo() -> None:
     from . import rules as R
     from .indicators import PERIODES
 
+    from . import brain2 as b2_
     from . import carnet as cn
     from . import cerveau as cv
     from . import ibkr as ik_
@@ -3047,6 +3296,14 @@ def test_memo() -> None:
         # --- carnet.py et cerveau.py
         ("plafond du carnet", f"**{cn.MAX_ENTREES}** entrées"),
         ("plafond du dossier", f"**{cv.MAX_DOSSIER}** caractères"),
+        ("listes reduites", f"ramenées à **{cv.LISTE_MAX[0]}**, puis "
+                            f"{cv.LISTE_MAX[1]}, puis {cv.LISTE_MAX[2]}"),
+        ("textes reduits", f"longs textes à **{cv.TEXTE_MAX}** caractères"),
+        ("recherches web", f"**{cv.RECHERCHES_MAX}** recherches au"),
+        ("sources affichees", f"**{cv.SOURCES_MAX}** sources au"),
+        ("lignes relevees", f"pour **{b2_.LIGNES_MAX}** lignes au plus"),
+        ("plafond par ligne", f"plafond de **{b2_.MAX_WEIGHT * 100:.0f} %** "
+                              f"par ligne"),
         # --- ibkr.py : les ports et la reprise, cites dans le memo
         ("port TWS simulation", f"| **{ik_.PORTS[0][0]}** | TWS | simulation |"),
         ("port TWS reel", f"| **{ik_.PORTS[1][0]}** | TWS | réel |"),
@@ -3144,6 +3401,7 @@ def main() -> int:
     test_options()
     test_palmares()
     test_dossier()
+    test_brain2()
     test_memo()
 
     print()

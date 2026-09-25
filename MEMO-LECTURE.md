@@ -486,6 +486,32 @@ plus cher.
 Sans clé, le majordome répond quand même. Tout ce qui précède est
 calculé en local.
 
+### Un dossier trop lourd est réduit, jamais coupé
+
+Couper le texte au caractère près faisait tomber la **fin** du dossier —
+le profil, la mémoire, la position détenue ; dans BRAIN 2.0, le
+portefeuille entier. Désormais les longues listes sont
+ramenées à **12**, puis 6, puis 3 éléments, les
+longs textes à **600** caractères, et s'il le faut les sections les plus
+lourdes sont retirées — en le disant au modèle et à l'écran. Les sections protégées (les 13 blocs, la revue de
+sortie, la position, la mémoire, le portefeuille) ne sont ni retirées ni
+raccourcies. Les chiffres se vérifient contre ce qui a été **envoyé**.
+
+### La recherche Web
+
+Les deux fournisseurs peuvent chercher sur le Web : **3** recherches au
+plus par question, **8** sources au plus affichées sous la réponse. Les
+chiffres d'une adresse Web ne sont pas comptés comme des mesures. Un
+modèle qui refuse l'outil répond quand même, sans lui.
+
+### La page BRAIN 2.0 — `brain2.py`
+
+Le titre et le portefeuille ensemble. Les conditions de sortie sont
+relevées pour **15** lignes au plus. Les poids sont des parts des
+positions, dans chaque devise ; le plafond de **25 %** par ligne ne se
+vérifie que si toutes les lignes sont dans une même devise — sans taux de
+change, le programme le dit au lieu de comparer des euros à des dollars.
+
 ---
 
 ## 5 octies. La veille — `veille.py`
