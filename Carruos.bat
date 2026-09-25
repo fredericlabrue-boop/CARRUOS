@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul 2>&1
 cd /d "%~dp0"
-title CARRUOS
+title CARRUOS ALICE
 
 set PY=
 where py >nul 2>&1 && set PY=py
@@ -21,8 +21,8 @@ if not exist "equity_scanner\app.py" (
 cls
 echo.
 echo   ============================================
-echo      C A R R U O S
-echo      scanner actions - repli en tendance
+echo      C A R R U O S   A L I C E
+echo      scanner actions
 echo   ============================================
 echo.
 echo      1.  Lancer Carruos
@@ -100,10 +100,10 @@ echo. & pause & goto menu
 :install
 %PY% -m pip install --upgrade pandas numpy yfinance lxml pywebview
 echo.
-echo   ib_insync n'est utile que pour le module portefeuille (compte IBKR).
+echo   ib_async n'est utile que pour l'onglet IBKR (lecture du compte).
 set IB=
 set /p IB=   L'installer aussi ? (o/N) :
-if /i "%IB%"=="o" %PY% -m pip install --upgrade ib_insync
+if /i "%IB%"=="o" %PY% -m pip install --upgrade ib_async
 echo.
 echo   pywebview installe = vraie fenetre Windows.
 echo   Sans lui, Carruos s'ouvre dans le navigateur.

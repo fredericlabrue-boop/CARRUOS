@@ -2727,6 +2727,8 @@ def test_memo() -> None:
     from .indicators import PERIODES
 
     from . import brain2 as b2_
+    from . import majordome as _mj_
+    from . import news as _nw_
     from . import carnet as cn
     from . import cerveau as cv
     from . import ibkr as ik_
@@ -2820,6 +2822,67 @@ def test_memo() -> None:
        [a["titres"] for a in r["nommes"]]
        == [d["vous"]["titres"] for d in vl.decore(ACTUS, LIGNES, SECT)
            if d.get("vous", {}).get("titres")])
+
+    # ------------------------------------------------------------------
+    # Le ton des actualites : l'ETIQUETTE d'Alpha Vantage, attribuee
+    # ------------------------------------------------------------------
+    #
+    # Le proprietaire a demande « positif ou negatif » en face de chaque
+    # annonce. C'est sa decision ; elle tient parce que le mot reste
+    # celui du FOURNISSEUR, qu'il est attribue a chaque affichage, et
+    # que rien ne s'en sert. Ce sont ces trois choses qu'on verifie.
+    print("\n— Actualités : le ton selon Alpha Vantage —")
+    from . import news as _nw
+
+    attendu = {"Bullish": "positif", "Somewhat-Bullish": "plutôt positif",
+               "Neutral": "neutre", "Somewhat-Bearish": "plutôt négatif",
+               "Bearish": "négatif"}
+    ok("les cinq etiquettes du fournisseur, traduites mot pour mot",
+       all((_nw.ton(k) or {}).get("libelle") == v for k, v in attendu.items()))
+    ok("l'etiquette publiee passe avant le score",
+       _nw.ton("Bearish", 0.9)["libelle"] == "négatif")
+    # Les seuils sont ceux qu'Alpha Vantage PUBLIE, bornes comprises :
+    # un seuil de CARRUOS ici serait un score maison deguise.
+    bornes = [(-0.35, "négatif"), (-0.3499, "plutôt négatif"),
+              (-0.15, "plutôt négatif"), (-0.1499, "neutre"),
+              (0.1499, "neutre"), (0.15, "plutôt positif"),
+              (0.3499, "plutôt positif"), (0.35, "positif")]
+    ok("sans etiquette, les seuils publies du fournisseur, bornes comprises",
+       all(_nw.ton(None, x)["libelle"] == v for x, v in bornes))
+    ok("rien quand la source n'a rien dit — pas de « neutre » invente",
+       _nw.ton(None, None) is None and _nw.ton("", "n/a") is None)
+    ok("chaque ton porte le nom de celui qui l'a donne",
+       all(_nw.ton(k)["par"] == "Alpha Vantage" for k in attendu))
+
+    # Rien ne s'en sert : la jointure de la veille rend exactement la
+    # meme chose, que les articles soient tous « positifs » ou tous
+    # « negatifs ».
+    def _avec(lab):
+        return [dict(a, ton=_nw.ton(lab),
+                     tons={t: _nw.ton(lab) for t in a.get("tickers", [])})
+                for a in ACTUS]
+    ok("la jointure ignore le ton",
+       vl.rapproche(_avec("Bullish"), LIGNES, SECT)
+       == vl.rapproche(_avec("Bearish"), LIGNES, SECT) == r)
+    ok("et le rapport de la veille ne le recopie pas",
+       "Bullish" not in json.dumps(vl.rapproche(_avec("Bullish"), LIGNES,
+                                                SECT))
+       and "positif" not in json.dumps(
+           vl.rapproche(_avec("Bullish"), LIGNES, SECT), ensure_ascii=False))
+
+    # Et il est attribue partout ou il s'affiche.
+    from . import app as _ap
+    _js = _ap.JS_HUD
+    ok("l'accueil attribue le ton a Alpha Vantage, sur chaque pastille",
+       "title=\"Étiquette d\\'Alpha Vantage" in _js
+       and "pas une '\n     +'mesure de CARRUOS" in _js)
+    ok("et le rappelle sous la liste, avec ou sans lignes a rapprocher",
+       _js.count("l\\'étiquette d\\'Alpha Vantage sur le") == 1
+       and _js.count("Positif / négatif : l\\'étiquette") == 2)
+    _src_ch = Path(__file__).with_name("chart.py").read_text(encoding="utf-8")
+    ok("la page graphique aussi : « selon Alpha Vantage », plus de score nu",
+       "selon Alpha Vantage</span>" in _src_ch
+       and "{sc:+.2f}</span>" not in _src_ch)
 
     # ------------------------------------------------------------------
     # Tout ce qui s'affiche est en francais
@@ -3335,6 +3398,12 @@ def test_memo() -> None:
         ("extremes en face", f"à côté des **{_me.N_EXTREMES}**"),
         ("cas minimum par bloc", f"à partir de **{_me.MINI_BLOC}** cas"),
         ("fenetre du releve", f"au plus **{_me.FENETRE_RELEVE}** jours"),
+        # --- news.py : les seuils d'Alpha Vantage, pas les notres
+        ("seuils du fournisseur",
+         "(≤ −{} négatif ; ≤ −{}\nplutôt négatif ; < {} neutre ; < {} plutôt "
+         "positif".format(*(_fr(abs(x), 2) for x in _nw_.SEUILS_AV))),
+        # --- majordome.py
+        ("seuil du glisser", f"Moins de\n  **{_mj_.SEUIL_GLISSE}** pixels"),
     ]
     absents = [(nom, val) for nom, val in ATTENDU if val not in m]
     ok(f"les {len(ATTENDU)} seuils cites dans le memo sont ceux qui "

@@ -15,6 +15,7 @@ JavaScript et la correspondance avec les identifiants du HTML.
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -106,7 +107,7 @@ def _apostrophes_effondrees(js: str) -> list[str]:
 
 def _ids_manquants(js: str, html: str) -> list[str]:
     """Chaque $('x') du script doit correspondre a un id="x" du HTML."""
-    demandes = set(re.findall(r"\$\(\s*'([A-Za-z0-9_-]+)'\s*\)", js))
+    demandes = set(re.findall(r"(?:\$|\b_mj)\(\s*'([A-Za-z0-9_-]+)'\s*\)", js))
     demandes |= set(re.findall(r"getElementById\(\s*'([A-Za-z0-9_-]+)'\s*\)", js))
     presents = set(re.findall(r'\bid="([A-Za-z0-9_-]+)"', html))
     presents |= set(re.findall(r"\bid='([A-Za-z0-9_-]+)'", html))
@@ -309,7 +310,7 @@ def main() -> int:
                  "carnet": app._page_carnet(),
                  "ibkr": app._page_ibkr(),
                  "memoire": app._page_memoire(),
-                 "brain2": app._page_brain2()}
+                 "majordome": app._page_majordome()}
     finally:
         dl.load_yf = vrai
 
@@ -535,29 +536,32 @@ def main() -> int:
 
     # --- Le majordome -------------------------------------------------
     # Regression vecue : le panneau une fois ouvert ne se refermait plus.
-    # d.onclick AJOUTAIT la classe "ouvert" sans jamais la retirer, et
+    # Le clic AJOUTAIT la classe "ouvert" sans jamais la retirer, et
     # relancait l'ecoute dans la foulee : apres un echec de micro, la
     # fenetre restait a l'ecran et chaque clic pour s'en debarrasser
     # redemandait le micro.
     print("\n  MAJORDOME")
-    jsa = _scripts(h)
-    _v('id="majx"' in h and 'onclick="majFerme()"' in h,
-       "une croix de fermeture existe dans le panneau")
-    _v("function majFerme" in jsa and "remove('ouvert')" in jsa,
-       "majFerme() retire bien la classe qui affiche le panneau")
-    bloc_clic = jsa.split("d.onclick=function")[1][:260] \
-        if "d.onclick=function" in jsa else ""
-    _v("majFerme()" in bloc_clic,
-       "le disque referme le panneau au lieu de seulement l'ouvrir")
-    _v("majEcoute()" not in bloc_clic,
-       "cliquer le disque ne redemande plus le micro")
+    from . import majordome as _mjm
+    jsa = _mjm.JS
+    _v('id="mjx"' in h and "_mj('mjx').addEventListener('click', ferme)" in jsa,
+       "une croix de fermeture existe dans la bulle")
+    _v("function ferme" in jsa and "C.classList.remove('ouvert')" in jsa,
+       "ferme() retire bien la classe qui affiche la bulle")
+    bloc_clic = jsa.split("A.addEventListener('click', function(){")[1][:200] \
+        if "A.addEventListener('click', function(){" in jsa else ""
+    _v("ferme()" in bloc_clic,
+       "le cerf referme la bulle au lieu de seulement l'ouvrir")
+    _v("ecoute" not in bloc_clic,
+       "cliquer le cerf ne redemande pas le micro")
+    _v("if(apresGlisse) return;" in bloc_clic,
+       "et le clic qui termine un deplacement n'ouvre rien")
     _v("document.addEventListener('keydown'" in jsa and "'Escape'" in jsa,
-       "Echap ferme le panneau depuis n'importe ou")
-    _v('id="majc"' in h and 'id="majmic"' in h,
+       "Echap ferme la bulle depuis n'importe ou")
+    _v('id="mji"' in h and 'id="mjmic"' in h,
        "le champ texte et le bouton micro sont tous deux presents")
     _v("MICRO_DIT" in jsa and "no-speech" in jsa and "audio-capture" in jsa,
        "chaque panne de micro a son message en francais")
-    _v("function majMicroIndispo" in jsa and "majc" in jsa,
+    _v("function microIndispo" in jsa and "I.focus()" in jsa,
        "un micro indisponible renvoie vers le champ texte")
     _v("/api/navigateur" in jsa,
        "le bouton EDGE passe par le serveur, pas par window.open")
@@ -565,12 +569,12 @@ def main() -> int:
     # autorisation jamais DEMANDEE. getUserMedia la demande franchement
     # et repond toujours, la ou la reconnaissance vocale peut rester
     # muette.
-    _v("getUserMedia" in jsa and "function majPermission" in jsa,
+    _v("getUserMedia" in jsa and "function permission" in jsa,
        "l'autorisation du micro est demandee explicitement")
     _v("NotAllowedError" in jsa and "NotFoundError" in jsa
        and "NotReadableError" in jsa,
        "refus, absence et micro occupe ont chacun leur message")
-    _v('onclick="majDiag()"' in h and "function majDiag" in jsa,
+    _v('id="mjdiag"' in h and "function diag" in jsa,
        "un bouton DIAGNOSTIC dit ce qui bloque")
     _v("enumerateDevices" in jsa and "permissions" in jsa,
        "le diagnostic compte les micros et lit l'autorisation")
@@ -1002,11 +1006,14 @@ def main() -> int:
 
     print("\n  MAJORDOME : LA PORTE EN FRANCAIS")
     from . import dossier as _ds
-    ja = _scripts(pages["accueil"])
-    _v("async function majCerveau" in ja,
+    from . import majordome as _mjm
+    ja = _mjm.JS
+    _v("async function cerveau" in ja,
        "le majordome sait ouvrir le dossier d'un titre")
     _v("/api/cerveau" in ja, "il interroge la route dediee")
-    _v("if(await majCerveau(q)) return;" in ja.replace("  ", " "),
+    _v("if(await cerveau(brut)) return;" in ja.replace("  ", " ")
+       and ja.index("if(await cerveau(brut)) return;")
+       < ja.index("Je n\\'ai pas compris"),
        "il l'essaie AVANT de dire qu'il n'a pas compris")
     # La reconnaissance du ticker se fait cote SERVEUR : le navigateur
     # n'a pas les donnees pour trancher quel mot est un ticker.
@@ -1040,21 +1047,87 @@ def main() -> int:
     _v("n_traces" in ja,
        "et le compte de ceux qui en viennent est affiche")
     # La cle ne doit jamais repartir vers le navigateur.
-    _v('id="majiak"' in pages["accueil"] and "j.cle" not in ja
+    _v('id="mjiak"' in pages["accueil"] and "j.cle" not in ja
        and "value=j.indice" not in ja,
        "la cle se saisit mais ne ressort jamais dans la page")
 
-    print("\n  PAGE BRAIN 2.0")
-    hb = pages["brain2"]
+    print("\n  PAGE MAJORDOME (vue complete)")
+    hb = pages["majordome"]
     jb = _scripts(hb)
     src_app = open(_app.__file__, encoding="utf-8").read()
     # La v29 servait la page sous /api/brain2 et aucun onglet n'y menait.
-    _v('if u.path == "/brain2":' in src_app,
-       "la page a son adresse, /brain2")
-    _v(src_app.count("self._envoie(_page_brain2())") == 1,
+    _v('if u.path in ("/majordome", "/brain2"):' in src_app,
+       "la page a son adresse, /majordome, et l'ancienne /brain2 y mene")
+    _v(src_app.count("self._envoie(_page_majordome())") == 1,
        "et une seule : plus de page servie sous une adresse d'API")
-    _v('data-vers="/brain2"' in _bloc_barre(pages["accueil"]),
-       "un onglet de la barre y mene, depuis toutes les pages")
+    _v('data-vers="/majordome"' in _mjm.html({}),
+       "la bulle du majordome y mene, depuis toutes les pages")
+    _v("MAJORDOME" in _bloc_barre(pages["accueil"])
+       and "BRAIN" not in _bloc_barre(pages["accueil"]),
+       "l'onglet s'appelle MAJORDOME")
+    _v('id="mjc"' not in hb,
+       "le compagnon n'est pas pose sur sa propre page complete")
+
+    # --- Le compagnon, sur TOUTES les pages ---------------------------
+    #
+    # « Je veux que j'active l'onglet MAJORDOME, que le logo apparaisse
+    # avec une bulle, et que je puisse le deplacer ou bon me semble. » Il
+    # ne vivait que sur l'accueil. Une page oubliee ici n'aurait pas de
+    # majordome, et rien d'autre ne le dirait.
+    print("\n  LE MAJORDOME COMPAGNON")
+    from . import hud as _hd
+    from . import reglages as _rg
+    sans = [n for n, x in pages.items()
+            if n != "majordome" and x.count('id="mjc"') != 1]
+    _v(not sans, "le cerf et sa bulle sont poses, une fois, sur chaque page")
+    for n in sans:
+        print(f"          -> page sans compagnon : {n}")
+    sans_js = [n for n, x in pages.items()
+               if n != "majordome" and "window.CARRUOS_MAJ=" not in _scripts(x)]
+    _v(not sans_js, "et son script les accompagne")
+    for n in sans_js:
+        print(f"          -> page sans script du compagnon : {n}")
+    _v("mj-cerf" in _mjm.html({}) and _hd.TRACE[:40] in _mjm.html({}),
+       "l'avatar est le cerf du logo, le meme trace que le fond")
+    # Il se deplace par `transform`, jamais par left/top : la regle de
+    # tout ce qui bouge dans le projet.
+    _v("C.style.transform=" in _mjm.JS
+       and "C.style.left" not in _mjm.JS and "C.style.top" not in _mjm.JS,
+       "le cerf se deplace par transform, jamais par left/top")
+    _v("setPointerCapture" in _mjm.JS
+       and "el.addEventListener('pointerdown', debut)" in _mjm.JS
+       and "[A, H].forEach" in _mjm.JS,
+       "on le prend par le cerf ou par l'entete de la bulle")
+    _v("enregistre({x:E.x, y:E.y})" in _mjm.JS
+       and "enregistre({actif:E.actif})" in _mjm.JS,
+       "sa position et son etat sont enregistres cote serveur")
+    # L'onglet de la barre le fait apparaitre, sur chaque page.
+    _v('data-bascule="majordome"' in _bloc_barre(pages["accueil"])
+       and "window.CARRUOS_MAJ.bascule()" in _hd.BARRE_JS,
+       "l'onglet MAJORDOME fait apparaitre le compagnon, bulle ouverte")
+    _v(_hd.BARRE_JS.index("data-bascule") > _hd.BARRE_JS.index(
+        "b.classList.contains('actif')"),
+       "et retombe sur la page complete la ou il n'y a pas de compagnon")
+    # Les autres fenetres suivent : sorti, range, deplace.
+    v_ = _rg.visuel()
+    _v(isinstance(v_.get("majordome"), dict)
+       and "CARRUOS_MAJ.sync(v.majordome)" in _rg.VISUEL_JS,
+       "les autres fenetres suivent le compagnon")
+    base_ = _rg.charge()
+    loin = dict(base_, majordome={"actif": False, "x": 0.1, "y": 0.2})
+    _v(_rg.visuel(loin)["version"] == _rg.visuel(base_)["version"],
+       "deplacer le cerf ne repeint pas les autres fenetres")
+    fou = _rg.majordome({"majordome": {"actif": 1, "x": 7, "y": "nan"}})
+    _v(fou == {"actif": True, "x": 1.0, "y": 0.9},
+       "une position absurde dans le fichier est ramenee dans la fenetre")
+    # Les commandes propres a l'accueil ne sont appelees que la ou
+    # elles existent : ailleurs, une fonction absente planterait sans
+    # un mot.
+    _v("typeof window.scan==='function'" in _mjm.JS
+       and "typeof window.toutRafraichir==='function'" in _mjm.JS,
+       "scan et ACTUALISER ne sont appeles que la ou ils existent")
+    _v("data-ticker=\"AAA\"" in pages["graphique"],
+       "sur un graphique, le majordome sait de quel titre on parle")
     _v("b2Faits(j);" in jb and "b2Modele(q, j.modele" in jb
        and jb.index("b2Faits(j);") < jb.index("b2Modele(q, j.modele"),
        "les faits sont poses AVANT la prose du modele")
@@ -1242,6 +1315,54 @@ def main() -> int:
     _v("<svg" in _hd3.icone(_app.TRACE_D)
        and _app.TRACE_D[:40] in _hd3.icone(_app.TRACE_D),
        "l'icone est dessinee a partir du trace du cerf, pas recopiee")
+    # Le Bureau : l'icone s'y pose sur n'importe quel fond d'ecran. Le
+    # cerf seul, trait dore sur transparent, s'y perdait.
+    _v('viewBox="0 0 512 512"' in _hd3.icone(_app.TRACE_D)
+       and "<circle" in _hd3.icone(_app.TRACE_D),
+       "le logo est un medaillon : il se detache de tout fond d'ecran")
+    from . import icone as _ic
+    if ico.exists():
+        lu = _ic.lit(ico.read_bytes())
+        _v({16, 24, 32, 48, 256} <= {x["taille"] for x in lu}
+           and all(x["complet"] and x["bpp"] == 32 for x in lu),
+           "barre des taches, titre, Bureau et explorateur ont leur taille")
+    # L'assemblage se verifie sans navigateur : deux images factices,
+    # relues telles qu'elles ont ete ecrites.
+    _faux = _ic.assemble([(16, _ic.bmp(16, [9] * 16 * 16 * 4)),
+                          (256, _ic.png(256, [9] * 256 * 256 * 4))])
+    _v([(x["taille"], x["format"]) for x in _ic.lit(_faux)]
+       == [(16, "BMP"), (256, "PNG")],
+       "le fichier ICO fabrique par icone.py se relit tel qu'il a ete ecrit")
+
+    print("\n  RACCOURCI DU BUREAU")
+    racine = Path(_app.__file__).resolve().parent.parent
+    vbs = (racine / "Creer-raccourci.vbs").read_bytes()
+    _v(b'"Carruos Alice.lnk"' in vbs and b"carruos.ico" in vbs
+       and b"Carruos.vbs" in vbs,
+       "le raccourci s'appelle Carruos Alice, porte le logo, lance sans console")
+    # L'ancien CARRUOS.lnk n'est retire que s'il mene a CE programme : un
+    # raccourci du meme nom qui irait ailleurs n'est pas le notre.
+    _v(b"LCase(vieux.TargetPath) = LCase(cible)" in vbs
+       and vbs.index(b"LCase(vieux.TargetPath)") < vbs.index(b"DeleteFile"),
+       "l'ancien raccourci n'est remplace que s'il pointe vers CARRUOS")
+    # Un .bat en fins de ligne Unix fait rater des `goto` a cmd.exe
+    # (etiquette a cheval sur un tampon de 512 octets) : Carruos.bat etait
+    # le seul de sa famille dans ce cas.
+    lf = [f.name for f in sorted(racine.glob("*.bat")) + sorted(racine.glob("*.vbs"))
+          if b"\n" in f.read_bytes().replace(b"\r\n", b"")]
+    _v(not lf, "chaque .bat et .vbs est en fins de ligne Windows")
+    for f in lf:
+        print(f"          -> fins de ligne Unix : {f}")
+    _v(all('id="raccourci"' in x for x in pages.values()),
+       "le bouton du raccourci est dans les reglages, sur chaque page")
+    src_a = open(_app.__file__, encoding="utf-8").read()
+    _v('if u.path == "/api/raccourci":' in src_a
+       and '"cscript", "//nologo", str(vbs)' in src_a,
+       "l'application passe par le meme script que Carruos.bat")
+    if os.name != "nt":
+        r_ = _app._raccourci()
+        _v(r_["ok"] is False and "Windows" in r_["erreur"],
+           "hors de Windows, le bouton le dit au lieu de planter")
 
     print("\n  FLUIDITE")
     from . import reglages as _rg3

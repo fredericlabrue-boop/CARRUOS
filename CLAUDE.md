@@ -1,6 +1,9 @@
 # CARRUOS — contexte pour Claude Code
 
-Scanner d'actions personnel de Frédéric. Python, interface HTML servie en
+Scanner d'actions personnel de Frédéric, affiché sous le nom
+**CARRUOS ALICE** (`app.ALIAS`). « Repli en tendance » reste le nom de
+l'hypothèse 1 dans `rules.py` et l'audit — un nom de résultat ne se
+renomme pas après coup. Python, interface HTML servie en
 local et affichée dans une fenêtre pywebview.
 
 ## Lancer
@@ -100,12 +103,21 @@ jeu de paramètres qui ne l'a pas produit.
   ressemblerait à une mesure sans en être une. `test_moteur` retire du
   texte tout ce que la veille **recopie** de la dépêche et exige qu'il
   ne reste aucun chiffre.
-- **Le score de sentiment d'un fournisseur.** Alpha Vantage en publie
-  un, et la page d'accueil l'affichait en vert ou en rouge : « positif »,
-  « négatif ». C'est un verdict directionnel dérivé d'un score composite
-  dont nous ignorons les poids — ce que le projet refuse déjà pour les
-  siens, et pire encore ici puisqu'il vient d'ailleurs et n'est pas
-  vérifiable. Remplacé par les **thèmes**, que la source déclare.
+- **Le ton d'une actualité présenté comme une mesure.** Alpha Vantage
+  étiquette chaque article — *Bullish* … *Bearish*. La page d'accueil
+  l'a affiché, puis retiré (verdict directionnel d'un score composite
+  aux poids inconnus). Le **propriétaire l'a redemandé le 25 septembre
+  2026** : « positif ou négatif face aux annonces ». C'est sa décision,
+  tenue à quatre conditions qui en font une **étiquette** et non une
+  mesure : c'est le **mot du fournisseur** traduit mot pour mot, par
+  **ses** seuils publiés (`news.TONS`, `news.libelle_sentiment`) ; il
+  est **attribué à chaque affichage** (« selon Alpha Vantage », au
+  survol et sous la liste) ; **rien ne s'en sert** — ni règle, ni tri,
+  ni compte, ni la jointure de la veille, ni le dossier du majordome ;
+  le score brut reste lisible au survol. `test_moteur` vérifie les
+  quatre. Il ne dit pas que le cours va monter : c'est un classement du
+  **vocabulaire** de l'article, et une information publique est déjà
+  dans les cours quand on la lit.
 - Un score composite construit sur des poids non testés.
 - Un verdict directionnel (HAUSSIER / ACHAT) dérivé d'un tel score.
 - **Un « avis » ou un « intérêt » qui soit autre chose qu'un compte.**
@@ -320,13 +332,18 @@ jeu de paramètres qui ne l'a pas produit.
 
 | Fichier | Rôle |
 |---|---|
-| `app.py` | serveur HTTP local, page d'accueil, routes API, majordome |
+| `app.py` | serveur HTTP local, page d'accueil, routes API, fenêtres |
+| | chaque fenêtre fille est créée **avec** `js_api` et porte son titre (« CARRUOS ALICE — STRATÉGIE ») ; `_veille_icones` pose `carruos.ico` sur **chaque** fenêtre du processus, au fil de leur ouverture |
 | `chart.py` | page graphique, 4 colonnes, cône de dispersion, **6 unités de temps** dont 5 ANS |
 | | une unité est identifiée par sa **clé**, jamais par sa règle de rééchantillonnage : 5 ANS et 1 SEMAINE partagent la taille de bougie, et la déduire de la règle donnait à la seconde les longueurs de la première |
 | | la fenêtre affichée sous chaque onglet est **calculée sur les vraies dates** : une constante mentirait dès que l'historique du titre est plus court |
 | | `chart.source_trace()` choisit **côté serveur** où prendre la bibliothèque de tracé : la copie locale (`equity_scanner/statique/lightweight-charts.js`) si elle existe, sinon le CDN. **Une seule balise, bloquante.** Jamais de repli `onerror` : il ajouterait le script de façon asynchrone, le code de la page tournerait avant, et la bibliothèque serait toujours absente |
 | `hud.py` | éléments visuels : cerf, cadrans, rails, radar, **icône** |
-| | `hud.icone(trace)` dessine le logo : une seule source pour l'onglet du navigateur, la fenêtre et `carruos.ico` du raccourci — sinon les trois divergent |
+| | `hud.icone(trace)` dessine le logo — le cerf doré dans un **médaillon** sombre, pour qu'il se détache de n'importe quel fond d'écran : une seule source pour l'onglet du navigateur, la fenêtre et `carruos.ico` du raccourci — sinon les trois divergent |
+| `icone.py` | rasterise `hud.icone()` **taille par taille** (16 à 256) et assemble `carruos.ico` à la main. Outil de fabrication (Playwright), lancé quand le logo change ; le fichier est livré |
+| `majordome.py` | le **compagnon** : le cerf et sa bulle, posés sur **toutes** les pages sauf sa vue complète |
+| | l'onglet MAJORDOME le sort, bulle ouverte, puis le range ; on le déplace par le cerf ou l'entête, **par `transform`**. Position enregistrée en **fraction** de la fenêtre, hors de la `version` du visuel : le déplacer ne repeint rien, mais les autres fenêtres le suivent |
+| | son script est **isolé** dans une fonction anonyme (seul `window.CARRUOS_MAJ` sort) ; les commandes propres à l'accueil (`scan`, `toutRafraichir`) ne sont appelées que là où elles existent |
 | | le décor de fond est **isolé** (`contain:strict`) et ses tailles sont **plafonnées en pixels** : son coût est proportionnel à la surface, et une taille en `vh` double quand l'écran double |
 | `indicators.py` | indicateurs — **PERIODES gelées** |
 | `rules.py` | les 13 blocs d'entrée et les 4 sorties |
@@ -341,7 +358,7 @@ jeu de paramètres qui ne l'a pas produit.
 | | les faits du portefeuille sont **comptés ici** (poids, latent, écart au stop inscrit, stops franchis, lignes sans stop, cours différés, conditions de sortie ligne par ligne) : laissés au modèle, ils seraient invérifiables |
 | | le plafond de 25 % ne se vérifie que si **toutes les lignes sont dans une même devise**. Deux lignes en dollars et deux en euros dépassent chacune 25 % « de leur devise » sans rien dire du portefeuille : la première version les signalait toutes |
 | | le numéro de compte, l'hôte, le port et le client ne partent **jamais** au fournisseur — deux couches, testées chacune |
-| | la page vit à `/brain2`, dans la barre ; la v29 la servait sous `/api/brain2` et aucun onglet n'y menait |
+| | la page est la **vue complète du majordome**, à `/majordome` (l'ancienne `/brain2` y mène), ouverte depuis la bulle ; la v29 la servait sous `/api/brain2` et aucun onglet n'y menait |
 | `registre.py` | le registre des tests, étape 10 du protocole : `~/.carruos/registre-tests.md` pour être lu, `.json` pour refuser un second passage. Aucune ligne n'est jamais réécrite |
 | `short.py` | stratégie 3, vente à découvert — **constantes gelées** |
 | `comparatif.py` | système contre SMH buy & hold net de PFU |
@@ -364,6 +381,7 @@ jeu de paramètres qui ne l'a pas produit.
 | `positions.py` | registre manuel des positions |
 | | chaque ligne porte sa **devise de cotation** (déduite du suffixe de place) et un **contrôle de cohérence** du prix d'entrée : s'il n'est jamais tombé dans l'intervalle parcouru par le titre, la carte le dit et prévient que le gain latent affiché est faux |
 | `news.py` | Alpha Vantage — quota 25/jour, caches obligatoires |
+| | `ton()` : l'**étiquette** du fournisseur (positif … négatif), traduite mot pour mot et attribuée à l'écran ; rien ne s'en sert |
 | | la clé est rangée **deux fois** : `.bruce_cache` à côté du programme, et `~/.carruos/` — cette seconde copie est la seule qui survive à une mise à jour, `.bruce_cache` n'étant pas livré dans l'archive |
 | | `app.retrouve_cle()` va la chercher dans une installation **voisine** si les deux manquent. Portée volontairement étroite : un seul niveau au-dessus du programme plus quelques dossiers usuels, deux niveaux de profondeur, plafond de 400 dossiers, un seul nom de fichier lu. Elle ne tourne **jamais** si `~/.carruos/` existe déjà — sinon effacer volontairement la clé la ferait ressusciter au lancement suivant |
 | | **aucune clé ne doit entrer dans le dépôt.** `.bruce_cache/` est ignoré et `test_pages` refuse tout jeton de 16 majuscules dans un fichier suivi par git |
@@ -403,6 +421,7 @@ jeu de paramètres qui ne l'a pas produit.
 | | chaque exécution consignée fait relever l'état **à la clôture de la veille** de l'ordre (`app._releve_etat(avant=…)`), séries coupées avant le jour de l'ordre : la spécification décide à la clôture et exécute à l'ouverture suivante. `test_moteur` vérifie que rien du jour même n'y entre |
 | | chaque ouverture d'une page graphique écrit son état au journal (fil de fond) : c'est ce qui nourrit la mémoire, titre après titre |
 | `reglages.py` | **13 thèmes**, 13 effets visuels débrayables |
+| | `visuel()` : l'apparence **complète** (variables, classes de `<body>`) et sa `version`. Chaque page ouverte la compare à la sienne au retour du focus et toutes les 4 s, et reprend tout si elle a changé — un thème choisi dans une fenêtre repeint les autres |
 | | un thème porte une `forme` : biseau, arrondi, équerres, densité, matière, typographie. Les valeurs par défaut **sont** l'apparence d'origine, donc un thème qui n'en redéfinit aucune ne change rien |
 | | **aucun thème clair** : ce n'est pas au goût du propriétaire, et `test_pages` le vérifie |
 | | **fluidité** : `auto` mesure la cadence réelle sur la machine de l'utilisateur et passe le décor en mode sobre si elle ne suit pas — puis **recommence à chaque redimensionnement**, parce que c'est là que le problème apparaît. `complet` et `sobre` tranchent à la main, et la mesure ne revient jamais sur un choix explicite |
@@ -643,6 +662,31 @@ jeu de paramètres qui ne l'a pas produit.
   bouton BRAIN 2.0 ajouté au logiciel » et l'adresse `/brain2` : ni l'un
   ni l'autre n'existaient. Les trois suites passaient, parce que la page
   n'était dans aucune. Elle y est, et le test vérifie que la barre y mène.
+- **Une fenêtre fille sans `js_api` n'a pas de pont vers Python.** Les
+  onglets ouverts depuis une fenêtre fille passaient donc par
+  `window.open`, c'est-à-dire par le **navigateur** : « des fenêtres
+  locales pour tous les onglets » ne tenait que depuis l'accueil. Et le
+  pont arrive un instant **après** la page : `ouvreFenetre` attend
+  `pywebviewready` (2 s au plus) avant de se rabattre.
+- **Une icône posée une fois ne l'est que sur une fenêtre.** `WM_SETICON`
+  vise un handle : le logo n'était posé que sur la première, les fenêtres
+  filles gardaient celui de Python. Une veille les reprend au fil de leur
+  ouverture.
+- **Un réglage appliqué à la page qui le change ne l'est pas aux autres.**
+  Le serveur rendait bien chaque **nouvelle** page au bon thème ; une
+  fenêtre déjà ouverte ne l'apprenait jamais, et même la page où l'on
+  choisissait n'appliquait que six couleurs sur vingt-six variables.
+  Comparer une version, reprendre tout.
+- **Une fonction qui n'existe que sur une page.** Le majordome vivait dans
+  le script de l'accueil : aucune autre fenêtre n'en avait, et ses
+  commandes appelaient `scan()` ou `go()` sans se demander si elles
+  existaient. Un module, posé partout, et un `typeof` devant tout ce qui
+  appartient à une seule page. `test_pages` exige le compagnon sur
+  chaque page servie.
+- **Un `.bat` en fins de ligne Unix** fait rater des `goto` à `cmd.exe`
+  quand une étiquette tombe à cheval sur son tampon de 512 octets.
+  `Carruos.bat` était le seul de sa famille dans ce cas ; `test_pages`
+  vérifie maintenant chaque `.bat` et `.vbs`.
 - **Un septième onglet a fait repasser la barre sur deux lignes** à
   1 180 px (48 px au lieu de 30). En dessous de 1 300 px, la date et
   « PARIS » s'effacent de l'horloge, puis le sous-titre sous 1 120 px : la

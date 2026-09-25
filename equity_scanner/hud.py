@@ -207,7 +207,13 @@ ONGLETS = (("/", "ACCUEIL", "accueil"),
            ("/carnet", "CARNET", "carnet"),
            ("/memoire", "MÉMOIRE", "memoire"),
            ("/ibkr", "IBKR", "ibkr"),
-           ("/brain2", "BRAIN 2.0", "brain2"))
+           ("/majordome", "MAJORDOME", "majordome"))
+
+# Les onglets qui ne MENENT pas a une page mais font apparaitre quelque
+# chose sur celle-ci. MAJORDOME sort le cerf et sa bulle, ou les range ;
+# sa page complete reste a son adresse, ouverte depuis la bulle. Sur une
+# page qui n'a pas le compagnon, l'onglet retombe sur l'adresse.
+BASCULES = {"majordome"}
 
 
 def barre(trace: str, nom: str, actif: str = "", soustitre: str = "",
@@ -228,7 +234,9 @@ def barre(trace: str, nom: str, actif: str = "", soustitre: str = "",
             f'<path class="fx" d="{trace}"/></svg>')
     ong = "".join(
         f'<button class="raf ong{" actif" if cle == actif else ""}"'
-        f' data-vers="{adr}" data-fen="carruos-{cle}">{lab}</button>'
+        f' data-vers="{adr}" data-fen="carruos-{cle}"'
+        + (f' data-bascule="{cle}"' if cle in BASCULES else "")
+        + f'>{lab}</button>'
         for adr, lab, cle in ONGLETS)
     sst = f'<span class="sst">{soustitre}</span>' if soustitre else ""
     fen = fenetre or (f"carruos-{actif}" if actif else "")
@@ -248,10 +256,20 @@ def barre(trace: str, nom: str, actif: str = "", soustitre: str = "",
 # navigateur, si la fenetre est bloquee, on navigue sur place plutot que
 # de ne rien faire du tout.
 BARRE_JS = r"""
-function ouvreFenetre(adr, nom){
+function ouvreFenetre(adr, nom, essai){
  if(!adr) return;
  if(window.pywebview && window.pywebview.api && window.pywebview.api.fenetre){
   try{ window.pywebview.api.fenetre(adr, nom || ''); return; }catch(e){}
+ }
+ // Dans la fenetre CARRUOS, le pont vers Python arrive un instant APRES
+ // la page. Un clic trop rapide tombait sur `window.open`, c'est-a-dire
+ // une fenetre de navigateur : on l'attend, deux secondes au plus.
+ if(window.pywebview && !essai){
+  var fait=false;
+  var go=function(){ if(fait) return; fait=true; ouvreFenetre(adr, nom, 1); };
+  window.addEventListener('pywebviewready', go);
+  setTimeout(go, 2000);
+  return;
  }
  var f=null;
  try{ f=window.open(adr, nom || '_blank'); }catch(e){ f=null; }
@@ -263,6 +281,9 @@ document.addEventListener('click', function(ev){
  if(!b) return;
  ev.preventDefault();
  if(b.classList.contains('actif')) return;   // deja sur cette page
+ // MAJORDOME : le compagnon de la page, s'il y en a un.
+ if(b.getAttribute('data-bascule')==='majordome' && window.CARRUOS_MAJ){
+  window.CARRUOS_MAJ.bascule(); return; }
  ouvreFenetre(b.getAttribute('data-vers'), b.getAttribute('data-fen'));
 });
 // La fenetre porte son nom des le chargement : sans lui, un onglet
@@ -727,28 +748,42 @@ FOND_CSS = """
 
 
 def icone(trace: str) -> str:
-    """Le cerf en icone : onglet du navigateur, fenetre, raccourci.
+    """Le logo CARRUOS : le cerf dore dans un medaillon sombre.
 
-    Un contour sombre epais sous le trace dore. Une icone Windows se
-    pose aussi bien sur une barre des taches claire que sombre, et un
-    trait dore seul disparait sur un fond clair.
+    Onglet du navigateur, icone de chaque fenetre, raccourci du Bureau :
+    le meme dessin partout. `carruos.ico` est fabrique a partir de ce SVG
+    (`py -m equity_scanner.icone`) — une seule source, donc pas de derive
+    entre l'onglet et le raccourci.
 
-    Le meme dessin sert au fichier carruos.ico, fabrique a partir de ce
-    SVG : une seule source, donc pas de derive entre l'onglet et le
-    raccourci du Bureau.
+    Le medaillon n'est pas decoratif. Le cerf seul, trait dore sur fond
+    transparent, disparaissait sur un fond d'ecran clair et se perdait
+    sur un fond charge : sur le Bureau, une icone se pose sur n'importe
+    quoi. Le disque sombre, cercle d'or et anneau cyan, le detache de
+    tout, et reprend les deux couleurs du programme.
     """
     return (
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="34 11 313 371">'
-        '<defs><linearGradient id="or" x1="0" y1="0" x2="0" y2="1">'
-        '<stop offset="0" stop-color="#f3dfae"/>'
-        '<stop offset=".45" stop-color="#d8bd86"/>'
-        '<stop offset="1" stop-color="#b8945a"/>'
-        '</linearGradient></defs>'
-        f'<path d="{trace}" fill="none" stroke="#0b1016" stroke-width="26" '
-        'stroke-linejoin="round" stroke-linecap="round" opacity=".55"/>'
-        f'<path d="{trace}" fill="none" stroke="url(#or)" stroke-width="13" '
-        'stroke-linejoin="round" stroke-linecap="round"/>'
-        '</svg>')
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">'
+        '<defs>'
+        '<radialGradient id="cr-f" cx=".5" cy=".36" r=".72">'
+        '<stop offset="0" stop-color="#15384a"/>'
+        '<stop offset=".55" stop-color="#08161e"/>'
+        '<stop offset="1" stop-color="#03070a"/></radialGradient>'
+        '<linearGradient id="cr-o" x1="0" y1="0" x2="0" y2="1">'
+        '<stop offset="0" stop-color="#f6e4b4"/>'
+        '<stop offset=".45" stop-color="#dcc28b"/>'
+        '<stop offset="1" stop-color="#b48f55"/></linearGradient>'
+        '</defs>'
+        '<circle cx="256" cy="256" r="246" fill="url(#cr-f)"/>'
+        '<circle cx="256" cy="256" r="240" fill="none" stroke="url(#cr-o)" '
+        'stroke-width="12"/>'
+        '<circle cx="256" cy="256" r="218" fill="none" stroke="#22d3ee" '
+        'stroke-opacity=".6" stroke-width="5" stroke-dasharray="34 16"/>'
+        '<svg x="100" y="66" width="312" height="380" viewBox="34 11 313 371">'
+        f'<path d="{trace}" fill="none" stroke="#000" stroke-width="30" '
+        'stroke-linejoin="round" stroke-linecap="round" opacity=".45"/>'
+        f'<path d="{trace}" fill="none" stroke="url(#cr-o)" '
+        'stroke-width="15" stroke-linejoin="round" stroke-linecap="round"/>'
+        '</svg></svg>')
 
 
 def fond(trace: str) -> str:

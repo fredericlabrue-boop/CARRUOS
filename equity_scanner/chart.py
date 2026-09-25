@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 
 from . import hud as hd
+from . import majordome as mj
 from . import reglages as rg
 from .dashboard import LABELS
 from . import interet as it
@@ -544,7 +545,7 @@ def _analyse(brut, bench_brut, regle, nb, ticker, sleeve, ccy, pre=None,
     return out
 
 
-CSS = hd.CSS + rg.CSS_OPTIONS + rg.CSS_THEMES + rg.TIROIR_CSS + """
+CSS = hd.CSS + rg.CSS_OPTIONS + rg.CSS_THEMES + rg.TIROIR_CSS + mj.CSS + """
 *{box-sizing:border-box;margin:0}
 html,body{height:100%;margin:0;overflow:hidden}
 body{background:var(--fond);color:var(--txt);
@@ -1510,10 +1511,12 @@ def build_html(brut, ticker, bench_brut, sleeve=8000.0, ccy="",
         '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         '<link rel="icon" type="image/svg+xml" href="/carruos.svg"><link rel="alternate icon" href="/favicon.ico">'
-        f"<title>{e(ticker)} &mdash; Carruos</title>"
+        f"<title>{e(ticker)} &mdash; CARRUOS ALICE</title>"
         f"<style>{rg.variables(reg)}{CSS}</style></head>"
         f'<body class="{rg.classes(reg)}"{rg.corps_attrs(reg)}>'
         + rg.tiroir_html(reg)
+        # Le majordome parle de CE titre quand la question n'en nomme aucun.
+        + mj.html(reg, ticker=ticker)
         + '<div class="wrap">'
         # --- barre superieure ---
         #     La barre d'onglets est celle des autres pages : depuis un
@@ -1552,7 +1555,7 @@ def build_html(brut, ticker, bench_brut, sleeve=8000.0, ccy="",
         '<div class="pil-h">'
         + hd.noyau(hd.TRACE)
         + '<div class="nom">CARRUOS</div>'
-        '<div class="sst">REPLI EN TENDANCE</div>'
+        '<div class="sst">ALICE</div>'
         f'<div class="tk">{e(ticker)}</div>'
         '<div class="feu" id="feu"><svg viewBox="0 0 132 132">'
         '<circle class="fa" cx="66" cy="66" r="56" fill="none" '
@@ -1583,7 +1586,8 @@ def build_html(brut, ticker, bench_brut, sleeve=8000.0, ccy="",
         + ";const INTERET=" + json.dumps(inter, ensure_ascii=False)
         + ";const CHAND=" + json.dumps(chand_js, ensure_ascii=False)
         + ";const PROFIL=" + json.dumps(prof_js, ensure_ascii=False)
-        + ";" + hd.BARRE_JS + JS + rg.tiroir_js() + "</script></body></html>"
+        + ";" + hd.BARRE_JS + JS + mj.JS + rg.tiroir_js()
+        + "</script></body></html>"
     ).replace("__D__", json.dumps(data, separators=(",", ":")))
 
     return doc
@@ -1770,10 +1774,20 @@ def _modules(g, perf, ticker, marche, earn, actus, chand=None):
     if actus:
         liens = ""
         for a in actus[:5]:
-            sc = a.get("score")
-            c = "neu" if sc is None else ("neg" if sc < -.15 else
-                                          "pos" if sc > .15 else "neu")
-            lab = "" if sc is None else f' &middot; <span class="{c}">{sc:+.2f}</span>'
+            # L'etiquette d'Alpha Vantage pour CE titre, attribuee — la
+            # meme que sur l'accueil. Le score brut ne reste qu'au survol.
+            t = a.get("ton")
+            if t is None and a.get("score") is not None:
+                from . import news as nw
+                t = nw.ton(None, a.get("score"))
+            lab = ""
+            if t:
+                c = "pos" if t["sens"] > 0 else "neg" if t["sens"] < 0 else "neu"
+                sc = "" if t.get("score") is None else f' (score {t["score"]:+.2f})'
+                lab = (f' &middot; <span class="{c}" title="Étiquette d\'Alpha '
+                       f'Vantage pour ce titre{sc} : le vocabulaire de '
+                       f'l\'article, pas une prévision du cours">'
+                       f'{e(t["libelle"])} selon Alpha Vantage</span>')
             liens += (f'<a href="{e(a.get("url") or "#")}" target="_blank">'
                       f'{e(a.get("titre",""))}<br><span class="m">'
                       f'{e(a.get("quand",""))} {e(a.get("source",""))}{lab}</span></a>')

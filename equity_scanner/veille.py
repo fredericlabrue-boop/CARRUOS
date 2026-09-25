@@ -45,9 +45,10 @@ evenement en points de cours, et un nombre invente est plus dangereux
 qu'une case vide parce qu'il se cite.
 
 **Le score de sentiment du fournisseur.** Alpha Vantage en publie un.
-C'est un score composite dont nous ignorons les poids ; le projet refuse
-deja les siens, en importer un d'ailleurs serait pire puisqu'il ne
-serait meme pas verifiable. Il n'entre pas dans la veille.
+C'est un score composite dont nous ignorons les poids. L'accueil en
+affiche l'ETIQUETTE, attribuee, a la demande du proprietaire (voir
+`news.ton`) ; la jointure, elle, ne le lit pas, et `test_moteur`
+verifie qu'elle rend la meme chose quel que soit le ton.
 
 **Un classement des actualites par importance.** Il faudrait une echelle
 d'importance, donc des poids, donc un score.

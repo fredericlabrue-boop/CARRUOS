@@ -504,9 +504,10 @@ plus par question, **8** sources au plus affichées sous la réponse. Les
 chiffres d'une adresse Web ne sont pas comptés comme des mesures. Un
 modèle qui refuse l'outil répond quand même, sans lui.
 
-### La page BRAIN 2.0 — `brain2.py`
+### La vue complète du majordome — `brain2.py`
 
-Le titre et le portefeuille ensemble. Les conditions de sortie sont
+L'ancienne page BRAIN 2.0, ouverte par **VUE COMPLÈTE** dans la bulle du
+majordome (adresse `/majordome`). Le titre et le portefeuille ensemble. Les conditions de sortie sont
 relevées pour **15** lignes au plus. Les poids sont des parts des
 positions, dans chaque devise ; le plafond de **25 %** par ligne ne se
 vérifie que si toutes les lignes sont dans une même devise — sans taux de
@@ -572,14 +573,23 @@ nombre qui ressemblerait à une mesure sans en être une.
 Vérifié par mutation — ajouter une ligne « exposition géopolitique :
 37,5 / 100 » fait tomber le test.
 
-### Le score du fournisseur n'est plus affiché
+### Positif / négatif : l'étiquette d'Alpha Vantage
 
-Alpha Vantage publie un score de sentiment par article, et la page
-d'accueil l'affichait en vert ou en rouge : « positif », « négatif ».
-C'est un **verdict directionnel dérivé d'un score composite dont nous
-ignorons les poids** — exactement ce que le programme refuse par
-ailleurs, et pire encore puisqu'il vient d'ailleurs et n'est pas
-vérifiable. Il est remplacé par les **thèmes**, que la source déclare.
+Chaque actualité porte une pastille — **positif**, **plutôt positif**,
+**neutre**, **plutôt négatif**, **négatif** — et, sur les titres que
+l'article nomme, le ton **pour ce titre** (un article peut être négatif
+dans l'ensemble et positif pour l'un d'eux).
+
+C'est le mot **d'Alpha Vantage**, pas celui de CARRUOS : ses cinq
+étiquettes traduites, ses seuils publiés (≤ −0,35 négatif ; ≤ −0,15
+plutôt négatif ; < 0,15 neutre ; < 0,35 plutôt positif ; au-delà
+positif). Le score brut est au survol. Il classe le **vocabulaire** de
+l'article par un modèle dont nous ignorons les poids ; il ne dit pas où
+va le cours, et une information publique y est déjà quand on la lit.
+
+**Rien ne s'en sert** : ni règle, ni tri, ni compte, ni le rapprochement
+avec vos lignes, ni le majordome. Affiché à votre demande, attribué à
+chaque fois — `test_moteur` le vérifie.
 
 Les lignes rapprochées sont vos **positions** et les titres que le
 **carnet** connaît. MA LISTE ne se conserve pas d'une visite à l'autre,
@@ -594,6 +604,8 @@ acheter ou vendre : IBKR.
 
 ### Brancher
 
+0. Une fois : installer la bibliothèque — `py -m pip install ib_async`,
+   ou Carruos.bat, choix 2, en répondant **o** à la question IBKR.
 1. Lancer **TWS** ou **IB Gateway**, et s'y connecter.
 2. Dans TWS : Fichier → Configuration globale → API → Paramètres.
    Cocher **Enable ActiveX and Socket Clients**, et aussi **Read-Only
@@ -624,7 +636,7 @@ Chaque cours porte son type, tel que TWS le déclare :
 
 La page se relit toutes les **2** secondes quand elle est au premier
 plan, toutes les **15** sinon. Le titre de la fenêtre porte le nombre
-de stops franchis — « (1) CARRUOS - IBKR » — pour se voir même quand on
+de stops franchis — « (1) CARRUOS ALICE — IBKR » — pour se voir même quand on
 regarde ailleurs.
 
 TWS se relance tout seul une fois par jour : la liaison se reconnecte
@@ -796,6 +808,46 @@ en plus une espérance positive à 0,30 %. Puis il faut battre SMH net.
 
 Le registre est `~/.carruos/registre-tests.md`, les rapports sont dans
 `~/.carruos/strategie-2/`.
+
+---
+
+## 5 duodecies. Le majordome à l'écran — `majordome.py`
+
+L'onglet **MAJORDOME** fait apparaître le cerf du logo, bulle ouverte,
+sur la page où l'on est ; bulle ouverte, il le range. **Toutes** les
+fenêtres le suivent.
+
+- Cliquer le cerf ouvre ou ferme la bulle ; **Échap** la ferme ;
+  **RANGER** le retire de toutes les fenêtres.
+- On le déplace par le cerf ou par l'entête de la bulle. Moins de
+  **5** pixels de mouvement, c'est un clic. Sa place est retenue en
+  proportion de la fenêtre, et les autres fenêtres le posent au même
+  endroit.
+- La bulle s'ouvre du côté où il y a de la place : au-dessus du cerf
+  s'il est dans la moitié basse, en dessous sinon.
+- Sur une page graphique, il parle du titre affiché ; sur l'accueil, de
+  celui écrit dans « analyser un titre ».
+
+Le contrat est celui du cerveau : les faits d'abord, la prose du modèle
+par-dessus, chaque chiffre du modèle confronté au dossier.
+
+## 5 terdecies. Le logo et le raccourci du Bureau
+
+Le logo est le cerf doré dans un **médaillon** sombre, cerclé d'or,
+anneau cyan : il se détache de n'importe quel fond d'écran. Le même
+dessin sert à l'onglet du navigateur, à chaque fenêtre et au raccourci.
+
+Pour le poser sur le Bureau : la roue des réglages, **Créer le raccourci
+« Carruos Alice »** — ou Carruos.bat, choix 3. Un double-clic lance
+CARRUOS sans console. Relancer remplace le raccourci au lieu d'en
+empiler un second ; l'ancien « CARRUOS » n'est retiré que s'il menait à
+ce programme. Si l'ancien dessin s'affiche encore, clic droit sur le
+Bureau, **Actualiser** : Windows garde les icônes en mémoire.
+
+## 5 quattuordecies. Positif / négatif dans les actualités
+
+Voir 5 octies : c'est l'étiquette d'**Alpha Vantage**, attribuée à
+l'écran, et rien ne s'en sert.
 
 ---
 

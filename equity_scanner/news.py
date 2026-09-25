@@ -147,9 +147,10 @@ def news(api_key: str, ticker: str, limit: int = 4) -> list[dict]:
 
     out = []
     for it in (data.get("feed") or [])[:limit]:
-        score = None
+        score, etiq = None, None
         for ts in it.get("ticker_sentiment") or []:
             if ts.get("ticker") == ticker:
+                etiq = ts.get("ticker_sentiment_label")
                 try:
                     score = float(ts.get("ticker_sentiment_score"))
                 except (TypeError, ValueError):
@@ -158,7 +159,8 @@ def news(api_key: str, ticker: str, limit: int = 4) -> list[dict]:
         if len(quand) == 8:
             quand = f"{quand[6:8]}/{quand[4:6]}"
         out.append({"titre": (it.get("title") or "")[:130], "url": it.get("url") or "",
-                    "source": it.get("source") or "", "quand": quand, "score": score})
+                    "source": it.get("source") or "", "quand": quand, "score": score,
+                    "ton": ton(etiq, score)})
     try:
         if out:
             f.parent.mkdir(exist_ok=True)
@@ -234,20 +236,28 @@ def monde(api_key: str, limit: int = 12,
         # pas des interpretations : `veille.py` s'en sert pour rapprocher
         # une actualite des lignes du proprietaire.
         #
-        # Le score de sentiment par titre n'est PAS repris. C'est un
-        # score composite dont nous ne connaissons pas les poids, et le
-        # projet en refuse deja par principe — en importer un d'un
-        # fournisseur serait pire, puisqu'il ne serait meme pas
-        # verifiable.
+        # Le ton, tel qu'ALPHA VANTAGE l'etiquette : celui de l'article,
+        # et celui de chaque titre qu'il nomme — un article peut etre
+        # « negatif » dans l'ensemble et « positif » pour l'un d'eux.
+        # Une etiquette attribuee, jamais une mesure : voir `ton()`.
         tickers = sorted({(ts.get("ticker") or "").upper()
                           for ts in (it.get("ticker_sentiment") or [])
                           if ts.get("ticker")})
+        tons = {}
+        for ts in it.get("ticker_sentiment") or []:
+            t = (ts.get("ticker") or "").upper()
+            tt = ton(ts.get("ticker_sentiment_label"),
+                     ts.get("ticker_sentiment_score")) if t else None
+            if tt:
+                tons[t] = tt
         themes = sorted({s.get("topic", "") for s in (it.get("topics") or [])
                          if s.get("topic")})
         out.append({"titre": (it.get("title") or "")[:150],
                     "url": it.get("url") or "", "source": it.get("source") or "",
                     "quand": quand, "score": score, "sujets": sujets,
-                    "tickers": tickers, "themes": themes})
+                    "tickers": tickers, "themes": themes,
+                    "ton": ton(it.get("overall_sentiment_label"), score),
+                    "tons": tons})
     try:
         if out and not out[0].get("erreur"):
             cache.parent.mkdir(exist_ok=True)
@@ -258,18 +268,78 @@ def monde(api_key: str, limit: int = 12,
     return out
 
 
+# --- Le ton de l'article, SELON ALPHA VANTAGE -------------------------
+# Le proprietaire a demande de voir « positif ou negatif » en face de
+# chaque annonce (25 septembre 2026). C'est sa decision, et elle est
+# tenue sous quatre conditions, qui en font une ETIQUETTE et non une
+# mesure :
+#
+# 1. c'est le mot du FOURNISSEUR, traduit mot pour mot — ses cinq
+#    etiquettes, ses seuils publies. Aucun seuil de CARRUOS ;
+# 2. il est attribue a l'ecran, a chaque fois : « selon Alpha Vantage » ;
+# 3. il n'entre dans AUCUNE regle, aucun score, aucun tri, aucun compte,
+#    ni dans la jointure de la veille, ni dans le dossier du majordome ;
+# 4. le score brut reste lisible au survol, pour qu'on voie de quoi
+#    l'etiquette est faite.
+#
+# Ce qu'il ne dit pas : que le cours va monter ou baisser. C'est un
+# classement du VOCABULAIRE de l'article par un modele dont nous ne
+# connaissons pas les poids, et une information publique est deja dans
+# les cours au moment ou on la lit.
+TONS = {
+    "bullish": "positif",
+    "somewhat-bullish": "plutôt positif",
+    "neutral": "neutre",
+    "somewhat-bearish": "plutôt négatif",
+    "bearish": "négatif",
+}
+PAR = "Alpha Vantage"
+
+
+# Les seuils PUBLIES par Alpha Vantage pour ses cinq etiquettes. Ce ne
+# sont pas les notres : le memo les cite, et test_moteur verifie qu'il
+# cite bien ceux-ci.
+SEUILS_AV = (-0.35, -0.15, 0.15, 0.35)
+
+
 def libelle_sentiment(score: float | None) -> str:
+    """L'etiquette qu'Alpha Vantage donne a un score, par SES seuils
+    publies : x <= -0,35 Bearish ; <= -0,15 Somewhat-Bearish ;
+    < 0,15 Neutral ; < 0,35 Somewhat-Bullish ; sinon Bullish. Sert
+    seulement quand la reponse ne porte pas l'etiquette elle-meme."""
+    tres_neg, neg, pos, tres_pos = SEUILS_AV
     if score is None:
         return "neutre"
-    if score <= -0.35:
-        return "tres negatif"
-    if score <= -0.15:
-        return "negatif"
-    if score < 0.15:
+    if score <= tres_neg:
+        return "négatif"
+    if score <= neg:
+        return "plutôt négatif"
+    if score < pos:
         return "neutre"
-    if score < 0.35:
-        return "positif"
-    return "tres positif"
+    if score < tres_pos:
+        return "plutôt positif"
+    return "positif"
+
+
+def ton(etiquette: str | None = None, score=None) -> dict | None:
+    """Le ton d'un article tel que le FOURNISSEUR l'etiquette.
+
+    L'etiquette publiee passe avant le score : c'est son mot, pas une
+    reconstruction. Rien du tout si la source n'a rien dit — un « neutre »
+    par defaut serait une affirmation qu'elle n'a pas faite.
+    """
+    try:
+        sc = None if score is None else float(score)
+    except (TypeError, ValueError):
+        sc = None
+    cle = (etiquette or "").strip().lower().replace("_", "-")
+    lib = TONS.get(cle)
+    if lib is None:
+        if sc is None:
+            return None
+        lib = libelle_sentiment(sc)
+    sens = 1 if lib.endswith("positif") else -1 if lib.endswith("négatif") else 0
+    return {"libelle": lib, "sens": sens, "score": sc, "par": PAR}
 
 
 # --- Recherche de symbole ---------------------------------------------

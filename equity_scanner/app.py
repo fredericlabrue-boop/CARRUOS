@@ -33,6 +33,7 @@ from . import chart as gr
 from . import data as dl
 from . import find as fd
 from . import hud as hd
+from . import majordome as mj
 from . import news as nw
 from . import positions as ps
 from . import reglages as rg
@@ -41,7 +42,12 @@ from .rules import (evaluate, evaluate_exit, market_regime_ok, position_size,
                     rank)
 
 NOM = "CARRUOS"
-TITRE = NOM + " - scanner actions"
+# Le nom du programme. « Repli en tendance » etait celui de l'hypothese
+# n°1 — morte en Phase 0 — et servait de sous-titre au programme entier.
+# Frederic l'a renomme : CARRUOS ALICE. L'hypothese garde son nom dans
+# le registre et le journal d'audit, qui sont de l'histoire.
+ALIAS = "ALICE"
+TITRE = f"{NOM} {ALIAS}"
 import os
 
 FICHIER_CLE = Path(".bruce_cache") / "cle-alphavantage.txt"
@@ -375,7 +381,7 @@ CSS_DETAIL = """
 """
 
 CSS = hd.CSS + hd.FOND_CSS + rg.CSS_OPTIONS + rg.CSS_THEMES \
-    + rg.TIROIR_CSS + CSS_FICHE + CSS_DETAIL + """
+    + rg.TIROIR_CSS + CSS_FICHE + CSS_DETAIL + mj.CSS + """
 *{box-sizing:border-box;margin:0}
 body{background:var(--fond);color:var(--txt);
  font:14px var(--corps-police,ui-sans-serif,Segoe UI,system-ui);
@@ -440,65 +446,8 @@ body{overflow:hidden}
  gap:var(--gap);padding:9px 13px 11px}
 
 /* .bar et .raf vivent dans hud.py : une barre, une definition. */
-/* --- Majordome. Disque flottant, panneau au clic. --- */
-.maj{position:fixed;right:18px;bottom:18px;z-index:70;width:54px;height:54px;
- border-radius:50%;background:rgba(6,18,26,.9);border:1px solid var(--bord-fort);
- color:var(--acc);display:grid;place-items:center;cursor:pointer;
- box-shadow:0 0 22px rgba(34,211,238,.18);
- transition:box-shadow .18s,color .18s,border-color .18s}
-.maj:hover{box-shadow:0 0 34px rgba(34,211,238,.4)}
-.maj svg{width:30px;height:30px}
-.maj .mo{transform-origin:22px 22px;animation:tour 22s linear infinite}
-.maj.ecoute{color:#34d399;border-color:#34d399;
- animation:battement 1.4s ease-in-out infinite}
-.maj.parle{color:#f59e0b;border-color:#f59e0b}
-@keyframes battement{0%,100%{box-shadow:0 0 14px rgba(52,211,153,.3)}
- 50%{box-shadow:0 0 34px rgba(52,211,153,.75)}}
-.majp{position:fixed;right:18px;bottom:82px;z-index:70;width:330px;
- max-height:calc(100vh - 110px);overflow-y:auto;overscroll-behavior:contain;
- background:rgba(4,10,14,.96);border:1px solid #0d2a33;padding:13px 15px;
- display:none;
- clip-path:polygon(13px 0,100% 0,100% calc(100% - 13px),
- calc(100% - 13px) 100%,0 100%,0 13px)}
-.majp.ouvert{display:block}
-/* Entete : titre a gauche, croix de fermeture a droite. Sans elle, le
-   panneau une fois ouvert ne se refermait plus et masquait l'ecran. */
-.majh{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-.majt{font:500 8px ui-monospace,monospace;letter-spacing:.26em;color:var(--txt-faible);
- flex:1}
-.majx{flex:none;width:22px;height:22px;line-height:19px;text-align:center;
- cursor:pointer;font-size:15px;color:#5d8a97;background:rgba(8,34,42,.9);
- border:1px solid #123c47;user-select:none;
- clip-path:polygon(5px 0,100% 0,100% calc(100% - 5px),
- calc(100% - 5px) 100%,0 100%,0 5px)}
-.majx:hover{color:#f87171;border-color:#7d2530;background:#2a1114}
-.majmic.ko{color:#6b4a4f;border-color:#3a1c20}
-.majr{font-size:12px;line-height:1.55;color:var(--txt-fort);min-height:42px;
- margin-bottom:9px}
-.maje{font-size:9.5px;line-height:1.6;color:#2f5462;margin-top:8px}
-/* --- Le cerveau : la prose du modele, et la tracabilite de ses
-       chiffres. Le bandeau n'est pas decoratif : il dit lesquels se
-       remontent a une mesure, et lesquels ne se remontent a rien. --- */
-.majia{margin-top:10px;padding:9px 10px;border:1px solid #123c47;
- border-left:2px solid var(--acc);background:rgba(6,24,30,.55);
- font-size:12px;line-height:1.6;color:var(--txt-fort)}
-.majiat{display:block;font:500 8px ui-monospace,monospace;
- letter-spacing:.22em;color:var(--acc);margin-bottom:6px}
-.majiax{margin-top:8px;padding-top:6px;border-top:1px solid #3a1c20;
- font-size:10px;line-height:1.55;color:#c08a92}
-.majiao{margin-top:8px;padding-top:6px;border-top:1px solid #123c47;
- font-size:10px;line-height:1.55;color:#2f5462}
-.majiab{margin-top:10px;padding-top:9px;border-top:1px solid #0d2a33}
-.majst{font-size:.68em;opacity:.7;letter-spacing:.14em}
-.majias{margin-top:8px;display:flex;flex-direction:column;gap:3px}
-.majias a{color:var(--acc);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.majiae{font:500 8px ui-monospace,monospace;letter-spacing:.2em;
- color:#6b4a4f;margin-bottom:7px}
-.majiae.on{color:var(--acc)}
-.majiab select,.majiab input{min-width:0;background:#070d13;
- border:1px solid var(--bord);color:var(--txt-fort);padding:6px 8px;
- font:400 11px inherit}
-.majiab select{flex:0 0 118px}.majiab input{flex:1}
+/* Le majordome vit dans majordome.py : un compagnon, une definition,
+   posee sur toutes les pages. */
 .raf.occupe{color:var(--txt-faible);border-color:#123c47}
 .raf.occupe span{display:inline-block;animation:tour 1s linear infinite}
 #roue{top:8px;right:13px;width:34px;height:34px;line-height:32px;font-size:15px;
@@ -663,6 +612,16 @@ td b{color:#e8f6fa;font-weight:500}
 .vs{color:var(--txt-faible);border-style:dashed}
 .vs::before{content:"~ ";opacity:.8}
 .vs:hover{color:var(--txt-fort)}
+/* Le ton selon Alpha Vantage : une pastille avant le titre. Les
+   couleurs suivent le theme (--pos / --neg), et le neutre reste
+   discret — il n'affirme rien. */
+.ton{display:inline-block;margin-right:7px;padding:0 5px;
+ font:500 8.5px ui-monospace,monospace;letter-spacing:.1em;
+ text-transform:uppercase;border:1px solid currentColor;vertical-align:1px;
+ cursor:help}
+.ton-p{color:var(--pos)}
+.ton-n{color:var(--neg)}
+.ton-0{color:var(--txt-faible);border-style:dashed}
 .av-m{margin-top:5px;font:400 9px ui-monospace,monospace;
  letter-spacing:.08em;color:#2f5462}
 .vpied{margin-top:9px;padding-top:8px;border-top:1px solid var(--bord);
@@ -956,20 +915,33 @@ async function actus(){
   m.className='msg';
   m.textContent = (j.quota!=null && j.quota<=8)
    ? j.quota+' appels Alpha Vantage restants aujourd\'hui.' : '';
-  // Le score de sentiment du fournisseur N'EST PLUS AFFICHE. Un « positif »
-  // vert a cote d'un titre se lit comme un verdict directionnel, et c'est
-  // un score composite dont nous ignorons les poids : le projet refuse
-  // deja les siens, en importer un d'ailleurs serait pire puisqu'il ne
-  // serait meme pas verifiable. A la place, les THEMES — que la source
-  // declare — et le rapprochement avec vos lignes.
+  // Le TON de chaque article, a la demande du proprietaire : c'est
+  // l'ETIQUETTE d'Alpha Vantage, traduite mot pour mot et attribuee a
+  // chaque fois — jamais une mesure de CARRUOS, et rien ne l'utilise :
+  // ni regle, ni tri, ni compte, ni la veille, ni le majordome. Le score
+  // brut reste au survol, pour qu'on voie de quoi l'etiquette est faite.
+  function ton(t, qui){
+   if(!t || !t.libelle) return '';
+   var c = t.sens>0 ? 'ton-p' : (t.sens<0 ? 'ton-n' : 'ton-0');
+   var sc = (t.score==null) ? '' : ' (score '+(t.score>0?'+':'')
+     +Number(t.score).toFixed(2)+')';
+   return '<span class="ton '+c+'" title="Étiquette d\'Alpha Vantage'
+     +(qui?' pour '+clean(qui):' pour l\'article')+sc
+     +'. Le vocabulaire de l\'article, classé par le fournisseur — pas une '
+     +'mesure de CARRUOS, et aucune règle ne l\'utilise.">'
+     +clean(t.libelle)+'</span>';
+  }
   var nf = j.noms_fr || {};
   r.innerHTML=j.items.map(function(a){
    var v = a.vous || {};
    var b = '';
+   var tons = a.tons || {};
    (v.titres||[]).forEach(function(t){
+    var tt = tons[t] || tons[String(t).split('.')[0]];
     b += '<span class="vn" data-vers="/graphique?ticker='+encodeURIComponent(t)
       +'" data-fen="carruos-'+clean(t)+'" title="La source dit que cet '
-      +'article porte sur ce titre">'+clean(t)+'</span>'; });
+      +'article porte sur ce titre">'+clean(t)
+      +(tt&&tt.libelle?' \u00b7 '+clean(tt.libelle):'')+'</span>'; });
    Object.keys(v.secteurs||{}).forEach(function(sec){
     v.secteurs[sec].forEach(function(t){
      b += '<span class="vs" data-vers="/graphique?ticker='+encodeURIComponent(t)
@@ -983,7 +955,7 @@ async function actus(){
     +'<div class="ah"><span>'+clean(a.quand||'')+'</span>'
     +'<span>'+clean(a.source||'')+'</span>'
     +(a.sujets?'<b>'+clean(a.sujets)+'</b>':'')+'</div>'
-    +'<div class="at">'+clean(a.titre||'')+'</div>'
+    +'<div class="at">'+ton(a.ton)+clean(a.titre||'')+'</div>'
     +(b?'<div class="av-l">'+b+'</div>':'')
     +(mots.length?'<div class="av-m">'+clean(mots.join(' \u00b7 '))
       +'</div>':'')
@@ -999,9 +971,13 @@ async function actus(){
     ? (n1+' actualité'+(n1>1?'s':'')+' vous nomme'+(n1>1?'nt':'')+', '
        +n2+' touche'+(n2>1?'nt':'')+' un secteur que vous détenez. '
        +'C\'est un RAPPROCHEMENT, pas une analyse : il ne dit ni le sens '
-       +'ni l\'ampleur, et aucune règle ne l\'utilise.')
+       +'ni l\'ampleur, et aucune règle ne l\'utilise. '
+       +'Positif / négatif : l\'étiquette d\'Alpha Vantage sur le '
+       +'vocabulaire de l\'article, pas une prévision du cours.')
     : 'Aucune ligne à rapprocher. Ajoutez une position, ou prenez une '
-      +'note sur un titre dans le CARNET.';
+      +'note sur un titre dans le CARNET. Positif / négatif : l\'étiquette '
+      +'d\'Alpha Vantage sur le vocabulaire de l\'article, pas une '
+      +'prévision du cours.';
   }
  }catch(e){
   $('clebloc').style.display='block';
@@ -1060,544 +1036,8 @@ async function poseCle(){
 
 // Un seul bouton relance tout : etat du marche, actualites, radar,
 // positions. Les actualites forcent le contournement du cache.
-// =====================================================================
-// MAJORDOME
-//
-// Voix posee, phrases courtes, aucune flatterie et aucune incitation.
-// Il rapporte ce que l'ecran affiche. Il ne conseille jamais d'acheter :
-// la Phase 0 a rendu NO-GO, et un majordome qui pousse a l'ordre serait
-// exactement le defaut qu'on evite depuis le debut.
-// =====================================================================
-const MAJ = {ecoute:false, reco:null, micKo:false, recu:false};
-if(window.speechSynthesis){
- speechSynthesis.getVoices();
- speechSynthesis.onvoiceschanged=function(){ speechSynthesis.getVoices(); };
-}
-
-function majDit(txt, ecrire){
- // Une legere ponctuation fait respirer la synthese : sans elle, le
- // debit est plat et robotique.
- txt = String(txt).replace(/\. /g, '.  ');
- if(ecrire!==false) $('majr').textContent = txt;
- if(!window.speechSynthesis) return;
- try{
-  speechSynthesis.cancel();
-  const u=new SpeechSynthesisUtterance(txt);
-  u.lang='fr-FR'; u.rate=0.88; u.pitch=0.7; u.volume=1.0;
-  // Ordre de preference : voix masculines francaises connues, puis toute
-  // voix masculine, puis n'importe quelle voix francaise. Les voix
-  // "Natural" de Windows 11 sont nettement meilleures que les anciennes.
-  const v=speechSynthesis.getVoices().filter(function(x){
-   return x.lang && x.lang.toLowerCase().indexOf('fr')===0;});
-  const ordre=[/Henri.*Natural/i,/Paul.*Natural/i,/Remy.*Natural/i,
-   /Claude.*Natural/i,/Natural/i,/Henri|Paul|Remy|Thierry|Guillaume|Claude/i,
-   /Male|Homme/i];
-  let choix=null;
-  for(let i=0;i<ordre.length && !choix;i++)
-   choix=v.find(function(x){return ordre[i].test(x.name);});
-  if(choix||v[0]) u.voice=choix||v[0];
-  const d=$('maj');
-  u.onstart=function(){d.classList.add('parle');};
-  u.onend=function(){d.classList.remove('parle');};
-  speechSynthesis.speak(u);
- }catch(e){}
-}
-
-const UNIV={'cac':'cac40','cac 40':'cac40','dax':'dax','europe':'europe_total',
- 'stoxx':'stoxx600','nasdaq':'nasdaq100','sp 500':'sp500','s&p 500':'sp500',
- 'etats-unis':'us_total','amerique':'us_total','us':'us'};
-
-async function majExec(txt){
- const q=(txt||'').toLowerCase().trim();
- if(!q){ majDit('Je vous ecoute.'); return; }
- $('majc').value='';
-
- if(/actualise|rafraich|met a jour/.test(q)){
-  majDit('Je rafraichis les donnees.');
-  await toutRafraichir();
-  majDit('Donnees a jour.'); return;
- }
- if(/position/.test(q)){
-  try{
-   const j=await (await fetch('/api/positions')).json();
-   const n=(j.lignes||[]).length;
-   if(!n) return majDit('Aucune position enregistree.');
-   const a=j.lignes.filter(function(l){
-    return l.verdict!=='CONSERVER';}).length;
-   majDit(n+(n>1?' lignes ouvertes. ':' ligne ouverte. ')
-    +(a? a+(a>1?' demandent':' demande')+' une decision aujourd\'hui.'
-       : 'Aucune ne demande de decision.'));
-  }catch(e){ majDit('Je n\'arrive pas a lire vos positions.'); }
-  return;
- }
- if(/etat|marche|regime/.test(q)){
-  try{
-   const j=await (await fetch('/api/etat')).json();
-   majDit(j.verdict ? j.verdict.toLowerCase().replace(/_/g,' ')
-    : 'Etat du marche indisponible.');
-  }catch(e){ majDit('Etat du marche indisponible.'); }
-  return;
- }
- if(/actualit|nouvelle|news|geopolit|veille|mes lignes/.test(q)){
-  try{
-   const j=await (await fetch('/api/veille')).json();
-   const it=(j.items||[])[0];
-   if(it && it.erreur){ majDit(it.titre); return; }
-   // Ce qui touche SES lignes passe devant une depeche quelconque : il
-   // a demande une veille, pas un fil de presse.
-   var n1=[], n2=[];
-   (j.items||[]).forEach(function(a){ var v=a.vous||{};
-    (v.titres||[]).forEach(function(t){ if(n1.indexOf(t)<0) n1.push(t); });
-    Object.keys(v.secteurs||{}).forEach(function(sec){
-     (v.secteurs[sec]||[]).forEach(function(t){
-      if(n2.indexOf(t)<0 && n1.indexOf(t)<0) n2.push(t); }); }); });
-   var h='';
-   if(n1.length) h += '<b>Nommés par la source :</b> '+n1.join(', ')+'.<br>';
-   if(n2.length) h += '<b>Même secteur déclaré :</b> '+n2.join(', ')
-     + ' &mdash; correspondance de noms, pas de causes.<br>';
-   if(!h) h = 'Aucune actualité du jour ne rencontre vos lignes.<br>';
-   (j.items||[]).slice(0,4).forEach(function(a){
-    h += '<br>' + (a.titre||'').replace(/</g,'&lt;'); });
-   h += '<br><br><span style="color:var(--txt-faible)">'
-     + (j.rappel||'') + '</span>';
-   $('majr').innerHTML = h;
-   majDit(n1.length
-    ? ('Ces titres sont nommés aujourd\'hui : '+n1.join(', ')+'.')
-    : (n2.length
-       ? ('Rien ne vous nomme. Même secteur déclaré : '+n2.join(', ')+'.')
-       : 'Aucune actualité du jour ne rencontre vos lignes.'), false);
-  }catch(e){ majDit('Actualités indisponibles.'); }
-  return;
- }
- const ms=q.match(/scan(?:ne|ner)?\s+(.+)/);
- if(ms){
-  const cle=Object.keys(UNIV).find(function(k){
-   return ms[1].indexOf(k)>=0;});
-  if(!cle) return majDit('Quel univers ? Cac 40, Dax, Europe, '
-   +'Nasdaq, S et P 500, ou toute la cote americaine.');
-  majDit('Je lance le scan. Cela peut prendre plusieurs minutes.');
-  scan(UNIV[cle], 'us');
-  return;
- }
- const ma=q.match(/(?:analyse|regarde|ouvre|affiche)\s+(.+)/);
- if(ma){
-  const t=ma[1].replace(/[.?!]/g,'').trim();
-  majDit('J\'ouvre '+t+'.');
-  $('tk').value=t; go();
-  return;
- }
- // Tout le reste part au majordome complet : il rend les FAITS
- // calcules par le serveur, et par-dessus, si une cle est enregistree,
- // la mise en phrases d'un modele. C'est le serveur qui tranche quel
- // mot est un ticker : il a les donnees, le navigateur non.
- if(await majCerveau(q)) return;
-
- majDit('Je n\'ai pas compris. Essayez : je sors quand sur TLX, '
-  +'combien je peux perdre sur Coin, que penses-tu de Nvidia, '
-  +'on garde TLX combien de temps, analyse Sanofi, scan Cac 40, '
-  +'etat du marche, la veille sur mes lignes, ou mes positions.');
-}
-
-// --- Le dossier d'un titre -------------------------------------------
-//
-// Rien n'est genere ici. Le serveur rend des LIGNES deja ecrites a
-// partir des chiffres des modules ; le majordome les affiche et en lit
-// les premieres a voix haute. Si un chiffre n'est pas dans le dossier,
-// aucune phrase ne peut le sortir.
-var MAJ_HIST=[];
-async function majCerveau(q){
- var dflt = '';
- try{ dflt = ($('tk') && $('tk').value ? $('tk').value.trim() : ''); }catch(e){}
- try{
-  majDit('Je regarde.', false);
-  var j = await (await fetch('/api/cerveau',{method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({q:q, ticker:dflt, historique:MAJ_HIST})})).json();
-  if(!j.ok) return false;
-
-  var f = j.faits, h = '';
-  // --- Les FAITS. Calcules avant tout appel reseau, affiches quoi
-  //     qu'il advienne du modele.
-  if(f && f.ok){
-   h += '<b>' + f.ticker + '</b> &mdash; ' + f.titre + '<br><br>';
-   f.lignes.forEach(function(l){
-    h += (l ? l.replace(/</g,'&lt;') : '') + '<br>'; });
-  }else if(f && f.erreur){
-   h += '<span style="color:var(--neg)">' + f.erreur.replace(/</g,'&lt;')
-     + '</span><br><br>';
-  }
-
-  // --- La prose du modele, par-dessus, jamais a la place.
-  var m = j.modele || {};
-  if(m.ok && m.texte){
-   h += '<div class="majia"><span class="majiat">CERVEAU &middot; '
-     + (m.modele||'').replace(/</g,'&lt;') + '</span>'
-     + m.texte.replace(/</g,'&lt;').replace(/\n/g,'<br>');
-   var src = m.sources || [];
-   if(src.length){
-    h += '<div class="majias"><span class="majiat">SOURCES WEB</span>';
-    src.forEach(function(s){
-     h += '<a href="' + String(s.url).replace(/"/g,'&quot;').replace(/</g,'&lt;')
-       + '" target="_blank" rel="noopener">'
-       + String(s.titre).replace(/</g,'&lt;') + '</a>'; });
-    h += '</div>';
-   }
-   var c = m.chiffres || {};
-   if(c.n_hors){
-    h += '<div class="majiax">' + c.n_hors + ' chiffre'
-      + (c.n_hors>1?'s':'') + ' de cette réponse ne vien'
-      + (c.n_hors>1?'nent':'t') + ' pas du dossier : '
-      + c.hors_dossier.join(', ').replace(/</g,'&lt;')
-      + (src.length ? '. S\'ils viennent d\'une source Web citée, c\'est '
-         + 'elle qui fait foi ; sinon, ils ne sont pas vérifiables ici.</div>'
-         : '. Ils ne sont pas vérifiables ici.</div>');
-   }else if(c.n_traces){
-    h += '<div class="majiao">Les ' + c.n_traces
-      + ' chiffres de cette réponse viennent tous du dossier.</div>';
-   }
-   h += '</div>';
-   MAJ_HIST.push({role:'user',content:q},{role:'assistant',content:m.texte});
-   if(MAJ_HIST.length>20) MAJ_HIST=MAJ_HIST.slice(-20);
-  }else if(m.configure===false){
-   h += '<div class="majiax">Le cerveau n\'est pas branché : aucune clé '
-     + 'enregistrée. Les faits ci-dessus sont calculés par le programme '
-     + 'et ne demandent aucune clé.</div>';
-  }else if(m.erreur && m.configure){
-   h += '<div class="majiax">Le cerveau n\'a pas répondu : '
-     + String(m.erreur).replace(/</g,'&lt;')
-     + '. Les faits ci-dessus restent valables.</div>';
-  }
-
-  if(!h) return false;
-  if(f && f.ok) h += '<br><span style="color:var(--txt-faible)">'
-    + j.rappel + '</span>';
-  $('majr').innerHTML = h;
-  majDit((m.ok && m.texte) ? m.texte.split(/[.!?]\s/)[0]
-                           : (f && f.ok ? f.titre : 'Voilà.'), false);
-  return true;
- }catch(e){ return false; }
-}
-
-// --- La cle du cerveau ------------------------------------------------
-//
-// Le programme n'embarque aucune cle et ne peut pas en fabriquer une.
-// Celle-ci est la votre, prise chez le fournisseur, rangee dans
-// ~/.carruos/ia.json en 0600 — jamais dans le code, jamais dans le
-// depot, jamais dans l'archive livree.
-async function majIaEtat(){
- try{
-  var j = await (await fetch('/api/cerveau/etat')).json();
-  var e = $('majiae'); if(!e) return;
-  e.textContent = j.configure
-    ? ('CERVEAU BRANCHÉ · ' + j.fournisseur_nom + ' · ' + j.modele)
-    : ('CERVEAU NON BRANCHÉ · clé à prendre sur ' + j.ou);
-  e.className = 'majiae' + (j.configure ? ' on' : '');
- }catch(e){}
-}
-async function majIaPose(){
- var k = ($('majiak').value||'').trim();
- if(!k){ $('majiae').textContent = 'Collez la clé puis rappuyez.'; return; }
- $('majiae').textContent = 'Enregistrement…';
- try{
-  await fetch('/api/cerveau/config',{method:'POST',
-   headers:{'Content-Type':'application/json'},
-   body:JSON.stringify({fournisseur:$('majiaf').value, cle:k})});
-  $('majiak').value='';
- }catch(e){}
- majIaEtat();
-}
-async function majIaOublie(){
- try{ await fetch('/api/cerveau/config',{method:'POST',
-  headers:{'Content-Type':'application/json'},
-  body:JSON.stringify({action:'oublie'})}); }catch(e){}
- majIaEtat();
-}
-
-async function ouvrirWeb(){
- // window.open() est bloque ou detourne dans la fenetre Windows : on
- // demande au serveur d'ouvrir le navigateur par defaut. C'est le seul
- // chemin qui fonctionne a tous les coups.
- try{
-  const j=await (await fetch('/api/navigateur')).json();
-  if(j.ok){
-   majDit('Page ouverte dans le navigateur. Le micro y fonctionne.', false);
-   $('majr').innerHTML='Carruos est ouvert dans votre navigateur. '
-    +'Le micro y fonctionne.<br><span style="color:var(--txt-faible)">'+j.url+'</span>';
-   return;
-  }
- }catch(e){}
- try{ window.open(location.href, '_blank'); }catch(e){}
- $('majr').innerHTML='Ouvrez cette adresse dans Edge ou Chrome :<br>'
-  +'<span style="color:#f59e0b">'+location.href+'</span>';
-}
-
-// --- Ouverture et fermeture du panneau -------------------------------
-//
-// Ces deux gestes etaient confondus : cliquer le disque AJOUTAIT la
-// classe "ouvert" sans jamais la retirer, et relancait l'ecoute dans la
-// foulee. Une fois ouvert, le panneau ne se refermait plus, et chaque
-// clic pour s'en debarrasser redemandait le micro. D'ou la fenetre
-// bloquante apres un echec d'ecoute.
-//
-// Desormais : le disque OUVRE ou FERME, la croix ferme, Echap ferme.
-// L'ecoute ne part QUE si on clique le bouton MICRO.
-
-function majFerme(){
- const p=$('majp');
- if(p) p.classList.remove('ouvert');
- majStop();
- try{ if(window.speechSynthesis) speechSynthesis.cancel(); }catch(e){}
- const d=$('maj');
- if(d) d.classList.remove('parle');
-}
-
-function majOuvre(){
- const p=$('majp');
- if(!p) return;
- p.classList.add('ouvert');
- // L'etat du cerveau se relit a chaque ouverture : la cle a pu etre
- // posee ou retiree depuis la derniere fois, et un panneau qui ne dit
- // pas s'il est branche laisse croire qu'il l'est.
- try{ majIaEtat(); }catch(e){}
- const c=$('majc');
- if(c) c.focus();
-}
-
-function majStop(){
- if(MAJ.reco){ try{ MAJ.reco.abort(); }catch(e){
-   try{ MAJ.reco.stop(); }catch(e2){} } }
- MAJ.ecoute=false;
- const d=$('maj');
- if(d) d.classList.remove('ecoute');
-}
-
-// --- Micro ------------------------------------------------------------
-//
-// La reconnaissance vocale du navigateur n'existe pas dans la fenetre
-// Windows : le moteur WebView2 qui l'affiche n'embarque pas le service
-// de transcription de Chrome. Ce n'est pas un reglage a trouver, c'est
-// une brique absente. Dans Edge ou Chrome, la meme page l'a.
-//
-// On le dit une fois, clairement, et on n'y revient plus : le champ
-// texte fait exactement le meme travail et repond a voix haute.
-
-const MICRO_DIT = {
- 'no-speech': 'Je n\'ai rien entendu. Le micro fonctionne, mais aucune '
-  +'parole n\'est arrivee. Reessayez en parlant plus pres.',
- 'audio-capture': 'Aucun micro detecte. Verifiez qu\'il est branche et '
-  +'choisi dans les reglages de son de Windows.',
- 'not-allowed': 'Le micro est refuse dans cette fenetre. C\'est une '
-  +'limite du cadre Windows, pas un reglage a corriger.',
- 'service-not-allowed': 'Le service de transcription n\'est pas '
-  +'disponible dans cette fenetre.',
- 'network': 'Le service de transcription n\'est pas joignable depuis '
-  +'cette fenetre. C\'est le cas normal du cadre Windows.',
- 'aborted': 'Ecoute interrompue.'
-};
-
-function majMicroIndispo(txt){
- // Le bouton se marque comme inutilisable : inutile de laisser esperer.
- const b=$('majmic');
- if(b){ b.classList.add('ko'); b.textContent='MICRO INDISPO'; }
- MAJ.micKo=true;
- $('majr').innerHTML = txt
-  +'<br><span style="color:#f59e0b">Ecrivez ci-dessous</span> : je '
-  +'reponds a voix haute, exactement comme a l\'oral. '
-  +'Le bouton EDGE ouvre la meme page dans le navigateur, '
-  +'ou le micro fonctionne.';
- const c=$('majc');
- if(c) c.focus();
-}
-
-// --- Autorisation du micro -------------------------------------------
-//
-// « J'appuie sur micro et rien ne se passe. » C'est le symptome d'une
-// autorisation jamais DEMANDEE. La reconnaissance vocale peut echouer
-// sans bruit : ni resultat, ni erreur, ni fin. getUserMedia, lui, pose
-// franchement la question au navigateur et repond toujours — accorde,
-// refuse, ou aucun micro branche. On passe donc par lui d'abord.
-
-async function majPermission(){
- if(!window.isSecureContext && location.protocol!=='http:')
-  return {ok:false, motif:'contexte'};
- if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)
-  return {ok:false, motif:'absent'};
- try{
-  const flux=await navigator.mediaDevices.getUserMedia({audio:true});
-  // On relache le micro aussitot : le seul but etait d'obtenir l'accord.
-  try{ flux.getTracks().forEach(function(t){t.stop();}); }catch(e){}
-  return {ok:true};
- }catch(e){
-  return {ok:false, motif:(e&&e.name)||'refus'};
- }
-}
-
-const PERM_DIT = {
- 'NotAllowedError': 'Le micro est REFUSE pour cette page. Cliquez le '
-  +'cadenas a gauche de l\'adresse, puis Micro, puis Autoriser. '
-  +'Si le reglage est grise, c\'est Windows qui bloque : Parametres, '
-  +'Confidentialite, Microphone, et activez l\'acces pour les '
-  +'applications de bureau.',
- 'NotFoundError': 'Aucun micro n\'est branche, ou aucun n\'est choisi '
-  +'comme peripherique d\'entree dans les reglages de son de Windows.',
- 'NotReadableError': 'Le micro est occupe par une autre application. '
-  +'Fermez Teams, Discord ou Zoom, puis reessayez.',
- 'SecurityError': 'Le navigateur refuse le micro sur cette adresse.',
- 'absent': 'Ce navigateur n\'expose pas le micro. Utilisez Edge ou '
-  +'Chrome.',
- 'contexte': 'Le micro exige une adresse locale ou securisee.',
- 'refus': 'Le micro a ete refuse.'
-};
-
-// --- Diagnostic -------------------------------------------------------
-// Un bouton qui repond a la seule question utile : qu'est-ce qui bloque,
-// exactement ? Chaque ligne est un fait verifiable, pas une hypothese.
-
-async function majDiag(){
- majOuvre();
- $('majr').textContent='Diagnostic du micro en cours...';
- const L=[];
- const R=window.SpeechRecognition||window.webkitSpeechRecognition;
- L.push((window.isSecureContext?'OK':'NON')
-  +' &nbsp; adresse consideree comme sure');
- L.push(((navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)
-  ?'OK':'NON')+' &nbsp; le navigateur expose le micro');
- L.push((R?'OK':'NON')+' &nbsp; moteur de reconnaissance vocale present');
-
- let etat='inconnu';
- try{
-  if(navigator.permissions&&navigator.permissions.query){
-   const p=await navigator.permissions.query({name:'microphone'});
-   etat=p.state;
-  }
- }catch(e){}
- L.push((etat==='granted'?'OK':(etat==='denied'?'NON':'?  '))
-  +' &nbsp; autorisation : '+etat);
-
- let micros=0;
- try{
-  const d=await navigator.mediaDevices.enumerateDevices();
-  micros=d.filter(function(x){return x.kind==='audioinput';}).length;
- }catch(e){}
- L.push((micros?'OK':'NON')+' &nbsp; '+micros+' micro(s) detecte(s)');
-
- const p=await majPermission();
- L.push((p.ok?'OK':'NON')+' &nbsp; acces effectif au micro'
-  +(p.ok?'':' ('+p.motif+')'));
-
- let conseil='';
- if(!R) conseil='Le moteur de reconnaissance manque : ouvrez cette page '
-  +'dans Edge ou Chrome.';
- else if(!p.ok) conseil=PERM_DIT[p.motif]||PERM_DIT['refus'];
- else conseil='Tout est en place. Cliquez MICRO et parlez.';
-
- $('majr').innerHTML='<div style="font:11px ui-monospace,monospace;'
-  +'line-height:1.85">'+L.join('<br>')+'</div>'
-  +'<div style="margin-top:9px;color:#f59e0b">'+conseil+'</div>';
-}
-
-function majEcoute(){
- majOuvre();
- if(MAJ.ecoute){ majStop(); $('majr').textContent='Ecoute arretee.'; return; }
- const R=window.SpeechRecognition||window.webkitSpeechRecognition;
- if(!R){
-  majMicroIndispo('Le micro n\'existe pas dans cette fenetre.');
-  majDit('Le micro n\'est pas disponible ici. Ecrivez votre '
-   +'instruction.', false);
-  return;
- }
- $('majr').textContent='Autorisation du micro...';
- majPermission().then(function(p){
-  if(!p.ok){
-   const dit=PERM_DIT[p.motif]||PERM_DIT['refus'];
-   $('majr').innerHTML=dit
-    +'<br><span style="color:var(--txt-faible)">Le bouton DIAGNOSTIC dit '
-    +'precisement ce qui bloque.</span>';
-   majDit('Le micro est refuse. Voyez le diagnostic.', false);
-   const c=$('majc');
-   if(c) c.focus();
-   return;
-  }
-  majDemarre(R);
- });
-}
-
-function majDemarre(R){
- let r;
- try{ r=new R(); }catch(e){
-  majMicroIndispo('Le micro n\'a pas pu demarrer.');
-  return;
- }
- r.lang='fr-FR'; r.interimResults=false; r.maxAlternatives=1;
- MAJ.reco=r; MAJ.ecoute=true; MAJ.recu=false;
- $('maj').classList.add('ecoute');
- const b=$('majmic');
- if(b) b.textContent='J\'ECOUTE...';
- $('majr').textContent='Je vous ecoute. Cliquez MICRO pour arreter.';
- r.onresult=function(e){
-  MAJ.recu=true;
-  const txt=e.results[0][0].transcript;
-  $('majr').textContent='« '+txt+' »';
-  majExec(txt);
- };
- r.onerror=function(e){
-  const code=(e&&e.error)||'inconnu';
-  const dit=MICRO_DIT[code]||('Le micro a rendu une erreur ('+code+').');
-  // Une panne de service ne se repare pas en reessayant : on ferme la
-  // porte proprement au lieu de reproposer un bouton qui echouera.
-  if(code==='not-allowed'||code==='service-not-allowed'
-     ||code==='network'||code==='audio-capture'){
-   majMicroIndispo(dit);
-  }else{
-   $('majr').textContent=dit;
-   const c=$('majc');
-   if(c) c.focus();
-  }
-  majDit(dit, false);
- };
- r.onend=function(){
-  MAJ.ecoute=false;
-  $('maj').classList.remove('ecoute');
-  const bb=$('majmic');
-  if(bb && !MAJ.micKo) bb.textContent='MICRO';
-  if(!MAJ.recu && $('majr').textContent.indexOf('ecoute')>=0){
-   $('majr').textContent='Rien n\'est arrive. Ecrivez ci-dessous.';
-   const c=$('majc');
-   if(c) c.focus();
-  }
- };
- // Un demarrage refuse ne leve pas toujours : le filet ci-dessous
- // garantit qu'il se passe TOUJOURS quelque chose a l'ecran.
- try{ r.start(); }catch(e){ majStop();
-  majMicroIndispo('Le micro n\'a pas pu demarrer ('+(e.name||'erreur')+').');
-  return; }
- setTimeout(function(){
-  if(MAJ.ecoute && !MAJ.recu
-     && $('majr').textContent.indexOf('ecoute')>=0){
-   $('majr').innerHTML='Le micro ne repond pas. Cliquez '
-    +'<b>DIAGNOSTIC</b> pour savoir pourquoi, ou ecrivez ci-dessous.';
-  }
- }, 9000);
-}
-
-(function(){
- const d=$('maj');
- if(!d) return;
- d.onclick=function(){
-  const p=$('majp');
-  if(p.classList.contains('ouvert')){ majFerme(); return; }
-  majOuvre();
-  majDit('A votre service.');
- };
- const c=$('majc');
- if(c) c.addEventListener('keydown',function(e){
-  if(e.key==='Enter') majExec(c.value);
-  if(e.key==='Escape') majFerme(); });
- // Echap ferme le panneau depuis n'importe ou : c'est le reflexe, et
- // c'est le filet quand la souris ne trouve plus de bouton.
- document.addEventListener('keydown',function(e){
-  if(e.key==='Escape') majFerme(); });
-})();
+// Le MAJORDOME vit dans majordome.py : le meme compagnon sur toutes
+// les pages, son script isole dans une fonction anonyme.
 
 document.addEventListener('click', function(ev){
  var b=ev.target.closest ? ev.target.closest('[data-raf]') : null;
@@ -2584,7 +2024,7 @@ def _accueil(splash: bool = True) -> str:
     ouverture = (
         f'<div id="splash">{CERF.format(300, 316)}<div class="rule"></div>'
         f"<h1>{_lettres(NOM)}</h1>"
-        '<p>REPLI EN TENDANCE</p><div class="load"><i></i></div></div>'
+        f'<p>{ALIAS}</p><div class="load"><i></i></div></div>'
     ) if splash else ""
 
     return ('<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">'
@@ -2596,66 +2036,14 @@ def _accueil(splash: bool = True) -> str:
             + rg.tiroir_html(reg)
             + ouverture
             + hd.fond(TRACE_D)
-            + '<div class="maj" id="maj" title="Majordome">'
-              '<svg viewBox="0 0 44 44"><circle class="mo" cx="22" cy="22" '
-              'r="19" fill="none" stroke="currentColor" stroke-width="1" '
-              'stroke-dasharray="4 7"/>'
-              '<path d="M22 12v11M22 27.5v1" stroke="currentColor" '
-              'stroke-width="2.2" stroke-linecap="round"/>'
-              '<path d="M15 21a7 7 0 0 0 14 0" fill="none" '
-              'stroke="currentColor" stroke-width="1.6" '
-              'stroke-linecap="round"/></svg></div>'
-              '<div class="majp" id="majp">'
-              '<div class="majh"><div class="majt">MAJORDOME '
-              '<span class="majst">MENTOR · BRAIN 2.0</span></div>'
-              '<div class="majx" id="majx" onclick="majFerme()" '
-              'title="Fermer (Echap)">&times;</div></div>'
-              '<div class="majr" id="majr">Parle-moi de tout : un titre, '
-              'ton portefeuille, un problème, un projet. Je raisonne avec '
-              'toi, à partir de faits. Je réponds à voix haute.</div>'
-              '<div class="row"><input id="majc" '
-              'placeholder="ton instruction ici">'
-              '<button onclick="majExec($(\'majc\').value)">ENVOYER</button>'
-              '</div>'
-              '<div class="row" style="margin-top:7px">'
-              '<button class="sec" id="majmic" onclick="majEcoute()">'
-              'MICRO</button>'
-              '<button class="sec" onclick="majDiag()">DIAGNOSTIC</button>'
-              '<button class="sec" onclick="ouvrirWeb()">EDGE</button>'
-              '</div>'
-              '<div class="maje">je sors quand sur TLX &middot; '
-              'combien je peux perdre sur Coin &middot; '
-              'que penses-tu de Nvidia &middot; une figure sur Hood ? '
-              '&middot; on garde TLX combien de temps &middot; '
-              'analyse sanofi &middot; scan cac 40 &middot; '
-              'etat du marche &middot; mes positions &middot; la veille sur mes lignes</div>'
-              '<div class="majiab">'
-              '<div class="majiae" id="majiae">&mdash;</div>'
-              '<div class="row">'
-              '<select id="majiaf">'
-              '<option value="anthropic">Claude (Anthropic)</option>'
-              '<option value="openai">OpenAI</option></select>'
-              '<input id="majiak" type="password" '
-              'placeholder="votre clé API"></div>'
-              '<div class="row" style="margin-top:6px">'
-              '<button class="sec" onclick="majIaPose()">BRANCHER</button>'
-              '<button class="sec" onclick="majIaOublie()">EFFACER</button>'
-              '</div>'
-              '<div class="maje">CARRUOS n\'embarque aucune clé et ne '
-              'peut pas en fabriquer une : celle-ci est la vôtre, prise '
-              'chez le fournisseur. Elle est rangée dans '
-              '~/.carruos/ia.json, jamais dans le programme ni dans '
-              'l\'archive. Sans elle, le majordome répond quand même : '
-              'les faits sont calculés en local.</div>'
-              '</div>'
-              '</div>'
+            + mj.html(reg, champ="tk")
             + '<div id="voile" onclick="voileClic(event)">'
               '<div id="detail"><div class="tete"><h2 id="dtitre"></h2>'
               '<div class="fx" onclick="fermeDetail()" title="Fermer (Echap)">'
               '&times;</div></div><div id="dcorps"></div></div></div>'
             + '<div class="app">'
             + hd.barre(
-                TRACE_D, NOM, actif="accueil", soustitre="REPLI EN TENDANCE",
+                TRACE_D, NOM, actif="accueil", soustitre=ALIAS,
                 avant='<button class="raf" id="raf" data-raf="1">'
                       '&#8635; ACTUALISER</button>')
             + hd.console(TRACE_D, hologramme=False)
@@ -2741,7 +2129,7 @@ def _accueil(splash: bool = True) -> str:
 
             '</div></div>'
             f"<script>{hd.BARRE_JS}{JS}{JS_POS}{JS_HUD}{JS_FICHE}{JS_DETAIL}"
-            f"{rg.tiroir_js()}</script></body></html>")
+            f"{mj.JS}{rg.tiroir_js()}</script></body></html>")
 
 
 class Bruce(http.server.BaseHTTPRequestHandler):
@@ -2764,11 +2152,14 @@ class Bruce(http.server.BaseHTTPRequestHandler):
         if u.path not in ("/api/reglages", "/api/positions",
                           "/api/cle", "/api/validation", "/api/phase0",
                           "/api/carnet", "/api/cerveau", "/api/brain2",
-                          "/api/cerveau/config", "/api/ibkr"):
+                          "/api/cerveau/config", "/api/ibkr",
+                          "/api/raccourci"):
             return self._envoie("<h1>404</h1>", code=404)
         try:
             n = int(self.headers.get("Content-Length") or 0)
             corps = json.loads(self.rfile.read(n) or b"{}")
+            if u.path == "/api/raccourci":
+                return self._json(_raccourci())
             if u.path == "/api/validation":
                 return self._json(_val_lance(corps.get("quoi", "phase0")))
             if u.path == "/api/carnet":
@@ -2877,8 +2268,10 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                 return self._envoie(_page_ibkr())
             if u.path == "/memoire":
                 return self._envoie(_page_memoire())
-            if u.path == "/brain2":
-                return self._envoie(_page_brain2())
+            # La page complete du majordome. L'ancienne adresse, /brain2,
+            # reste servie : un favori ou une fenetre deja nommee y mene.
+            if u.path in ("/majordome", "/brain2"):
+                return self._envoie(_page_majordome())
             if u.path == "/api/memoire":
                 return self._json(_memoire(q))
             if u.path == "/api/ibkr":
@@ -2890,6 +2283,8 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                 return self._json(cv.etat())
             if u.path == "/api/objectif":
                 return self._json(_objectif(q))
+            if u.path == "/api/reglages/visuel":
+                return self._json(rg.visuel())
             if u.path == "/api/veille":
                 return self._json(
                     _veille(force=q.get("force") == "1"))
@@ -4153,20 +3548,24 @@ table.b2-t{width:100%;border-collapse:collapse;margin:6px 0 8px;
 """
 
 
-def _page_brain2() -> str:
+def _page_majordome() -> str:
+    """La vue complete du majordome — l'ancienne page BRAIN 2.0. Le
+    compagnon n'y est pas pose : il ferait double emploi avec la page
+    elle-meme, et l'onglet MAJORDOME y est l'onglet courant."""
     reg = rg.charge()
     return (
         '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         '<link rel="icon" type="image/svg+xml" href="/carruos.svg">'
         '<link rel="alternate icon" href="/favicon.ico">'
-        f"<title>{NOM} - BRAIN 2.0</title>"
+        f"<title>{TITRE} — MAJORDOME</title>"
         f"<style>{rg.variables(reg)}{CSS}{CSS_BRAIN2}</style></head>"
         f'<body class="{rg.classes(reg)}"{rg.corps_attrs(reg)}>'
         + rg.tiroir_html(reg)
         + hd.fond(TRACE_D)
         + '<div class="app b2-page">'
-        + hd.barre(TRACE_D, NOM, actif="brain2", soustitre="BRAIN 2.0")
+        + hd.barre(TRACE_D, NOM, actif="majordome",
+                   soustitre="MAJORDOME · VUE COMPLÈTE")
         + '<div class="b2">'
 
           '<section class="pan"><div class="trait"><i></i></div>'
@@ -4295,9 +3694,10 @@ def _veille(force: bool = False) -> dict:
     dans une seconde liste : c'est la meme information, lue au moment ou
     on lit le titre, et non deux listes a recouper a la main.
 
-    Aucun chiffrage du risque geopolitique n'en sort, et le score de
-    sentiment du fournisseur n'est pas repris — c'est un score composite
-    dont nous ignorons les poids.
+    Aucun chiffrage du risque geopolitique n'en sort. Le ton de chaque
+    article est l'ETIQUETTE d'Alpha Vantage, attribuee a l'ecran, a la
+    demande du proprietaire : elle n'entre ni dans la jointure, ni dans
+    aucune regle (voir `news.ton`).
     """
     from . import veille as vl
 
@@ -4319,6 +3719,11 @@ def _veille(force: bool = False) -> dict:
         th = a_.get("themes") or []
         if th:
             a_["sujets"] = ", ".join(vl.theme_fr(t) for t in th[:2])
+        # Un cache ecrit avant l'etiquette n'a que le score global : on
+        # le relit par les seuils publies du fournisseur, jamais les notres.
+        if "ton" not in a_ and hasattr(nw, "ton"):
+            a_["ton"] = nw.ton(None, a_.get("score"))
+        a_.setdefault("tons", {})
     return {
         "items": dec,
         "lignes": lignes,
@@ -4510,10 +3915,11 @@ def _page_memoire() -> str:
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         '<link rel="icon" type="image/svg+xml" href="/carruos.svg">'
         '<link rel="alternate icon" href="/favicon.ico">'
-        f"<title>{NOM} - mémoire</title>"
+        f"<title>{TITRE} — mémoire</title>"
         f"<style>{rg.variables(reg)}{CSS}{CSS_MEMOIRE}</style></head>"
         f'<body class="{rg.classes(reg)}"{rg.corps_attrs(reg)}>'
         + rg.tiroir_html(reg)
+        + mj.html(reg)
         + hd.fond(TRACE_D)
         + '<div class="app mem-page">'
         + hd.barre(TRACE_D, NOM, actif="memoire", soustitre="MÉMOIRE")
@@ -4544,7 +3950,7 @@ def _page_memoire() -> str:
           '</div></section>'
 
           '</div></div>'
-        + f"<script>{hd.BARRE_JS}{JS_MEMOIRE}{rg.tiroir_js()}</script>"
+        + f"<script>{hd.BARRE_JS}{JS_MEMOIRE}{mj.JS}{rg.tiroir_js()}</script>"
           "</body></html>")
 
 
@@ -4786,10 +4192,11 @@ def _page_ibkr() -> str:
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         '<link rel="icon" type="image/svg+xml" href="/carruos.svg">'
         '<link rel="alternate icon" href="/favicon.ico">'
-        f"<title>{NOM} - IBKR</title>"
+        f"<title>{TITRE} — IBKR</title>"
         f"<style>{rg.variables(reg)}{CSS}{CSS_IBKR}</style></head>"
         f'<body class="{rg.classes(reg)}"{rg.corps_attrs(reg)}>'
         + rg.tiroir_html(reg)
+        + mj.html(reg)
         + hd.fond(TRACE_D)
         + '<div class="app ibk-page">'
         + hd.barre(TRACE_D, NOM, actif="ibkr", soustitre="COMPTE IBKR")
@@ -4837,7 +4244,7 @@ def _page_ibkr() -> str:
           '</div></section>'
 
           '</div></div>'
-        + f"<script>{hd.BARRE_JS}{JS_IBKR}{rg.tiroir_js()}</script>"
+        + f"<script>{hd.BARRE_JS}{JS_IBKR}{mj.JS}{rg.tiroir_js()}</script>"
           "</body></html>")
 
 
@@ -4904,10 +4311,11 @@ def _page_carnet() -> str:
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         '<link rel="icon" type="image/svg+xml" href="/carruos.svg">'
         '<link rel="alternate icon" href="/favicon.ico">'
-        f"<title>{NOM} - carnet</title>"
+        f"<title>{TITRE} — carnet</title>"
         f"<style>{rg.variables(reg)}{CSS}{CSS_CARNET}</style></head>"
         f'<body class="{rg.classes(reg)}"{rg.corps_attrs(reg)}>'
         + rg.tiroir_html(reg)
+        + mj.html(reg)
         + hd.fond(TRACE_D)
         + '<div class="app crn-page">'
         + hd.barre(TRACE_D, NOM, actif="carnet", soustitre="CARNET")
@@ -4947,7 +4355,7 @@ def _page_carnet() -> str:
           '</div></section>'
 
           '</div></div>'
-        + f"<script>{hd.BARRE_JS}{JS_CARNET}{rg.tiroir_js()}</script>"
+        + f"<script>{hd.BARRE_JS}{JS_CARNET}{mj.JS}{rg.tiroir_js()}</script>"
           "</body></html>")
 
 
@@ -5035,10 +4443,11 @@ def _page_palmares() -> str:
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         '<link rel="icon" type="image/svg+xml" href="/carruos.svg">'
         '<link rel="alternate icon" href="/favicon.ico">'
-        f"<title>{NOM} - ma liste</title>"
+        f"<title>{TITRE} — ma liste</title>"
         f"<style>{rg.variables(reg)}{CSS}{CSS_FICHE}{CSS_PALM}</style></head>"
         f'<body class="{rg.classes(reg)}"{rg.corps_attrs(reg)}>'
         + rg.tiroir_html(reg)
+        + mj.html(reg)
         + hd.fond(TRACE_D)
         + '<div class="app">'
           + hd.barre(TRACE_D, NOM, actif="palmares",
@@ -5066,7 +4475,7 @@ def _page_palmares() -> str:
           '</div>'
           '<div id="pres"></div>'
           '</div></div>'
-        + f"<script>{hd.BARRE_JS}{JS_PALM}{rg.tiroir_js()}</script></body></html>")
+        + f"<script>{hd.BARRE_JS}{JS_PALM}{mj.JS}{rg.tiroir_js()}</script></body></html>")
 
 
 def _dossier(q: dict) -> dict:
@@ -5161,10 +4570,11 @@ def _page_strategie() -> str:
         '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         '<link rel="icon" type="image/svg+xml" href="/carruos.svg"><link rel="alternate icon" href="/favicon.ico">'
-        f"<title>{NOM} - stratégie</title>"
+        f"<title>{TITRE} — stratégie</title>"
         f"<style>{rg.variables(reg)}{CSS}{CSS_FICHE}{CSS_STRAT}</style></head>"
         f'<body class="{rg.classes(reg)}"{rg.corps_attrs(reg)}>'
         + rg.tiroir_html(reg)
+        + mj.html(reg)
         + hd.fond(TRACE_D)
         + '<div class="app strat-page">'
           + hd.barre(TRACE_D, NOM, actif="strategie",
@@ -5235,7 +4645,7 @@ def _page_strategie() -> str:
           '<div id="lres" class="msg">Releve en cours...</div>'
           '</div></section>'
           '</div></div>'
-        + f"<script>{hd.BARRE_JS}{JS_FICHE}{JS_STRAT}{rg.tiroir_js()}</script>"
+        + f"<script>{hd.BARRE_JS}{JS_FICHE}{JS_STRAT}{mj.JS}{rg.tiroir_js()}</script>"
           "</body></html>")
 
 
@@ -5246,28 +4656,106 @@ def _icone() -> str:
     return str(f) if f.exists() else ""
 
 
-def _pose_icone(titre: str, chemin: str) -> None:
-    """Windows tire l'icone d'une fenetre du processus qui la cree : sans ca,
-    la barre des taches affiche celle de Python. On attend que la fenetre
-    existe, puis on lui envoie WM_SETICON."""
+def _veille_icones(chemin: str) -> None:
+    """Pose l'icone CARRUOS sur CHAQUE fenetre du programme, a mesure
+    qu'elles apparaissent.
+
+    Windows tire l'icone d'une fenetre du processus qui la cree : sans
+    ca, la barre de titre et la barre des taches montrent celle de
+    Python. L'ancienne version cherchait UNE fenetre par son titre et
+    s'arretait des qu'elle l'avait trouvee : seule la premiere fenetre
+    portait le cerf, toutes celles ouvertes ensuite portaient Python. On
+    parcourt maintenant les fenetres de NOTRE processus, chaque seconde,
+    et on pose l'icone sur celles qui ne l'ont pas encore.
+    """
     import ctypes
     import time
+    from ctypes import wintypes
     try:
         u = ctypes.windll.user32
     except AttributeError:
         return
+    u.LoadImageW.restype = wintypes.HANDLE
+    u.LoadImageW.argtypes = [wintypes.HINSTANCE, wintypes.LPCWSTR,
+                             wintypes.UINT, ctypes.c_int, ctypes.c_int,
+                             wintypes.UINT]
+    u.SendMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM,
+                               wintypes.LPARAM]
     IMAGE_ICON, LR_LOADFROMFILE = 1, 0x0010
     WM_SETICON, ICON_SMALL, ICON_BIG = 0x0080, 0, 1
-    for _ in range(80):
-        h = u.FindWindowW(None, titre)
-        if h:
-            for taille, quel in ((64, ICON_BIG), (16, ICON_SMALL)):
-                ico = u.LoadImageW(None, chemin, IMAGE_ICON, taille, taille,
-                                   LR_LOADFROMFILE)
-                if ico:
-                    u.SendMessageW(h, WM_SETICON, quel, ico)
+    grand = u.LoadImageW(None, chemin, IMAGE_ICON, 64, 64, LR_LOADFROMFILE)
+    petit = u.LoadImageW(None, chemin, IMAGE_ICON, 16, 16, LR_LOADFROMFILE)
+    if not (grand or petit):
+        return
+    moi, faites = os.getpid(), set()
+    ENUM = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+
+    def pose(h, _l):
+        if h in faites or not u.IsWindowVisible(h):
+            return True
+        pid = wintypes.DWORD()
+        u.GetWindowThreadProcessId(h, ctypes.byref(pid))
+        if pid.value == moi and u.GetWindowTextLengthW(h) > 0:
+            if grand:
+                u.SendMessageW(h, WM_SETICON, ICON_BIG, grand)
+            if petit:
+                u.SendMessageW(h, WM_SETICON, ICON_SMALL, petit)
+            faites.add(h)
+        return True
+    rappel = ENUM(pose)
+    while True:
+        try:
+            u.EnumWindows(rappel, 0)
+        except Exception:
             return
-        time.sleep(.25)
+        time.sleep(1.0)
+
+
+def _raccourci() -> dict:
+    """Le raccourci « Carruos Alice » sur le Bureau, depuis l'application.
+
+    Le travail est fait par `Creer-raccourci.vbs`, le meme script que le
+    choix 3 de Carruos.bat : une seule facon de fabriquer le raccourci,
+    donc un seul endroit ou le corriger. Le script ne remplace qu'un
+    raccourci qui pointe vers CE programme.
+    """
+    import subprocess
+    racine = Path(__file__).resolve().parent.parent
+    vbs = racine / "Creer-raccourci.vbs"
+    if os.name != "nt":
+        return {"ok": False,
+                "erreur": "Le raccourci du Bureau est une fonction Windows."}
+    if not vbs.exists():
+        return {"ok": False, "erreur": "Creer-raccourci.vbs introuvable à "
+                                       "côté du programme."}
+    try:
+        r = subprocess.run(
+            ["cscript", "//nologo", str(vbs)], capture_output=True,
+            text=True, timeout=30, cwd=str(racine),
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    except Exception as exc:
+        return {"ok": False, "erreur": "Le script du raccourci n'a pas pu "
+                                       f"être lancé ({type(exc).__name__})."}
+    texte = " ".join(l.strip() for l in (r.stdout or "").splitlines()
+                     if l.strip())
+    if r.returncode != 0:
+        return {"ok": False, "erreur": texte or (r.stderr or "").strip()
+                or f"le script a rendu le code {r.returncode}"}
+    return {"ok": True, "message": texte or "Raccourci créé sur le Bureau."}
+
+
+def titre_fenetre(adresse: str) -> str:
+    """« CARRUOS ALICE — STRATÉGIE » : chaque fenetre dit ce qu'elle
+    montre, dans la barre des taches comme dans Alt+Tab."""
+    import urllib.parse as up
+    u = up.urlparse(adresse or "/")
+    for adr, libelle, _cle in hd.ONGLETS:
+        if u.path == adr and adr != "/":
+            return f"{TITRE} — {libelle}"
+    tk = (up.parse_qs(u.query).get("ticker") or [""])[0].strip().upper()
+    if u.path == "/graphique" and tk:
+        return f"{TITRE} — {tk}"
+    return TITRE
 
 
 def _port_libre():
@@ -5327,19 +4815,28 @@ def main():
                     # ne le sait qu'en essayant de s'en servir.
                     try:
                         f.load_url(url.rstrip("/") + adresse)
+                        try:
+                            f.restore()
+                        except Exception:
+                            pass
                         return {"ok": True, "rappelee": True}
                     except Exception:
                         self._ouvertes.pop(nom, None)
+                # Le MEME pont pour chaque fenetre. Les fenetres filles
+                # etaient creees sans lui : depuis STRATEGIE ou IBKR, un
+                # onglet retombait sur `window.open`, qui ouvre une
+                # fenetre de navigateur et non une fenetre CARRUOS.
                 self._ouvertes[nom] = webview.create_window(
-                    TITRE, url.rstrip("/") + adresse, width=1280, height=880,
-                    min_size=(900, 620), background_color="#080b10")
+                    titre_fenetre(adresse), url.rstrip("/") + adresse,
+                    width=1280, height=880, min_size=(900, 620),
+                    background_color="#080b10", js_api=self)
                 return {"ok": True, "rappelee": False}
 
         webview.create_window(TITRE, url, width=1420, height=940,
                               min_size=(980, 680), background_color="#080b10",
                               js_api=Fenetres())
         if ico:
-            threading.Thread(target=_pose_icone, args=(TITRE, ico),
+            threading.Thread(target=_veille_icones, args=(ico,),
                              daemon=True).start()
         webview.start()
     except ImportError:

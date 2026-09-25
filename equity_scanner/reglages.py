@@ -10,7 +10,9 @@ rechargement de page.
 
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 from pathlib import Path
 
 FICHIER = Path(".bruce_cache") / "reglages.json"
@@ -293,6 +295,10 @@ DEFAUTS = {
     # mesure ne revient jamais sur un choix explicite.
     "fluidite": "auto",
     "grille": True,
+    # Le majordome compagnon : sorti ou range, et OU il est pose — en
+    # fraction de la fenetre, pour qu'une fenetre plus petite ne l'envoie
+    # pas hors champ. Ce n'est pas de l'apparence : voir _CLES_VISUEL.
+    "majordome": {"actif": True, "x": 0.965, "y": 0.9},
 }
 
 PALETTES = [
@@ -434,6 +440,60 @@ def variables(r: dict) -> str:
             f"--titre-casse:{f['titre_casse']};"
             f"--corps-police:{f['corps_police']};"
             f"--champ-fond:{f['champ_fond']}}}")
+
+
+# Ce qui fait l'APPARENCE d'une page. La position du majordome n'en fait
+# pas partie : le deplacer ne doit pas repeindre les autres fenetres.
+_CLES_VISUEL = ("theme", "accent", "marque", "fond", "pos", "neg", "effets",
+                "indics", "modules", "densite", "fluidite", "grille")
+
+
+def majordome(r: dict | None = None) -> dict:
+    """L'etat du compagnon, borne. Le fichier de reglages peut avoir ete
+    ecrit a la main : une valeur absurde ne doit pas envoyer le cerf hors
+    de la fenetre, ni faire planter la page."""
+    r = charge() if r is None else r
+    m = r.get("majordome") if isinstance(r.get("majordome"), dict) else {}
+    d = DEFAUTS["majordome"]
+
+    def borne(v, defaut):
+        try:
+            v = float(v)
+        except (TypeError, ValueError):
+            return defaut
+        return defaut if v != v else min(1.0, max(0.0, v))
+
+    return {"actif": bool(m.get("actif", d["actif"])),
+            "x": borne(m.get("x"), d["x"]), "y": borne(m.get("y"), d["y"])}
+
+
+def visuel(r: dict | None = None) -> dict:
+    """L'apparence complete, telle qu'une page deja ouverte doit la
+    reprendre : toutes les variables, toutes les classes de <body>.
+
+    « Quand je change le visuel, toutes les pages changent quand je les
+    ouvre, pas seulement la premiere. » Le serveur rendait bien chaque
+    NOUVELLE page au nouveau theme ; mais une fenetre deja ouverte ne
+    l'apprenait jamais, et meme la page ou l'on choisissait le theme
+    n'en appliquait que six couleurs sur vingt-six variables — polices,
+    bordures, textes et densite attendaient un rechargement. Chaque page
+    compare maintenant sa `version` a celle du serveur, et reprend tout.
+    """
+    r = charge() if r is None else r
+    base = {k: r.get(k) for k in _CLES_VISUEL}
+    return {
+        "version": hashlib.sha1(json.dumps(base, sort_keys=True).encode(
+            "utf-8")).hexdigest()[:12],
+        "vars": dict(re.findall(r"(--[\w-]+):([^;}]+)", variables(r))),
+        "classes": classes(r).split(),
+        "theme": r.get("theme", "carruos"), "accent": r.get("accent"),
+        "densite": r.get("densite"), "fluidite": r.get("fluidite", "auto"),
+        "effets": r.get("effets", {}), "indics": r.get("indics", {}),
+        "modules": r.get("modules", {}),
+        # Hors de la `version` : deplacer le cerf ne repeint rien. Mais
+        # les autres fenetres le suivent, sorti, range ou deplace.
+        "majordome": majordome(r),
+    }
 
 
 def corps_attrs(r: dict) -> str:
@@ -972,7 +1032,7 @@ TIROIR_CSS = """
 .dens button.sel{border-color:var(--acc);color:var(--acc)}
 #tiroir .pied{margin-top:22px;padding-top:12px;border-top:1px solid #1a2330;
  font-size:11px;color:#3f5168;line-height:1.8}
-#tiroir .raz{width:100%;margin-top:10px;background:#121a24;border:1px solid #223044;
+#tiroir .raz,#tiroir .bur{width:100%;margin-top:10px;background:#121a24;border:1px solid #223044;
  color:var(--txt);border-radius:7px;padding:9px;font-size:12px;cursor:pointer}
 #tiroir .aide{font-size:11px;color:#3f5168;line-height:1.75;margin-top:8px}
 #tiroir .aide b{color:#7f93ab;font-weight:500}
@@ -1018,7 +1078,7 @@ def tiroir_html(r: dict) -> str:
 
     return (
         '<button id="roue" title="Reglages">&#9881;</button>'
-        '<div id="tiroir">'
+        f'<div id="tiroir" data-visuel="{visuel(r)["version"]}">'
         '<h3>THEME</h3>'
         f'<div class="themes">{themes}</div>'
         '<h3>COULEUR D\'ACCENT</h3>'
@@ -1035,6 +1095,12 @@ def tiroir_html(r: dict) -> str:
         + sect("EFFETS VISUELS", LIB_EFFETS, "effets")
         + sect("INDICATEURS", LIB_INDICS, "indics")
         + sect("MODULES", LIB_MODULES, "modules")
+        + '<h3>BUREAU</h3>'
+          '<button class="bur" id="raccourci" type="button">Créer le '
+          'raccourci « Carruos Alice »</button>'
+          '<p class="aide" id="raccourci-msg">Le logo CARRUOS sur le '
+          'Bureau : un double-clic lance le programme, sans console. '
+          'Relancer remplace le raccourci, il ne s\'empile pas.</p>'
         + '<div class="pied">Les reglages sont enregistres et repris au '
           'prochain lancement.<button class="raz" id="raz">Tout remettre '
           'par defaut</button></div></div>')
@@ -1049,10 +1115,67 @@ def tiroir_js() -> str:
     """
     # La sonde de fluidite voyage avec le tiroir : les deux touchent a
     # l'apparence, et les trois pages incluent deja celui-ci.
-    return FLUIDITE_JS + TIROIR_JS.replace("__THEMES__", json.dumps(
+    return FLUIDITE_JS + VISUEL_JS + TIROIR_JS.replace("__THEMES__", json.dumps(
         {k: {c: t[c] for c in ("accent", "marque", "fond", "pos", "neg",
                                "holo")}
          for k, t in THEMES.items()}))
+
+
+# Toutes les fenetres suivent le visuel. Chaque page compare la version
+# de son apparence a celle du serveur — quand elle reprend le focus,
+# quand elle redevient visible, et toutes les quatre secondes tant
+# qu'elle est a l'ecran — et reprend tout si elle a change ailleurs.
+# Les classes posees par un script (le mode sobre de la sonde) sont
+# laissees en place : on ne remplace que celles que le serveur produit.
+VISUEL_JS = r"""
+(function(){
+ var t=document.getElementById('tiroir');
+ var cur=t ? t.getAttribute('data-visuel') : '';
+ var SERVEUR=/^(theme-|sans-|off-|noind-)/;
+ function applique(v){
+  var st=document.documentElement.style;
+  Object.keys(v.vars||{}).forEach(function(k){ st.setProperty(k, v.vars[k]); });
+  var b=document.body;
+  Array.prototype.slice.call(b.classList).forEach(function(c){
+   if(SERVEUR.test(c)) b.classList.remove(c); });
+  (v.classes||[]).forEach(function(c){ b.classList.add(c); });
+  document.querySelectorAll('.themes button').forEach(function(x){
+   x.classList.toggle('sel', x.dataset.theme===v.theme); });
+  document.querySelectorAll('.pal button').forEach(function(x){
+   x.classList.toggle('sel', x.dataset.col===v.accent); });
+  document.querySelectorAll('.dens button[data-dens]').forEach(function(x){
+   x.classList.toggle('sel', x.dataset.dens===v.densite); });
+  document.querySelectorAll('.opt').forEach(function(o){
+   var g=v[o.dataset.g];
+   if(g && (o.dataset.k in g)) o.classList.toggle('on', !!g[o.dataset.k]); });
+  if(window.CARRUOS_IND && v.indics) Object.keys(v.indics).forEach(function(k){
+   try{ window.CARRUOS_IND(k, !!v.indics[k]); }catch(e){} });
+  if(window.CARRUOS_FLUIDITE && v.fluidite
+     && b.getAttribute('data-fluidite')!==v.fluidite){
+   b.setAttribute('data-fluidite', v.fluidite);
+   try{ window.CARRUOS_FLUIDITE(v.fluidite); }catch(e){}
+  }
+  cur=v.version;
+  if(t) t.setAttribute('data-visuel', cur);
+ }
+ var enCours=false;
+ async function verifie(){
+  if(enCours) return; enCours=true;
+  try{
+   var v=await (await fetch('/api/reglages/visuel')).json();
+   if(v && v.version && v.version!==cur) applique(v);
+   if(v && v.majordome && window.CARRUOS_MAJ)
+    try{ window.CARRUOS_MAJ.sync(v.majordome); }catch(e){}
+  }catch(e){}
+  enCours=false;
+ }
+ window.CARRUOS_VISUEL=verifie;
+ window.addEventListener('focus', verifie);
+ document.addEventListener('visibilitychange', function(){
+  if(!document.hidden) verifie(); });
+ setInterval(function(){ if(!document.hidden) verifie(); }, 4000);
+})();
+"""
 
 
 TIROIR_JS = """
@@ -1061,8 +1184,12 @@ TIROIR_JS = """
  if(!roue)return;
  roue.onclick=function(){tir.classList.toggle('ouvert');};
  function envoie(o){
+  // Une fois enregistre, la page reprend l'apparence COMPLETE du
+  // serveur : les polices, bordures et textes du theme, pas seulement
+  // les six couleurs posees a l'instant.
   fetch('/api/reglages',{method:'POST',headers:{'Content-Type':'application/json'},
-   body:JSON.stringify(o)}).catch(function(){});
+   body:JSON.stringify(o)}).then(function(){
+    if(window.CARRUOS_VISUEL) window.CARRUOS_VISUEL(); }).catch(function(){});
  }
  // Couleur : application immediate par variable CSS, puis persistance.
  document.querySelectorAll('.pal button').forEach(function(b){
@@ -1126,6 +1253,17 @@ TIROIR_JS = """
    var p={}; p[o.dataset.g]={}; p[o.dataset.g][o.dataset.k]=actif;
    envoie(p);
   };});
+ // Le raccourci du Bureau : le serveur lance Creer-raccourci.vbs, le
+ // meme script que le menu de Carruos.bat.
+ var bu=document.getElementById('raccourci');
+ if(bu) bu.onclick=function(){
+  var m=document.getElementById('raccourci-msg');
+  m.textContent='Création du raccourci…';
+  fetch('/api/raccourci',{method:'POST',headers:{'Content-Type':'application/json'},
+   body:'{}'}).then(function(r){ return r.json(); }).then(function(j){
+    m.textContent=j.ok ? j.message : ('Échec : '+(j.erreur||'raison inconnue'));
+   }).catch(function(){ m.textContent='Le serveur ne répond pas.'; });
+ };
  document.getElementById('raz').onclick=function(){
   fetch('/api/reglages?raz=1',{method:'POST',headers:{'Content-Type':'application/json'},
    body:'{}'}).then(function(){location.reload();});

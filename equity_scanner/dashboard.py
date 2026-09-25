@@ -139,7 +139,7 @@ def render(fired, allsig, bench_row, bench_ok, sleeve, date, path="dashboard.htm
 
     ecart = (bench_row["close"] / bench_row["sma200"] - 1) * 100
     p = [f"<style>{CSS}</style>",
-         f'<div class="top"><h1>REPLI EN TENDANCE</h1><div class="dt">{e(str(date))}</div></div>',
+         f'<div class="top"><h1>CARRUOS ALICE</h1><div class="dt">{e(str(date))}</div></div>',
          f'<div class="verdict {vc}"><div class="big">{big}</div>'
          f'<div><div class="txt">{txt}</div><div class="sub">{sub}</div></div></div>',
          f'<div class="regime"><span>Indice <b>{e(bench_name)}</b></span>'

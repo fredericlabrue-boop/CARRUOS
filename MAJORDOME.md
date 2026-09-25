@@ -1,12 +1,31 @@
-# CARRUOS BRAIN 2.0
+# CARRUOS ALICE — le majordome
 
-## Ouvrir
+## Le faire apparaître
 
-L'onglet **BRAIN 2.0** de la barre, sur toutes les pages (adresse
-`/brain2`). Un titre et une question — ou rien que la question : sans
-titre, c'est le portefeuille qui est analysé.
+L'onglet **MAJORDOME** de la barre, sur toutes les pages. Un clic : le
+cerf du logo apparaît, bulle ouverte. Bulle ouverte, un second clic le
+range. Toutes les fenêtres ouvertes suivent.
 
-## Ce que la page montre, dans cet ordre
+- **Cliquer le cerf** ouvre ou ferme la bulle ; **Échap** la ferme.
+- **Le déplacer** : le prendre par le cerf ou par l'entête de la bulle,
+  et le poser où l'on veut. La place est retenue, en proportion de la
+  fenêtre : les autres fenêtres le posent au même endroit, et une
+  fenêtre plus petite ne l'envoie pas hors champ.
+- **RANGER** le fait disparaître partout ; l'onglet le rappelle.
+- **VUE COMPLÈTE** ouvre sa page entière (adresse `/majordome`).
+
+Sur une page graphique, il parle du titre affiché quand la question
+n'en nomme aucun ; sur l'accueil, du titre écrit dans « analyser un
+titre ».
+
+## Ce qu'on peut lui demander
+
+« je sors quand sur TLX », « combien je peux perdre sur Coin », « que
+penses-tu de Nvidia », « une figure sur Hood ? », « on garde TLX combien
+de temps », « ouvre Sanofi », « scan cac 40 » (lancé depuis l'accueil),
+« état du marché », « mes positions », « la veille sur mes lignes ».
+
+## La vue complète
 
 **À gauche, les faits**, calculés par le programme **avant** tout appel au
 modèle, et affichés quoi qu'il arrive — clé absente, service en panne,
@@ -30,7 +49,7 @@ Chaque chiffre qu'il écrit est confronté au dossier qu'il a reçu, et ceux
 qui n'en viennent pas sont **nommés**. La conversation se poursuit : les
 échanges précédents lui sont renvoyés.
 
-## Ce que le cerveau ne fait pas
+## Ce que le majordome ne fait pas
 
 Il ne dit ni « achète », ni « vends », ni « garde ». Quand on le lui
 demande, il répond comme un mentor : ce qui est mesuré, ce que la
@@ -52,9 +71,9 @@ envoyé est signalé à l'écran.
 
 ## Les clés
 
-Celle que vous saisissez dans le majordome, rangée dans votre profil
-Windows. À défaut, les variables `CARRUOS_ANTHROPIC_API_KEY` /
+Celle que vous saisissez dans la bulle (« CERVEAU », en bas), rangée dans
+votre profil Windows. À défaut, les variables `CARRUOS_ANTHROPIC_API_KEY` /
 `CARRUOS_OPENAI_API_KEY`, puis — en dernier recours seulement —
-`ANTHROPIC_API_KEY` / `OPENAI_API_KEY`. La page dit d'où vient la clé
+`ANTHROPIC_API_KEY` / `OPENAI_API_KEY`. La bulle dit d'où vient la clé
 utilisée. Une clé venue d'une variable d'environnement n'est jamais écrite
 sur le disque.
