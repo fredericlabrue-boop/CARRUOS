@@ -3122,6 +3122,38 @@ def test_memo() -> None:
         def disconnect(self):
             self._co = False
 
+    # --- Se brancher : deux questions, un numero ---------------------
+    #
+    # « Avec quel numero de reference je dois rentrer ? » La page posait
+    # trois cases sans dire laquelle comptait. Le port se DEDUIT du
+    # logiciel et du compte ; la table est unique et verifiee ici.
+    _lib = dict(_ik.PORTS)
+    ok("chaque couple logiciel / compte donne un port connu, bien nomme",
+       set(_ik.PORT_DE.values()) == set(_lib)
+       and all(("Gateway" in _lib[n]) == (lg == "gateway")
+               and ("simulation" in _lib[n]) == (cp == "simulation")
+               for (lg, cp), n in _ik.PORT_DE.items()))
+    import socket as _so
+    _ecoute = _so.socket()
+    _ecoute.bind(("127.0.0.1", 0))
+    _ecoute.listen(1)
+    _libre = _ecoute.getsockname()[1]
+    _vrais = _ik.PORTS
+    _ik.PORTS = ((_libre, "essai — ouvert"), (1, "essai — ferme"))
+    try:
+        _vu = {d["port"]: d["ouvert"] for d in _ik.detecte(delai=0.3)}
+    finally:
+        _ik.PORTS = _vrais
+        _ecoute.close()
+    ok("la detection trouve un port qui ecoute, et seulement celui-la",
+       _vu == {_libre: True, 1: False})
+    ok("un refus de connexion renvoie vers les trois verifications et la "
+       "detection", "DÉTECTER" in _ik._diagnostic(ConnectionRefusedError(), 7497)
+       and "Socket port" in _ik._diagnostic(ConnectionRefusedError(), 7497))
+    ok("un numero de client pris est dit : un guichet, pas un compte",
+       "pas votre numéro de compte" in _ik._diagnostic(
+           RuntimeError("client id is already in use (326)"), 7497))
+
     import time
     _ik.FABRIQUE = _FauxIB
     try:

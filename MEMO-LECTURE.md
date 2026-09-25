@@ -614,13 +614,30 @@ acheter ou vendre : IBKR.
 
 ### Brancher
 
+**Aucun identifiant à donner.** CARRUOS ne demande ni votre numéro de
+compte, ni votre nom d'utilisateur, ni votre mot de passe IBKR : vous
+vous connectez dans TWS comme d'habitude, et CARRUOS lit ce que TWS lui
+montre. **Le seul numéro qui compte est le port**, et la page le déduit
+de deux questions.
+
 0. Une fois : installer la bibliothèque — `py -m pip install ib_async`,
    ou Carruos.bat, choix 2, en répondant **o** à la question IBKR.
-1. Lancer **TWS** ou **IB Gateway**, et s'y connecter.
-2. Dans TWS : Fichier → Configuration globale → API → Paramètres.
-   Cocher **Enable ActiveX and Socket Clients**, et aussi **Read-Only
-   API** — un second verrou, côté IBKR.
-3. Dans l'onglet IBKR : choisir le port, puis CONNECTER.
+1. Une fois, dans TWS : **File → Global Configuration → API →
+   Settings**. Cocher **Enable ActiveX and Socket Clients** et
+   **Read-Only API** (un second verrou, côté IBKR), laisser cochée
+   **Allow connections from localhost only**, vérifier le **Socket
+   port**. Avec IB Gateway : **Configure → Settings → API → Settings**.
+   Le pas-à-pas est aussi dans l'onglet, à droite.
+2. Ouvrir TWS et s'y connecter — en **Paper Trading** pour commencer.
+3. Dans l'onglet IBKR : répondre aux deux questions (**quel logiciel**,
+   **quel compte**) — le port s'affiche en grand — ou cliquer
+   **DÉTECTER AUTOMATIQUEMENT**, qui frappe aux quatre ports de cet
+   ordinateur et choisit celui qui répond. Puis **CONNECTER**.
+
+Les **réglages avancés** (adresse, port personnalisé, numéro de client)
+n'ont rien à changer en temps normal. Le numéro de client est un numéro
+de guichet entre CARRUOS et TWS, **pas** votre numéro de compte : on ne
+le change que si TWS répond qu'il est déjà pris.
 
 | Port | Programme | Compte |
 |---|---|---|

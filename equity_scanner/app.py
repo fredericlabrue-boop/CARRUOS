@@ -1614,7 +1614,7 @@ table.mem-b{width:100%;border-collapse:collapse;font:400 11.5px ui-monospace,mon
 
 CSS_IBKR = """
 .app.ibk-page{grid-template-rows:auto minmax(0,1fr)}
-.ibk{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);
+.ibk{display:grid;grid-template-columns:minmax(0,390px) minmax(0,1fr);
  grid-template-rows:minmax(0,1fr);gap:var(--gap);min-height:0;overflow:hidden}
 @media(max-width:1000px){.ibk{grid-template-columns:minmax(0,1fr);
  grid-template-rows:auto minmax(0,1fr)}}
@@ -1627,6 +1627,62 @@ CSS_IBKR = """
 .ibk .lg button{flex:0 1 auto;white-space:nowrap}
 .ibk label.ck{display:flex;gap:7px;align-items:center;font-size:11px;
  color:var(--txt-doux);margin:4px 0 10px}
+/* La regle des champs de saisie etirait aussi la case a cocher. */
+.ibk label.ck input{flex:none;width:auto;padding:0;margin:0}
+/* --- L'assistant de connexion : deux questions, un numero. --- */
+.ibk-etape{display:flex;align-items:center;gap:8px;margin:13px 0 7px;
+ font:500 10px ui-monospace,monospace;letter-spacing:.12em;
+ color:var(--txt-fort)}
+.ibk-n{flex:none;width:20px;height:20px;border-radius:50%;display:grid;
+ place-items:center;border:1px solid var(--acc);color:var(--acc);
+ font-size:10px;letter-spacing:0}
+.ibk-choix{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.ibk-choix button{display:flex;flex-direction:column;align-items:flex-start;
+ gap:4px;text-align:left;padding:9px 10px;background:var(--champ-fond);
+ min-width:0;white-space:normal;overflow-wrap:anywhere;
+ border:1px solid var(--bord);color:var(--txt-doux);cursor:pointer;
+ font:500 11px ui-monospace,monospace;letter-spacing:.1em;
+ transition:border-color .16s ease,color .16s ease,background-color .16s ease}
+.ibk-choix button small{font:400 10px/1.35 var(--corps-police);
+ letter-spacing:0;color:var(--txt-faible)}
+.ibk-choix button:hover{border-color:var(--bord-fort)}
+.ibk-choix button.sel{border-color:var(--acc);color:var(--acc);
+ background:rgba(var(--holo),.08)}
+.ibk-choix button.reel.sel{border-color:#c9b28a;color:#c9b28a;
+ background:rgba(40,32,14,.35)}
+.ibk-num{margin:11px 0 8px;padding:10px 12px;border:1px solid var(--bord-fort);
+ background:rgba(var(--holo),.05)}
+.ibk-num span{display:block;font:500 8.5px ui-monospace,monospace;
+ letter-spacing:.18em;color:var(--txt-faible)}
+.ibk-num b{display:block;margin:4px 0 2px;font:500 34px ui-monospace,monospace;
+ letter-spacing:.08em;color:var(--acc);font-variant-numeric:tabular-nums}
+.ibk-num em{font-style:normal;font-size:11px;color:var(--txt-doux)}
+.ibk-num p{margin:7px 0 0;font-size:11px;line-height:1.55;color:var(--txt-faible)}
+.ibk-num.reel{border-color:#c9b28a;background:rgba(40,32,14,.3)}
+.ibk-num.reel b{color:#c9b28a}
+.ibk button.ibk-go{flex:1 1 auto;padding:10px 14px;font-size:12px}
+.ibk .msg.ok{color:var(--pos)}
+.ibk-jamais{margin:10px 0;padding:8px 11px;border-left:2px solid var(--pos);
+ font-size:11px;line-height:1.6;color:var(--txt-doux);
+ background:rgba(var(--holo),.04)}
+.ibk-jamais b{color:var(--txt-fort)}
+.ibk-aide{margin:9px 0;padding:8px 11px;border:1px solid var(--bord)}
+.ibk-aide summary{cursor:pointer;list-style:none;
+ font:500 9px ui-monospace,monospace;letter-spacing:.16em;color:var(--txt-fort)}
+.ibk-aide summary::-webkit-details-marker{display:none}
+.ibk-aide ol{margin:9px 0 4px 18px;padding:0;font-size:11.5px;line-height:1.6;
+ color:var(--txt-doux)}
+.ibk-aide li{margin-bottom:4px}
+.ibk-aide b{color:var(--txt-fort);font-weight:500}
+.ibk-aide b.ibk-p{color:var(--acc)}
+.ibk-guide{margin:0 0 12px;padding:11px 14px;border-color:var(--bord-fort)}
+.ibk-guide summary{font-size:10px}
+.ibk-guide ol{font-size:13px;line-height:1.7}
+.ibk-av{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;
+ margin-top:9px}
+.ibk-av label{display:flex;flex-direction:column;gap:4px;min-width:0;
+ font:400 8.5px ui-monospace,monospace;letter-spacing:.12em;
+ color:var(--txt-faible)}
 /* L'etat de la liaison. Le compte REEL est signale a part : se croire
    sur le compte de simulation en regardant le reel est l'erreur a
    rendre impossible. */
@@ -2274,6 +2330,9 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                 return self._envoie(_page_majordome())
             if u.path == "/api/memoire":
                 return self._json(_memoire(q))
+            if u.path == "/api/ibkr/detecte":
+                from . import ibkr as ik
+                return self._json({"ports": ik.detecte()})
             if u.path == "/api/ibkr":
                 return self._json(_ibkr_etat())
             if u.path == "/api/carnet":
@@ -4004,23 +4063,98 @@ function nb(x, d){
 function sg(x){ return (x==null||!isFinite(x)) ? '' : (x>=0 ? 'pos' : 'neg'); }
 var IBK_TITRE = document.title, IBK_CFG_POSEE = false;
 
+// --- Deux questions, un numero ------------------------------------------
+//
+// Le port n'est pas saisi : il DECOULE du logiciel et du compte choisis
+// (table ibkr.PORT_DE, envoyee par le serveur). Le port personnalise des
+// reglages avances, s'il est rempli, passe devant.
+var IBK_PORT_DE = {'tws/simulation':7497, 'tws/reel':7496,
+                   'gateway/simulation':4002, 'gateway/reel':4001};
+var IBK_LIB = {};
+var IBK_CHOIX = {log:'tws', cpt:'simulation'};
+function ibkPort(){
+ var perso = ($('iport').value||'').trim();
+ return perso ? Number(perso) : IBK_PORT_DE[IBK_CHOIX.log+'/'+IBK_CHOIX.cpt];
+}
+function ibkDepuisPort(port){
+ for(var k in IBK_PORT_DE){
+  if(IBK_PORT_DE[k]===Number(port)){
+   var x = k.split('/'); IBK_CHOIX = {log:x[0], cpt:x[1]}; return true; }
+ }
+ return false;
+}
+function ibkChoix(){
+ document.querySelectorAll('#ilog button').forEach(function(b){
+  b.classList.toggle('sel', b.getAttribute('data-log')===IBK_CHOIX.log); });
+ document.querySelectorAll('#icpt button').forEach(function(b){
+  b.classList.toggle('sel', b.getAttribute('data-cpt')===IBK_CHOIX.cpt); });
+ var perso = ($('iport').value||'').trim(), p = ibkPort();
+ $('inum').textContent = p;
+ $('inumlib').textContent = perso ? 'port personnalisé (réglages avancés)'
+   : (IBK_LIB[p] || '');
+ $('inumb').classList.toggle('reel', !perso && IBK_CHOIX.cpt==='reel');
+ document.querySelectorAll('.ibk-p').forEach(function(x){ x.textContent = p; });
+}
+
 function ibkCfg(j){
+ (j.ports||[]).forEach(function(p){ IBK_LIB[p.port] = p.libelle; });
+ if(j.port_de) IBK_PORT_DE = j.port_de;
  // Les champs ne se remplissent qu'une fois : sinon chaque
- // rafraichissement ecraserait ce qu'on est en train de taper.
+ // rafraichissement ecraserait ce qu'on est en train de choisir.
  if(IBK_CFG_POSEE || !j.config) return;
  IBK_CFG_POSEE = true;
- // Session ouverte : les champs montrent CELLE-CI, pas le dernier
+ // Session ouverte : les choix montrent CELLE-CI, pas le dernier
  // reglage enregistre.
  var port = (j.etat==='connecte' && j.port) ? j.port : j.config.port;
  $('ihote').value = (j.etat==='connecte' && j.hote) ? j.hote : j.config.hote;
- var o = '';
- (j.ports||[]).forEach(function(p){
-  o += '<option value="'+p.port+'"'+(p.port==port?' selected':'')
-     +'>'+p.port+' — '+e(p.libelle)+'</option>'; });
- $('iport').innerHTML = o;
+ if(!ibkDepuisPort(port)) $('iport').value = port;
  $('iclient').value = j.config.client;
  $('iauto').checked = !!j.config.auto;
+ // Branche, le pas-a-pas n'a plus a prendre la place.
+ if(j.etat==='connecte') $('iaide').removeAttribute('open');
+ ibkChoix();
 }
+
+// Frapper a la porte des quatre ports, sur CET ordinateur seulement : le
+// serveur ouvre une connexion et la referme, sans rien dire a IBKR.
+async function ibkDetecte(){
+ var d = $('idet');
+ d.className = 'msg';
+ d.textContent = 'Recherche de TWS et d\'IB Gateway sur cet ordinateur…';
+ try{
+  var j = await (await fetch('/api/ibkr/detecte')).json();
+  var ouverts = (j.ports||[]).filter(function(p){ return p.ouvert; });
+  if(!ouverts.length){
+   d.className = 'msg err';
+   d.textContent = 'Aucun logiciel IBKR ne répond sur cet ordinateur. TWS '
+    + 'ou IB Gateway n\'est pas lancé, pas encore connecté, ou l\'API '
+    + 'n\'est pas activée — voir « À faire une fois dans TWS » ci-dessous.';
+   return;
+  }
+  $('iport').value = '';
+  ibkDepuisPort(ouverts[0].port);
+  ibkChoix();
+  d.className = 'msg ok';
+  d.textContent = 'Trouvé : ' + ouverts.map(function(p){
+    return p.libelle + ' (port ' + p.port + ')'; }).join(', ')
+   + (ouverts.length > 1 ? '. Le premier est choisi.' : '.')
+   + ' Cliquez CONNECTER.';
+ }catch(err){ d.className = 'msg err'; d.textContent = err.message; }
+}
+
+(function(){
+ document.querySelectorAll('#ilog button').forEach(function(b){
+  b.addEventListener('click', function(){
+   IBK_CHOIX.log = b.getAttribute('data-log'); $('iport').value = '';
+   $('idet').textContent = ''; ibkChoix(); }); });
+ document.querySelectorAll('#icpt button').forEach(function(b){
+  b.addEventListener('click', function(){
+   IBK_CHOIX.cpt = b.getAttribute('data-cpt'); $('iport').value = '';
+   $('idet').textContent = ''; ibkChoix(); }); });
+ $('iport').addEventListener('input', ibkChoix);
+ $('idetecte').addEventListener('click', ibkDetecte);
+ ibkChoix();
+})();
 
 function ibkEtat(j){
  var b = $('ietat'), cls = j.etat || 'deconnecte', txt;
@@ -4036,9 +4170,8 @@ function ibkEtat(j){
  if(j.etat==='connecte' && j.port) m += ' ' + (j.libelle_port||'') + '.';
  // Le reglage affiche doit etre celui de la session en cours. S'ils
  // different — reglage retouche sans reconnecter — on le dit.
- var sel = $('iport');
- if(j.etat==='connecte' && sel && sel.value && Number(sel.value)!==Number(j.port))
-  m += ' Attention : le port choisi ci-dessous ('+sel.value+') n\'est pas '
+ if(j.etat==='connecte' && IBK_CFG_POSEE && ibkPort()!==Number(j.port))
+  m += ' Attention : le port choisi ci-dessous ('+ibkPort()+') n\'est pas '
      + 'celui de la session en cours ('+j.port+'). Il ne servira qu\'à la '
      + 'prochaine connexion.';
  b.innerHTML = txt + (m ? '<span class="m">'+e(m)+'</span>' : '');
@@ -4161,7 +4294,7 @@ async function ibkLit(){
 async function ibkCommande(action){
  $('imsg').textContent = '';
  var c = {action:action, hote:($('ihote').value||'').trim(),
-          port:$('iport').value, client:$('iclient').value,
+          port:ibkPort(), client:$('iclient').value,
           auto:$('iauto').checked};
  try{
   var j = await (await fetch('/api/ibkr',{method:'POST',
@@ -4211,23 +4344,65 @@ def _page_ibkr() -> str:
           '<section class="pan"><div class="trait"><i></i></div>'
           '<h2>CONNEXION</h2><div class="corps">'
           '<div class="ibk-etat" id="ietat">&mdash;</div>'
-          '<div class="lg"><input id="ihote" placeholder="127.0.0.1" '
-          'title="Adresse de TWS ou d\'IB Gateway"></div>'
-          '<div class="lg"><select id="iport"></select>'
-          '<input id="iclient" type="number" min="0" style="max-width:90px" '
-          'title="Numéro de client : n\'importe quel nombre libre"></div>'
-          '<label class="ck"><input type="checkbox" id="iauto"> '
-          'se rebrancher au lancement de CARRUOS</label>'
+
+          # Deux questions, et le numero en DECOULE. L'ancienne page
+          # posait trois cases — adresse, port, numero de client — sans
+          # dire laquelle comptait : « avec quel numero de reference je
+          # dois rentrer ? ». Un seul compte, le port.
+          '<div class="ibk-etape"><span class="ibk-n">1</span>Quel logiciel '
+          'IBKR est ouvert sur cet ordinateur&nbsp;?</div>'
+          '<div class="ibk-choix" id="ilog">'
+          '<button type="button" data-log="tws">TWS<small>Trader '
+          'Workstation, le logiciel complet</small></button>'
+          '<button type="button" data-log="gateway">IB GATEWAY<small>la '
+          'version légère, sans graphiques</small></button></div>'
+
+          '<div class="ibk-etape"><span class="ibk-n">2</span>Sur quel '
+          'compte vous êtes-vous connecté dans TWS&nbsp;?</div>'
+          '<div class="ibk-choix" id="icpt">'
+          '<button type="button" data-cpt="simulation">SIMULATION<small>'
+          '« Paper Trading » — conseillé pour commencer</small></button>'
+          '<button type="button" data-cpt="reel" class="reel">COMPTE RÉEL'
+          '<small>« Live Trading » — votre argent</small></button></div>'
+
+          '<div class="ibk-num" id="inumb"><span>LE SEUL NUMÉRO QUI COMPTE '
+          '&mdash; LE PORT</span><b id="inum">7497</b>'
+          '<em id="inumlib">TWS — compte de simulation</em>'
+          '<p>C\'est le « Socket port » de TWS. Il doit être le même ici et '
+          'dans TWS — en général, il y est déjà.</p></div>'
+          '<div class="lg"><button type="button" class="sec" id="idetecte">'
+          'DÉTECTER AUTOMATIQUEMENT</button></div>'
+          '<div class="msg" id="idet"></div>'
+
+          '<div class="ibk-etape"><span class="ibk-n">3</span>Brancher</div>'
           '<div class="lg">'
-          '<button onclick="ibkCommande(\'connecte\')">CONNECTER</button>'
+          '<button class="ibk-go" onclick="ibkCommande(\'connecte\')">'
+          'CONNECTER</button>'
           '<button class="sec" onclick="ibkCommande(\'deconnecte\')">'
           'DÉCONNECTER</button></div>'
+          '<label class="ck"><input type="checkbox" id="iauto"> '
+          'se rebrancher tout seul au lancement de CARRUOS</label>'
           '<div class="msg" id="imsg"></div>'
-          '<p class="ex"><b>Dans TWS :</b> Fichier &rarr; Configuration '
-          'globale &rarr; API &rarr; Paramètres. Cocher <b>Enable ActiveX '
-          'and Socket Clients</b>, et aussi <b>Read-Only API</b> : un '
-          'second verrou, côté IBKR, en plus de celui de CARRUOS. Le port '
-          'doit être celui choisi ci-dessus.</p>'
+
+          '<div class="ibk-jamais"><b>Aucun identifiant à donner.</b> '
+          'CARRUOS ne demande ni votre numéro de compte, ni votre nom '
+          'd\'utilisateur, ni votre mot de passe IBKR. Vous vous connectez '
+          'dans TWS comme d\'habitude ; CARRUOS lit ensuite ce que TWS lui '
+          'montre. Votre numéro de compte s\'affiche tout seul une fois '
+          'branché — il commence par « DU » en simulation.</div>'
+
+          '<details class="ibk-aide"><summary>RÉGLAGES AVANCÉS — RIEN À '
+          'CHANGER EN TEMPS NORMAL</summary>'
+          '<div class="ibk-av"><label>Adresse de TWS'
+          '<input id="ihote" placeholder="127.0.0.1"></label>'
+          '<label>Port personnalisé<input id="iport" type="number" min="1" '
+          'placeholder="vide = celui ci-dessus"></label>'
+          '<label>Numéro de client<input id="iclient" type="number" '
+          'min="0"></label></div>'
+          '<p class="ex">L\'adresse est celle de cet ordinateur. Le numéro '
+          'de client est un simple numéro de guichet entre CARRUOS et TWS '
+          '— <b>ce n\'est pas votre numéro de compte</b>. Ne le changez que '
+          'si TWS répond qu\'il est déjà pris.</p></details>'
           f'<p class="ex">{html.escape(ik.RAPPEL)}</p>'
           '<h2 style="margin-top:14px">LE COMPTE</h2>'
           '<div class="ibk-tuiles" id="icompte"></div>'
@@ -4235,6 +4410,31 @@ def _page_ibkr() -> str:
 
           '<section class="pan"><div class="trait"><i></i></div>'
           '<h2>POSITIONS &mdash; EN DIRECT</h2><div class="corps">'
+          # Le pas-a-pas prend la place que les positions n'occupent pas
+          # encore ; une fois branche, il se replie sur une ligne.
+          '<details class="ibk-aide ibk-guide" id="iaide" open>'
+          '<summary>À FAIRE UNE FOIS DANS TWS</summary><ol>'
+          '<li>Ouvrez <b>TWS</b> et connectez-vous avec vos identifiants '
+          'IBKR habituels. Pour commencer, choisissez <b>Paper Trading</b> '
+          '(simulation) sur l\'écran de connexion.</li>'
+          '<li>Menu <b>File</b> (Fichier) &rarr; <b>Global Configuration'
+          '</b> (Configuration globale).</li>'
+          '<li>Dans la colonne de gauche : <b>API</b> &rarr; <b>Settings'
+          '</b> (Paramètres).</li>'
+          '<li>Cochez <b>Enable ActiveX and Socket Clients</b>.</li>'
+          '<li>Cochez <b>Read-Only API</b> : un verrou de plus, côté IBKR.'
+          '</li>'
+          '<li><b>Socket port</b> : <b class="ibk-p">7497</b> — le numéro '
+          'affiché plus haut.</li>'
+          '<li>Laissez cochée <b>Allow connections from localhost only</b>.'
+          '</li>'
+          '<li><b>Apply</b>, puis <b>OK</b>. Revenez ici : DÉTECTER, puis '
+          'CONNECTER.</li></ol>'
+          '<p class="ex">Avec <b>IB Gateway</b> : <b>Configure</b> &rarr; '
+          '<b>Settings</b> &rarr; <b>API</b> &rarr; <b>Settings</b>, mêmes '
+          'cases. Si TWS affiche une fenêtre « accepter la connexion '
+          'entrante », acceptez.</p></details>'
+
           '<div id="ilignes"></div>'
           '<h2 style="margin-top:16px">RAPPROCHEMENT AVEC LE REGISTRE</h2>'
           '<div class="ibk-rap" id="irap"></div>'

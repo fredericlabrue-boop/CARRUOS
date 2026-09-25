@@ -1051,6 +1051,38 @@ def main() -> int:
        and "value=j.indice" not in ja,
        "la cle se saisit mais ne ressort jamais dans la page")
 
+    print("\n  PAGE IBKR : SE BRANCHER")
+    from . import ibkr as _ikp
+    hi = pages["ibkr"]
+    ji = _scripts(hi)
+    i0 = hi.find('<div class="ibk">')
+    zone = hi[i0:hi.find("<script", i0)]
+    # Le numero se DEDUIT de deux questions : la page ne le demande pas.
+    _v('data-log="tws"' in zone and 'data-log="gateway"' in zone
+       and 'data-cpt="simulation"' in zone and 'data-cpt="reel"' in zone,
+       "deux questions : quel logiciel IBKR, quel compte")
+    import json as _jsn
+    _tab = {f"{lg}/{cp}": n for (lg, cp), n in _ikp.PORT_DE.items()}
+    _m = re.search(r"var IBK_PORT_DE = (\{.*?\});", ji, re.S)
+    _v(bool(_m) and _jsn.loads(re.sub(r"'", '"', _m.group(1))) == _tab,
+       "la table de secours de la page est celle d'ibkr.PORT_DE")
+    _v("if(j.port_de) IBK_PORT_DE = j.port_de;" in ji,
+       "et la page reprend celle du serveur")
+    _v('id="inum"' in zone and "LE SEUL NUMÉRO QUI COMPTE" in zone,
+       "le port est affiche en grand, comme le seul numero qui compte")
+    # Aucun identifiant : ni numero de compte, ni mot de passe.
+    _v('type="password"' not in zone
+       and "Aucun identifiant à donner" in zone,
+       "la page ne demande ni numero de compte, ni mot de passe, et le dit")
+    _v("ce n\'est pas votre numéro de compte" in zone,
+       "le numero de client est dit : un guichet, pas un compte")
+    _v('id="idetecte"' in zone and "/api/ibkr/detecte" in ji
+       and 'if u.path == "/api/ibkr/detecte":' in open(
+           _app.__file__, encoding="utf-8").read(),
+       "un bouton detecte le logiciel IBKR ouvert sur l'ordinateur")
+    _v(zone.count('class="ibk-p"') >= 1 and "querySelectorAll('.ibk-p')" in ji,
+       "le pas-a-pas TWS cite le meme numero que celui affiche")
+
     print("\n  PAGE MAJORDOME (vue complete)")
     hb = pages["majordome"]
     jb = _scripts(hb)

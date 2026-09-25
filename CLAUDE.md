@@ -410,6 +410,7 @@ jeu de paramètres qui ne l'a pas produit.
 | | un fil d'exécution possède la session et sa boucle d'événements ; les pages ne lisent qu'une **photo** sous verrou. TWS se relance une fois par jour : la liaison se reconnecte seule, avec une attente croissante |
 | | un contrat IBKR devient un ticker CARRUOS par une table de places **écrite d'avance**. Une place absente ne se devine pas : la ligne garde son nom IBKR et le dit, plutôt que d'ouvrir le graphique d'un autre titre |
 | | le stop comparé au cours est celui **inscrit dans le registre**, jamais un stop calculé ; le franchissement est un fait, et le type du cours voyage avec |
+| | se brancher, c'est répondre à **deux questions** — quel logiciel, quel compte — dont le port **découle** (`PORT_DE`, table unique que la page reprend du serveur). `detecte()` frappe aux quatre ports de la **boucle locale** seulement, par une ouverture TCP refermée aussitôt : aucun échange avec l'API. Aucun identifiant n'est demandé, et la page le dit |
 | | `ibkr.FABRIQUE` remplace la bibliothèque pour les tests — même procédé que `data.load_yf` : un faux TWS, sans réseau |
 | `portefeuille.py` | le même compte en ligne de commande, **par `ibkr.py`**. Il avait sa propre porte, une table de places qui retombait sur un ticker américain pour toute place inconnue, et un verdict CONSERVER / SURVEILLER / SORTIE ; il rend maintenant le compte des conditions de sortie actives |
 | `veille.py` | rapproche l'actualité de vos lignes — une **jointure**, jamais une analyse |
@@ -695,6 +696,12 @@ jeu de paramètres qui ne l'a pas produit.
   étirait aussi le cerf, un `<svg>` placé par ses attributs x/y : il
   débordait du médaillon. `.mj-a>svg`. Et un serveur d'essai lancé
   **avant** une correction sert l'ancien code : relancer avant de regarder.
+- **Trois cases sans dire laquelle compte, c'est une question de
+  trop.** L'onglet IBKR demandait une adresse, un port et un « numéro de
+  client » : « avec quel numéro de référence je dois rentrer ? ». Un seul
+  compte — le port — et il se **déduit** de deux choix que l'utilisateur
+  connaît (TWS ou Gateway, simulation ou réel). Les deux autres sont
+  rangés dans « réglages avancés », avec ce qu'ils ne sont pas.
 - **Un `.bat` en fins de ligne Unix** fait rater des `goto` à `cmd.exe`
   quand une étiquette tombe à cheval sur son tampon de 512 octets.
   `Carruos.bat` était le seul de sa famille dans ce cas ; `test_pages`

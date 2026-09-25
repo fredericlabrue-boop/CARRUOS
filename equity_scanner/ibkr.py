@@ -57,6 +57,7 @@ from __future__ import annotations
 import asyncio
 import json
 import math
+import socket
 import threading
 import time
 from pathlib import Path
@@ -85,6 +86,15 @@ PORTS = (
     (4002, "IB Gateway — compte de simulation"),
     (4001, "IB Gateway — compte réel"),
 )
+
+# La page ne demande pas un numero : elle pose deux questions — quel
+# logiciel IBKR est ouvert, et sur quel compte — et le port en DECOULE.
+# « Avec quel numero de reference je dois rentrer ? » etait la question :
+# trois cases (adresse, port, numero de client) sans dire laquelle
+# comptait. Seul le port compte, et il se deduit de ces deux reponses.
+PORT_DE = {("tws", "simulation"): 7497, ("tws", "reel"): 7496,
+           ("gateway", "simulation"): 4002, ("gateway", "reel"): 4001}
+LOGICIELS = {"tws": "TWS (Trader Workstation)", "gateway": "IB Gateway"}
 
 DEFAUT = {"hote": "127.0.0.1", "port": 7497, "client": 71, "auto": False}
 
@@ -343,6 +353,24 @@ def libelle_port(port: int) -> str:
     return dict(PORTS).get(int(port), "port personnalisé")
 
 
+def detecte(delai: float = 0.4) -> list[dict]:
+    """Quels ports IBKR repondent sur CET ordinateur.
+
+    Une ouverture de connexion TCP, refermee aussitot : aucun echange
+    avec l'API d'IBKR, rien n'est lu ni envoye. Seulement sur la boucle
+    locale — le programme ne sonde aucune autre machine.
+    """
+    out = []
+    for port, lib in PORTS:
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=delai):
+                ouvert = True
+        except OSError:
+            ouvert = False
+        out.append({"port": port, "libelle": lib, "ouvert": ouvert})
+    return out
+
+
 # ---------------------------------------------------------------------
 # La liaison : un fil d'execution qui tient la session et la surveille
 # ---------------------------------------------------------------------
@@ -365,18 +393,21 @@ def _diagnostic(exc: Exception, port: int) -> str:
     """Ce qui a echoue, dit pour quelqu'un qui n'est pas informaticien."""
     t = f"{type(exc).__name__}: {exc}"
     if isinstance(exc, ConnectionRefusedError) or "refused" in t.lower():
-        return (f"Rien n'écoute sur le port {port}. TWS ou IB Gateway "
-                f"n'est pas lancé, ou l'API n'est pas activée : dans TWS, "
-                f"Fichier → Configuration globale → API → Paramètres, "
-                f"cocher « Enable ActiveX and Socket Clients », et vérifier "
-                f"que le port est bien {port}.")
+        return (f"Rien ne répond sur le port {port} ({libelle_port(port)}). "
+                f"Trois vérifications : TWS ou IB Gateway est-il ouvert ET "
+                f"connecté ? L'API est-elle activée (« À faire une fois "
+                f"dans TWS », ci-dessous) ? Le « Socket port » de TWS est-il "
+                f"bien {port} ? Le bouton DÉTECTER trouve le bon numéro "
+                f"tout seul.")
     if isinstance(exc, (TimeoutError, asyncio.TimeoutError)) or "timeout" in t.lower():
         return ("TWS a été joint mais n'a pas répondu à temps. Une fenêtre "
                 "d'autorisation est peut-être ouverte dans TWS : il faut "
                 "accepter la connexion entrante.")
     if "client id" in t.lower() or "326" in t:
         return ("Ce numéro de client est déjà pris par un autre programme "
-                "branché sur TWS. Changez-le (n'importe quel nombre libre).")
+                "branché sur TWS. Dans RÉGLAGES AVANCÉS, mettez-en un autre "
+                "(72, par exemple) : c'est un numéro de guichet, pas votre "
+                "numéro de compte.")
     return t
 
 
@@ -601,6 +632,7 @@ def etat(registre: list[dict] | None = None) -> dict:
     c = config()
     p["config"] = {**c, "libelle_port": libelle_port(c["port"])}
     p["ports"] = [{"port": n, "libelle": l} for n, l in PORTS]
+    p["port_de"] = {f"{lg}/{cp}": n for (lg, cp), n in PORT_DE.items()}
     p["champs"] = [{"cle": k, "libelle": l} for k, l in CHAMPS_COMPTE]
     reg = registre or []
     p["rapprochement"] = rapproche(p.get("lignes", []), reg)
