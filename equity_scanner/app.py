@@ -4468,16 +4468,25 @@ def _ibkr_commande(c: dict) -> dict:
     from . import ibkr as ik
     action = (c.get("action") or "").strip()
     if action == "connecte":
+        saisie = (c.get("hote") or "").strip() or "127.0.0.1"
         try:
-            cfg = ik.pose_config(hote=c.get("hote") or "127.0.0.1",
+            cfg = ik.pose_config(hote=saisie,
                                  port=int(c.get("port") or 7497),
                                  client=int(c.get("client") or 71),
                                  auto=bool(c.get("auto")))
         except (TypeError, ValueError):
             return {"ok": False, "message": "Port ou numéro de client invalide."}
         ik.LIAISON.demarre(cfg["hote"], cfg["port"], cfg["client"])
+        note = ""
+        if cfg["hote"] != saisie:
+            # Une saisie qui n'etait pas une adresse — le plus souvent un
+            # numero de compte — est remplacee, et on le dit.
+            note = (f" « {saisie} » n'est pas une adresse d'ordinateur (un "
+                    f"numéro de compte, peut-être) : CARRUOS utilise "
+                    f"{cfg['hote']}, cet ordinateur.")
         return {"ok": True, "message": f"Connexion à {cfg['hote']}:{cfg['port']} "
-                                       f"({ik.libelle_port(cfg['port'])})…"}
+                                       f"({ik.libelle_port(cfg['port'])})…"
+                                       + note}
     if action == "deconnecte":
         ik.LIAISON.arrete()
         ik.pose_config(auto=False)
@@ -4862,6 +4871,47 @@ def _icone() -> str:
     return str(f) if f.exists() else ""
 
 
+def _icone_fenetre(fenetre, chemin: str) -> bool:
+    """Pose l'icone CARRUOS sur une fenetre pywebview, LA OU pywebview
+    la lit.
+
+    Sous Windows, pywebview cree chaque fenetre avec l'icone de
+    l'executable Python (`ExtractIconW(sys.executable)` dans son module
+    WinForms), et la reapplique quand bon lui semble. Poser la notre par
+    un message Windows ne tenait donc pas : Frederic voyait encore le
+    logo Python en haut a gauche. On la pose ici sur la propriete `Icon`
+    de la fenetre elle-meme, sur le fil de l'interface — c'est celle que
+    WinForms garde et renvoie a Windows.
+    """
+    forme = getattr(fenetre, "native", None)
+    if forme is None or not chemin:
+        return False
+    try:
+        from System import Func, Type
+        from System.Drawing import Icon
+    except Exception:
+        return False
+    try:
+        ico = Icon(chemin)
+
+        def poser():
+            forme.Icon = ico
+        forme.Invoke(Func[Type](poser))
+        return True
+    except Exception:
+        return False
+
+
+def _suit_icone(fenetre, chemin: str) -> None:
+    """A chaque ouverture de la fenetre, son icone."""
+    if not chemin:
+        return
+    try:
+        fenetre.events.shown += (lambda *_a: _icone_fenetre(fenetre, chemin))
+    except Exception:
+        pass
+
+
 def _veille_icones(chemin: str) -> None:
     """Pose l'icone CARRUOS sur CHAQUE fenetre du programme, a mesure
     qu'elles apparaissent.
@@ -4872,7 +4922,10 @@ def _veille_icones(chemin: str) -> None:
     s'arretait des qu'elle l'avait trouvee : seule la premiere fenetre
     portait le cerf, toutes celles ouvertes ensuite portaient Python. On
     parcourt maintenant les fenetres de NOTRE processus, chaque seconde,
-    et on pose l'icone sur celles qui ne l'ont pas encore.
+    et on pose l'icone sur celles qui ne l'ont pas — ou PLUS : une
+    fenetre qui a repris l'icone de Python (pywebview la reapplique) la
+    perd a nouveau au passage suivant. C'est le filet sous
+    `_icone_fenetre`, qui la pose par la fenetre elle-meme.
     """
     import ctypes
     import time
@@ -4888,25 +4941,27 @@ def _veille_icones(chemin: str) -> None:
     u.SendMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM,
                                wintypes.LPARAM]
     IMAGE_ICON, LR_LOADFROMFILE = 1, 0x0010
-    WM_SETICON, ICON_SMALL, ICON_BIG = 0x0080, 0, 1
+    WM_SETICON, WM_GETICON, ICON_SMALL, ICON_BIG = 0x0080, 0x007F, 0, 1
+    u.SendMessageW.restype = wintypes.LPARAM
     grand = u.LoadImageW(None, chemin, IMAGE_ICON, 64, 64, LR_LOADFROMFILE)
     petit = u.LoadImageW(None, chemin, IMAGE_ICON, 16, 16, LR_LOADFROMFILE)
     if not (grand or petit):
         return
-    moi, faites = os.getpid(), set()
+    moi = os.getpid()
     ENUM = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
 
     def pose(h, _l):
-        if h in faites or not u.IsWindowVisible(h):
+        if not u.IsWindowVisible(h):
             return True
         pid = wintypes.DWORD()
         u.GetWindowThreadProcessId(h, ctypes.byref(pid))
         if pid.value == moi and u.GetWindowTextLengthW(h) > 0:
-            if grand:
+            # On regarde l'icone ACTUELLE : une fenetre deja traitee a pu
+            # la reprendre depuis.
+            if grand and u.SendMessageW(h, WM_GETICON, ICON_BIG, 0) != grand:
                 u.SendMessageW(h, WM_SETICON, ICON_BIG, grand)
-            if petit:
+            if petit and u.SendMessageW(h, WM_GETICON, ICON_SMALL, 0) != petit:
                 u.SendMessageW(h, WM_SETICON, ICON_SMALL, petit)
-            faites.add(h)
         return True
     rappel = ENUM(pose)
     while True:
@@ -4948,6 +5003,39 @@ def _raccourci() -> dict:
         return {"ok": False, "erreur": texte or (r.stderr or "").strip()
                 or f"le script a rendu le code {r.returncode}"}
     return {"ok": True, "message": texte or "Raccourci créé sur le Bureau."}
+
+
+def _raccourci_auto() -> None:
+    """Le raccourci du Bureau, pose tout seul.
+
+    « Je veux une icone CARRUOS sur le Bureau pour lancer CARRUOS. » Le
+    bouton des reglages et le choix 3 de Carruos.bat existaient, mais il
+    fallait les trouver. Le raccourci est maintenant pose au premier
+    lancement — et REPOSE quand le logo change, pour que le Bureau montre
+    le nouveau. Pas a chaque lancement : un raccourci supprime
+    volontairement ne revient qu'avec un nouveau logo.
+    """
+    if os.name != "nt":
+        return
+    ico = _icone()
+    if not ico:
+        return
+    marque = Path.home() / ".carruos" / "raccourci.json"
+    taille = os.path.getsize(ico)
+    try:
+        if json.loads(marque.read_text(encoding="utf-8")).get("icone") == taille:
+            return
+    except Exception:
+        pass
+    r = _raccourci()
+    if r.get("ok"):
+        try:
+            marque.parent.mkdir(parents=True, exist_ok=True)
+            marque.write_text(json.dumps({"icone": taille,
+                                          "quand": time.strftime("%Y-%m-%d")}),
+                              encoding="utf-8")
+        except OSError:
+            pass
 
 
 def titre_fenetre(adresse: str) -> str:
@@ -5032,15 +5120,19 @@ def main():
                 # etaient creees sans lui : depuis STRATEGIE ou IBKR, un
                 # onglet retombait sur `window.open`, qui ouvre une
                 # fenetre de navigateur et non une fenetre CARRUOS.
-                self._ouvertes[nom] = webview.create_window(
+                f = webview.create_window(
                     titre_fenetre(adresse), url.rstrip("/") + adresse,
                     width=1280, height=880, min_size=(900, 620),
                     background_color="#080b10", js_api=self)
+                _suit_icone(f, ico)
+                self._ouvertes[nom] = f
                 return {"ok": True, "rappelee": False}
 
-        webview.create_window(TITRE, url, width=1420, height=940,
-                              min_size=(980, 680), background_color="#080b10",
-                              js_api=Fenetres())
+        threading.Thread(target=_raccourci_auto, daemon=True).start()
+        principale = webview.create_window(
+            TITRE, url, width=1420, height=940, min_size=(980, 680),
+            background_color="#080b10", js_api=Fenetres())
+        _suit_icone(principale, ico)
         if ico:
             threading.Thread(target=_veille_icones, args=(ico,),
                              daemon=True).start()

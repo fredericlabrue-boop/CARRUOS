@@ -333,7 +333,8 @@ jeu de paramètres qui ne l'a pas produit.
 | Fichier | Rôle |
 |---|---|
 | `app.py` | serveur HTTP local, page d'accueil, routes API, fenêtres |
-| | chaque fenêtre fille est créée **avec** `js_api` et porte son titre (« CARRUOS ALICE — STRATÉGIE ») ; `_veille_icones` pose `carruos.ico` sur **chaque** fenêtre du processus, au fil de leur ouverture |
+| | chaque fenêtre fille est créée **avec** `js_api` et porte son titre (« CARRUOS ALICE — STRATÉGIE ») ; son logo est posé par la propriété `Icon` de sa fenêtre WinForms, à l'événement `shown` (`_icone_fenetre`), et `_veille_icones` le repose sur toute fenêtre du processus qui l'a repris |
+| | `_raccourci_auto` pose le raccourci du Bureau au premier lancement, et le repose quand le logo change (marque `~/.carruos/raccourci.json`, taille de l'icône) |
 | `chart.py` | page graphique, 4 colonnes, cône de dispersion, **6 unités de temps** dont 5 ANS |
 | | une unité est identifiée par sa **clé**, jamais par sa règle de rééchantillonnage : 5 ANS et 1 SEMAINE partagent la taille de bougie, et la déduire de la règle donnait à la seconde les longueurs de la première |
 | | la fenêtre affichée sous chaque onglet est **calculée sur les vraies dates** : une constante mentirait dès que l'historique du titre est plus court |
@@ -410,6 +411,7 @@ jeu de paramètres qui ne l'a pas produit.
 | | un fil d'exécution possède la session et sa boucle d'événements ; les pages ne lisent qu'une **photo** sous verrou. TWS se relance une fois par jour : la liaison se reconnecte seule, avec une attente croissante |
 | | un contrat IBKR devient un ticker CARRUOS par une table de places **écrite d'avance**. Une place absente ne se devine pas : la ligne garde son nom IBKR et le dit, plutôt que d'ouvrir le graphique d'un autre titre |
 | | le stop comparé au cours est celui **inscrit dans le registre**, jamais un stop calculé ; le franchissement est un fait, et le type du cours voyage avec |
+| | `hote_valide` : l'adresse de TWS est une IP, `localhost` ou un nom à points — un mot seul (« U1234567 », un numéro de compte) redevient 127.0.0.1, à la saisie **et** à la relecture |
 | | se brancher, c'est répondre à **deux questions** — quel logiciel, quel compte — dont le port **découle** (`PORT_DE`, table unique que la page reprend du serveur). `detecte()` frappe aux quatre ports de la **boucle locale** seulement, par une ouverture TCP refermée aussitôt : aucun échange avec l'API. Aucun identifiant n'est demandé, et la page le dit |
 | | `ibkr.FABRIQUE` remplace la bibliothèque pour les tests — même procédé que `data.load_yf` : un faux TWS, sans réseau |
 | `portefeuille.py` | le même compte en ligne de commande, **par `ibkr.py`**. Il avait sa propre porte, une table de places qui retombait sur un ticker américain pour toute place inconnue, et un verdict CONSERVER / SURVEILLER / SORTIE ; il rend maintenant le compte des conditions de sortie actives |
@@ -696,6 +698,22 @@ jeu de paramètres qui ne l'a pas produit.
   étirait aussi le cerf, un `<svg>` placé par ses attributs x/y : il
   débordait du médaillon. `.mj-a>svg`. Et un serveur d'essai lancé
   **avant** une correction sert l'ancien code : relancer avant de regarder.
+- **Une icône posée par-dessus peut être reprise.** pywebview (WinForms)
+  crée chaque fenêtre avec l'icône de `pythonw.exe` et la réapplique ; le
+  `WM_SETICON` envoyé une seule fois par fenêtre ne tenait pas, et la
+  fenêtre IBKR montrait le logo Python. L'icône se pose là où WinForms la
+  garde — la propriété `Icon` de la fenêtre, sur son fil — et la veille
+  regarde l'icône **actuelle** au lieu de se souvenir qu'elle l'avait
+  posée. Le test simule la fenêtre et .NET et regarde le résultat.
+- **Une saisie fausse enregistrée échoue à chaque lancement.** Un numéro
+  de référence tapé dans la case « adresse » de l'ancienne page était
+  relu à chaque connexion : « getaddrinfo failed », toutes les 60 s. La
+  valeur se valide à la saisie **et** à la relecture.
+- **Un raccourci vers un `.vbs` dépend d'une association de fichier.**
+  Sur un PC où les `.vbs` s'ouvrent dans le Bloc-notes, il ouvre le
+  script au lieu de lancer le programme. Le raccourci vise `wscript.exe`.
+  Et Windows garde les icônes en cache sous le **nom** de leur fichier :
+  la copie de l'icône porte sa taille dans son nom.
 - **Trois cases sans dire laquelle compte, c'est une question de
   trop.** L'onglet IBKR demandait une adresse, un port et un « numéro de
   client » : « avec quel numéro de référence je dois rentrer ? ». Un seul

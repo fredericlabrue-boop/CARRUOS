@@ -55,7 +55,9 @@ passe : c'est TWS qui tient la session, CARRUOS ne la voit jamais.
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import json
+import re
 import math
 import socket
 import threading
@@ -323,6 +325,33 @@ def sans_fraicheur(lignes: list[dict]) -> list[str]:
 # Configuration
 # ---------------------------------------------------------------------
 
+# L'adresse de TWS est celle d'un ORDINATEUR. Frederic a vu « gaierror :
+# getaddrinfo failed » a chaque tentative : la premiere case de l'ancienne
+# page, « adresse », avait recu un numero de reference IBKR, enregistre
+# puis relu a chaque lancement. Une adresse qui n'en est pas une ne passe
+# plus : c'est celle de cet ordinateur qui la remplace, et on le dit.
+_NOM_MACHINE = re.compile(
+    r"^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)"
+    r"(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$", re.I)
+
+
+def hote_valide(hote) -> str:
+    """L'adresse telle quelle si c'en est une, sinon celle de cet
+    ordinateur. Acceptes : une adresse IP, « localhost », un nom de
+    machine a points (« pc.maison »). Un mot seul comme « U1234567 » est
+    refuse : c'est un numero de compte bien plus souvent qu'un ordinateur,
+    et TWS n'accepte de toute facon que cet ordinateur par defaut."""
+    h = str(hote or "").strip()
+    if h.lower() == "localhost":
+        return h
+    try:
+        ipaddress.ip_address(h)
+        return h
+    except ValueError:
+        pass
+    return h if _NOM_MACHINE.match(h) else DEFAUT["hote"]
+
+
 def config() -> dict:
     c = dict(DEFAUT)
     try:
@@ -331,13 +360,16 @@ def config() -> dict:
             c.update({k: d[k] for k in DEFAUT if k in d})
     except Exception:
         pass
+    # Relu a chaque lancement : une adresse fausse deja enregistree ne
+    # doit plus faire echouer chaque connexion.
+    c["hote"] = hote_valide(c.get("hote"))
     return c
 
 
 def pose_config(hote=None, port=None, client=None, auto=None) -> dict:
     c = config()
     if hote:
-        c["hote"] = str(hote).strip()
+        c["hote"] = hote_valide(hote)
     if port:
         c["port"] = int(port)
     if client:
@@ -389,9 +421,15 @@ def _num(x):
     return v if math.isfinite(v) else None
 
 
-def _diagnostic(exc: Exception, port: int) -> str:
+def _diagnostic(exc: Exception, port: int, hote: str = "") -> str:
     """Ce qui a echoue, dit pour quelqu'un qui n'est pas informaticien."""
     t = f"{type(exc).__name__}: {exc}"
+    if isinstance(exc, socket.gaierror) or "getaddrinfo" in t.lower():
+        return (f"L'adresse de TWS « {hote or '?'} » ne désigne aucun "
+                f"ordinateur. Ce champ attend 127.0.0.1 — cet ordinateur — "
+                f"et non un numéro de compte ou de référence IBKR : il n'y "
+                f"en a aucun à donner. Ouvrez RÉGLAGES AVANCÉS, videz "
+                f"l'adresse, puis CONNECTER.")
     if isinstance(exc, ConnectionRefusedError) or "refused" in t.lower():
         return (f"Rien ne répond sur le port {port} ({libelle_port(port)}). "
                 f"Trois vérifications : TWS ou IB Gateway est-il ouvert ET "
@@ -496,7 +534,7 @@ class Liaison:
             except Exception as exc:
                 attente = REPRISE[min(essai, len(REPRISE) - 1)]
                 self._pose(etat="erreur",
-                           message=_diagnostic(exc, port)
+                           message=_diagnostic(exc, port, hote)
                            + f" Nouvel essai dans {attente} s.")
                 essai += 1
                 if arret.wait(attente):

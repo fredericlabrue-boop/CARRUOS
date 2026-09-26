@@ -1358,6 +1358,68 @@ def main() -> int:
     _v("<svg" in _hd3.icone(_app.TRACE_D)
        and _app.TRACE_D[:40] in _hd3.icone(_app.TRACE_D),
        "l'icone est dessinee a partir du trace du cerf, pas recopiee")
+    # pywebview (WinForms) cree chaque fenetre avec l'icone de Python et
+    # la reapplique : Frederic voyait le logo Python en haut a gauche de
+    # la fenetre IBKR. L'icone se pose par la propriete Icon de la
+    # fenetre, a CHAQUE ouverture, principale comme filles.
+    _src_i = open(_app.__file__, encoding="utf-8").read()
+    _v("_suit_icone(principale, ico)" in _src_i
+       and "_suit_icone(f, ico)" in _src_i
+       and "forme.Icon = ico" in _src_i and "fenetre.events.shown +=" in _src_i,
+       "chaque fenetre recoit le logo par sa propriete Icon, a son ouverture")
+    _v("WM_GETICON" in _src_i and "!= grand" in _src_i,
+       "la veille repose l'icone sur une fenetre qui l'a reprise")
+    # Le RESULTAT, pas le montage : une fausse fenetre WinForms et un faux
+    # .NET, et l'on regarde si l'icone a bien ete posee — sur le fil de
+    # l'interface (Invoke), a l'evenement « shown ».
+    import types as _ty
+    _sys_mod = {k: sys.modules.get(k) for k in ("System", "System.Drawing")}
+    _faux_sys = _ty.ModuleType("System")
+    _faux_dr = _ty.ModuleType("System.Drawing")
+
+    class _Func:
+        def __class_getitem__(cls, _t):
+            return lambda f: f
+    _faux_sys.Func, _faux_sys.Type = _Func, object
+    _faux_dr.Icon = lambda chemin: ("ICONE", chemin)
+    sys.modules["System"], sys.modules["System.Drawing"] = _faux_sys, _faux_dr
+
+    class _Ev:
+        def __init__(self):
+            self.h = []
+
+        def __iadd__(self, f):
+            self.h.append(f)
+            return self
+
+    class _Forme:
+        Icon, appels = None, 0
+
+        def Invoke(self, f):
+            _Forme.appels += 1
+            f()
+
+    class _Fen:
+        def __init__(self):
+            self.native, self.events = _Forme(), _ty.SimpleNamespace(shown=_Ev())
+    try:
+        _w = _Fen()
+        _app._suit_icone(_w, "C:/carruos/carruos.ico")
+        for _h in _w.events.shown.h:
+            _h(_w)
+    finally:
+        for k, v in _sys_mod.items():
+            if v is None:
+                sys.modules.pop(k, None)
+            else:
+                sys.modules[k] = v
+    _v(_w.native.Icon == ("ICONE", "C:/carruos/carruos.ico")
+       and _Forme.appels == 1,
+       "a l'ouverture, la fenetre recoit bien le logo, par son propre fil")
+    class _SansForme:
+        native = None
+    _v(_app._icone_fenetre(_SansForme(), "x.ico") is False,
+       "hors de Windows, ou sans fenetre, la pose de l'icone ne plante pas")
     # Le Bureau : l'icone s'y pose sur n'importe quel fond d'ecran. Le
     # cerf seul, trait dore sur transparent, s'y perdait.
     _v('viewBox="0 0 512 512"' in _hd3.icone(_app.TRACE_D)
@@ -1396,6 +1458,18 @@ def main() -> int:
     _v(not lf, "chaque .bat et .vbs est en fins de ligne Windows")
     for f in lf:
         print(f"          -> fins de ligne Unix : {f}")
+    # Sur un PC ou les .vbs s'ouvrent dans le Bloc-notes, un raccourci
+    # vers Carruos.vbs ouvrirait le script au lieu de lancer CARRUOS.
+    _v(b"\\System32\\wscript.exe" in vbs and b"lien.Arguments" in vbs,
+       "le raccourci lance par wscript.exe, meme si les .vbs s'ouvrent ailleurs")
+    _v(b'"\\carruos-" & fso.GetFile(icone).Size & ".ico"' in vbs,
+       "l'icone est copiee sous un nom qui change avec le logo (cache Windows)")
+    _src_r = open(_app.__file__, encoding="utf-8").read()
+    _v("threading.Thread(target=_raccourci_auto" in _src_r
+       and '.get("icone") == taille' in _src_r,
+       "le raccourci est pose tout seul au premier lancement, et quand le "
+       "logo change")
+
     _v(all('id="raccourci"' in x for x in pages.values()),
        "le bouton du raccourci est dans les reglages, sur chaque page")
     src_a = open(_app.__file__, encoding="utf-8").read()

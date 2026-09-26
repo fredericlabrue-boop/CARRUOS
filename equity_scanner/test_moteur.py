@@ -3150,6 +3150,34 @@ def test_memo() -> None:
     ok("un refus de connexion renvoie vers les trois verifications et la "
        "detection", "DÉTECTER" in _ik._diagnostic(ConnectionRefusedError(), 7497)
        and "Socket port" in _ik._diagnostic(ConnectionRefusedError(), 7497))
+    # « gaierror : getaddrinfo failed » : un numero de reference IBKR
+    # tape dans la case « adresse », enregistre, relu a chaque lancement.
+    _cas = {"127.0.0.1": "127.0.0.1", "localhost": "localhost",
+            "192.168.1.20": "192.168.1.20", "::1": "::1",
+            "pc.maison": "pc.maison", "U1234567": "127.0.0.1",
+            "DU123456": "127.0.0.1", "": "127.0.0.1", " 7497 ": "127.0.0.1"}
+    _faux = {h: _ik.hote_valide(h) for h in _cas if _ik.hote_valide(h) != _cas[h]}
+    ok("une adresse qui n'en est pas une est remplacee par cet ordinateur",
+       not _faux)
+    for h, v in _faux.items():
+        print(f"          -> {h!r} donne {v!r}")
+    import tempfile as _tf
+    _vrai_f = _ik.FICHIER
+    _ik.FICHIER = Path(_tf.mkdtemp()) / "ibkr.json"
+    try:
+        _ik.FICHIER.write_text(json.dumps({"hote": "U7654321", "port": 7497}),
+                               encoding="utf-8")
+        _relu = _ik.config()["hote"]
+    finally:
+        _ik.FICHIER = _vrai_f
+    ok("une adresse fausse DEJA enregistree ne fait plus echouer chaque "
+       "connexion", _relu == "127.0.0.1")
+    import socket as _so2
+    _msg = _ik._diagnostic(_so2.gaierror(11001, "getaddrinfo failed"), 7497,
+                           "U7654321")
+    ok("« getaddrinfo failed » est dit : une adresse, pas un numero de compte",
+       "U7654321" in _msg and "numéro de compte" in _msg
+       and "getaddrinfo" not in _msg)
     ok("un numero de client pris est dit : un guichet, pas un compte",
        "pas votre numéro de compte" in _ik._diagnostic(
            RuntimeError("client id is already in use (326)"), 7497))

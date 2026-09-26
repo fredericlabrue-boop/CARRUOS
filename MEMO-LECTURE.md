@@ -635,7 +635,10 @@ de deux questions.
    ordinateur et choisit celui qui répond. Puis **CONNECTER**.
 
 Les **réglages avancés** (adresse, port personnalisé, numéro de client)
-n'ont rien à changer en temps normal. Le numéro de client est un numéro
+n'ont rien à changer en temps normal. L'adresse est celle d'un
+**ordinateur** — 127.0.0.1 pour celui-ci : un numéro de compte tapé là
+est refusé et remplacé par 127.0.0.1, même s'il avait été enregistré
+avant. Le numéro de client est un numéro
 de guichet entre CARRUOS et TWS, **pas** votre numéro de compte : on ne
 le change que si TWS répond qu'il est déjà pris.
 
@@ -866,8 +869,10 @@ socle, cerf lumineux — dans un **médaillon** sombre qui le détache de
 n'importe quel fond d'écran. Le même dessin sert à l'onglet du
 navigateur, à chaque fenêtre, au raccourci et au cerf du majordome.
 
-Pour le poser sur le Bureau : la roue des réglages, **Créer le raccourci
-« Carruos Alice »** — ou Carruos.bat, choix 3. Un double-clic lance
+Le raccourci **« Carruos Alice »** se pose tout seul sur le Bureau au
+premier lancement, et se repose quand le logo change. Pour le refaire :
+la roue des réglages, **Créer le raccourci « Carruos Alice »** — ou
+Carruos.bat, choix 3, ou un double-clic sur `Creer-raccourci.vbs`. Un double-clic lance
 CARRUOS sans console. Relancer remplace le raccourci au lieu d'en
 empiler un second ; l'ancien « CARRUOS » n'est retiré que s'il menait à
 ce programme. Si l'ancien dessin s'affiche encore, clic droit sur le
