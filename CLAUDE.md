@@ -19,6 +19,8 @@ py -m equity_scanner.options NVDA       # open interest des OPTIONS
 py -m equity_scanner.palmares COIN HOOD TLX.DE   # les 13 blocs, classés
 py -m equity_scanner.dossier "je sors quand sur TLX.DE"
 py -m equity_scanner.pead         # stratégie 2 : préparation, puis passage unique sur OUI
+py -m equity_scanner.detention TSLA 2 mois   # ce que cette durée a donné, contre l'indice
+py -m equity_scanner.faillites   # RESTRUCTURATIONS : les 8-K item 1.03 et ce qui a suivi
 ```
 
 `MEMO-LECTURE.md` à la racine rassemble **tous les seuils** du
@@ -290,6 +292,35 @@ jeu de paramètres qui ne l'a pas produit.
   **toujours** en face des pièges évités, **en même nombre** — même quand
   l'une des colonnes est plus longue. Le cerveau a la même consigne :
   jamais une fusée manquée citée seule.
+- **« La bonne durée » pour un titre, ou « c'est bien de le garder ».**
+  « Tesla, je garde deux mois, c'est bien ? » ; « celui-là c'est plutôt
+  une semaine, celui-là un an ». La première moitié se mesure :
+  `detention.py` rend, pour la durée que le propriétaire tape, ce que
+  chaque période **non chevauchante** de cette durée a donné sur tout
+  l'historique — combien en hausse avec leur Wilson (rien sous 8
+  périodes), la médiane, le pire, le recul **en chemin**, et le même
+  compte contre l'indice sur les mêmes dates — puis les cinq durées
+  usuelles **dans un ordre fixe**, jamais triées sur leur résultat, et
+  « acheté lundi, vendu vendredi » contre le taux de base du titre. La
+  seconde moitié ne se mesure pas : désigner après coup la durée qui a
+  le mieux marché est la pêche que le protocole interdit, et cinq durées
+  comparées donnent cinq chances d'en voir une briller par hasard. La
+  carte et le majordome le disent à chaque réponse.
+- **Un « potentiel » parmi les sociétés en faillite.** « Scanne toutes
+  les entreprises en faillite avec des plans de relance, les bangers,
+  comme le trader japonais. » `faillites.py` dresse la liste des
+  **faits** : chaque 8-K **item 1.03** déposé à la SEC sur 18 mois, le
+  plan **confirmé** quand un dépôt *postérieur* cite l'ordonnance, l'item
+  **3.03** (droits des actionnaires modifiés, le plus souvent annulés),
+  le lien vers chaque dépôt, et ce que le cours a fait depuis la veille
+  du dépôt — **coupé à la veille du 3.03**, au-delà duquel le cours peut
+  être celui d'actions nouvelles. Le **compte complet** l'accompagne, y
+  compris les tickers sans cours et les sociétés sans ticker, qui sont
+  souvent les pires : on entend parler du titre multiplié par dix, pas
+  des dizaines qui ont fini à zéro. Tris sur un seul fait, aucun score,
+  et le rappel qu'un Chapter 11 laisse souvent **rien** aux anciens
+  actionnaires. L'Europe n'a pas de registre qui relie procédures et
+  cote : les titres s'y ajoutent à la main.
 - Une ligne de prédiction de prix. Le cône de dispersion existe : dérive
   fixée à zéro, il donne l'amplitude, jamais le sens.
 - Un take-profit **actif**. Les spécifications 2 et 3 disent « aucun
@@ -368,6 +399,13 @@ jeu de paramètres qui ne l'a pas produit.
 | | les seuils de forme sont écrits **avant** toute mesure et épinglés par `test_moteur` ; les déplacer après coup serait la même pêche que sur les paramètres de stratégie |
 | | l'ombre opposée se mesure sur l'**étendue**, pas sur le corps : « ≤ 1 × le corps » exigeait moins de 3 % sur une étoile filante, et le détecteur n'en a jamais trouvé une seule jusqu'à la correction |
 | `options.py` | l'open interest des **options** — une action n'en a pas |
+| `detention.py` | « si je garde N semaines / mois / ans » : ce que chaque période de cette durée a **donné** sur ce titre, contre l'indice, jamais « la bonne durée » |
+| | périodes **non chevauchantes** comptées depuis la fin : vingt ans ne font que quatre périodes de cinq ans, et la carte le dit au lieu d'en inventer mille glissantes |
+| | carte SI JE GARDE… de la page graphique (`/api/detention`), intention `detention` du majordome (« je garde 2 mois ? ») |
+| `faillites.py` | **RESTRUCTURATIONS** : les 8-K item 1.03 de la SEC regroupés par société, plan confirmé, item 3.03, cours depuis la veille du dépôt, compte complet ; l'Europe à la main |
+| | un dépôt compte **une fois** (numéro d'enregistrement), même rendu par son 8-K et ses pièces jointes ; le lien retenu est celui du 8-K. Une simple **mention** de l'item 1.03 sans le déclarer n'est pas une faillite |
+| | au-delà de `PAGES_MAX` pages, la réponse porte `tronque` et la page écrit LISTE INCOMPLÈTE : un compte présenté comme complet qui ne l'est pas serait pire que pas de compte |
+| | la SEC exige une adresse de contact dans l'en-tête : c'est **celle que le propriétaire tape**, rangée dans `~/.carruos/sec.json`, jamais écrite par le programme — `test_moteur` refuse toute adresse dans le module |
 | `dossier.py` | la **porte en français** du majordome : une question, une intention, une section de faits |
 | | aucune phrase n'est *générée*. `constitue()` rassemble ce que les autres modules ont déjà calculé, `intention()` reconnaît ce qui est demandé par une table de motifs écrite d'avance, et les réponses sont des gabarits remplis avec les chiffres du dossier |
 | | conséquence tenue **par construction** : si un chiffre n'est pas dans le dossier, aucune phrase ne peut le sortir. `test_moteur` le vérifie en passant un dossier VIDE à chaque section et en exigeant qu'aucun nombre n'en sorte |
@@ -635,6 +673,16 @@ jeu de paramètres qui ne l'a pas produit.
   pose, HTML **et** scripts, et refuse celles qui ne sont réglées que
   dans la feuille d'une autre. Une classe réglée nulle part reste
   permise : c'est un crochet de script, pas un oubli.
+- **Un bloc unique sous la barre tombe dans une ligne `auto`.** `.app`
+  est une grille de 100vh en `auto auto minmax(0,1fr)` sous
+  `body{overflow:hidden}`. MA LISTE n'y posait qu'un bloc : il allait
+  dans la deuxième ligne, `auto`, s'allongeait sous le bas de l'écran,
+  et la molette ne l'atteignait plus — une liste de quarante titres
+  était coupée depuis la création de la page, sans rien qui le dise.
+  Vu au rendu de RESTRUCTURATIONS, qui avait le même défaut. Une page
+  d'un seul bloc porte `une-zone` et son contenu va dans `.defile`.
+  `test_pages` regarde **chaque** page : si `.app` n'a que la barre et
+  un bloc, sa coquille doit redéfinir les lignes.
 - **Une grille dimensionne ses enfants par ses lignes EXPLICITES.**
   Ajouter un panneau à une grille qui n'en déclarait qu'une envoie le
   nouveau dans une ligne implicite calée sur son contenu. Sur la page

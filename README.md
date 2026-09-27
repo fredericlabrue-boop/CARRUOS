@@ -289,6 +289,8 @@ py -m equity_scanner.audit --parametres        paramètres gelés + empreinte
 py -m equity_scanner.robuste --csv rapport.csv stabilité, Monte Carlo
 py -m equity_scanner.cache --etat              taille du cache
 py -m equity_scanner.data --figer sp500        composition datée
+py -m equity_scanner.detention TSLA 2 mois     ce que cette durée a donné
+py -m equity_scanner.faillites                 faillites US (SEC, 18 mois)
 ```
 
 `--fils N` règle le nombre de téléchargements simultanés (8 par défaut,

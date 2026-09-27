@@ -444,6 +444,13 @@ body{overflow:hidden}
 .app{position:relative;z-index:1;height:100vh;display:grid;
  grid-template-rows:auto auto minmax(0,1fr);
  gap:var(--gap);padding:9px 13px 11px}
+/* Une page d'un seul bloc (MA LISTE, RESTRUCTURATIONS) : le bloc prend
+   la place qui reste et DEFILE lui-meme. Pose dans une ligne `auto`, il
+   s'allongeait sous le bas de l'ecran, et `body{overflow:hidden}` le
+   rendait inatteignable a la molette : une liste de quarante titres
+   etait coupee sans rien qui le dise. */
+.app.une-zone{grid-template-rows:auto minmax(0,1fr)}
+.defile{min-height:0;overflow-y:auto;overscroll-behavior:contain}
 
 /* .bar et .raf vivent dans hud.py : une barre, une definition. */
 /* Le majordome vit dans majordome.py : un compagnon, une definition,
@@ -1847,6 +1854,83 @@ CSS_PALM = """
 """
 
 
+# La page RESTRUCTURATIONS. Chaque ligne est une societe et ses FAITS :
+# les depots, les dates, le cours. Aucune colonne de « potentiel ».
+CSS_RESTR = """
+/* Un panneau du theme sous tout le texte : pose a nu sur le decor, il se
+   lisait a travers le cerf. */
+.rst{max-width:1180px;margin:0 auto 24px;padding:14px 16px 26px;
+ background:var(--pan-fond);border:1px solid var(--bord);border-radius:12px}
+.rst .cmd{display:grid;gap:11px;align-items:end;margin-bottom:12px;
+ grid-template-columns:minmax(118px,200px) minmax(min(100%,220px),1fr)
+ minmax(118px,160px)}
+.rst .cmd>div{min-width:0}
+.rst label{display:block;font-size:10px;letter-spacing:.16em;
+ color:var(--txt-faible);margin-bottom:5px}
+.rst select,.rst input{width:100%;background:var(--champ-fond,#0a1620);
+ border:1px solid var(--bord);color:var(--txt);border-radius:9px;
+ padding:9px 11px;font:400 13px inherit}
+.rst input:focus,.rst select:focus{outline:0;border-color:var(--acc)}
+.rst .go{width:100%;background:#0e2b34;border:1px solid var(--acc);
+ color:var(--txt-fort);border-radius:9px;padding:10px;cursor:pointer;
+ font:500 13px inherit;letter-spacing:.1em}
+.rst .go:hover{background:#123a46}
+/* Le compte : des cases qui se partagent le total, en colonnes FIXES. */
+.rst .cpt{display:grid;gap:8px;margin:6px 0 12px;
+ grid-template-columns:repeat(auto-fit,minmax(min(100%,132px),1fr))}
+.rst .cpt div{min-width:0;border:1px solid var(--bord);border-radius:9px;
+ padding:8px 10px;font-size:10.5px;color:var(--txt-faible);line-height:1.45}
+.rst .cpt b{display:block;font:500 19px ui-monospace,Consolas,monospace;
+ color:var(--txt-fort);font-variant-numeric:tabular-nums}
+.rst .cpt .neg b{color:var(--neg)}.rst .cpt .pos b{color:var(--pos)}
+.rst .rap{font-size:11.5px;line-height:1.65;color:var(--txt-mi);
+ border-left:2px solid var(--acc);padding:2px 0 2px 10px;margin:0 0 8px}
+.rst .rap.fort{border-left-color:var(--neg);color:var(--txt-doux)}
+.rst .soc{background:rgba(0,0,0,.28);border:1px solid var(--bord);border-radius:11px;
+ padding:11px 14px;margin-bottom:8px}
+.rst .soc .tete{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.rst .dt{font:400 12px ui-monospace,Consolas,monospace;color:var(--txt-faible);
+ font-variant-numeric:tabular-nums}
+.rst .nom{font:500 14px inherit;color:var(--txt-fort);text-decoration:none}
+.rst .nom:hover{color:var(--acc)}
+.rst .tk{font:500 12.5px ui-monospace,Consolas,monospace;color:var(--acc);
+ letter-spacing:.05em;cursor:pointer}
+.rst .tk.mort{color:var(--txt-faible);cursor:default}
+.rst .pas{font-size:10px;letter-spacing:.14em;color:var(--txt-faible)}
+.rst .puce{font:500 9.5px ui-monospace,monospace;letter-spacing:.12em;
+ padding:2px 7px;border-radius:5px;border:1px solid var(--bord);
+ color:var(--txt-mi);text-decoration:none}
+.rst .puce.plan{border-color:var(--acc);color:var(--acc)}
+.rst .puce.droits{border-color:var(--neg);color:var(--neg)}
+.rst .var{margin-left:auto;font:500 14px ui-monospace,monospace;
+ font-variant-numeric:tabular-nums}
+.rst .var.pos{color:var(--pos)}.rst .var.neg{color:var(--neg)}
+.rst .var.nd{color:var(--txt-faible);font-size:11px;font-weight:400}
+.rst .faits{display:grid;gap:4px 16px;margin-top:8px;
+ grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr))}
+.rst .faits div{font-size:11.5px;color:var(--txt-faible);min-width:0}
+.rst .faits b{color:var(--txt-doux);font-weight:500;
+ font-variant-numeric:tabular-nums}
+.rst .coupe{margin-top:7px;font-size:11px;color:var(--txt-mi);line-height:1.5}
+.rst details{margin-top:7px}
+.rst summary{cursor:pointer;font-size:10.5px;letter-spacing:.12em;
+ color:var(--txt-faible)}
+.rst .dep{display:grid;grid-template-columns:92px minmax(0,1fr);gap:3px 12px;
+ margin-top:6px;font-size:11px}
+.rst .dep a{color:var(--txt-mi);word-break:break-all}
+.rst .eu{display:grid;gap:11px;align-items:end;margin:4px 0 10px;
+ grid-template-columns:minmax(96px,140px) minmax(128px,160px)
+ minmax(min(100%,200px),1fr) minmax(96px,130px)}
+.rst .eu>div{min-width:0}
+.rst .retire{background:none;border:1px solid var(--bord);border-radius:6px;
+ color:var(--txt-faible);font:400 10px inherit;letter-spacing:.12em;
+ padding:3px 8px;cursor:pointer}
+.rst .retire:hover{border-color:var(--neg);color:var(--neg)}
+.rst .liens{font-size:11px;line-height:1.8;color:var(--txt-faible)}
+.rst .liens a{color:var(--txt-mi)}
+"""
+
+
 CSS_STRAT = """
 .obj{margin-top:11px;padding:11px 13px;border:1px solid var(--bord);
  border-left:2px solid var(--acc);background:rgba(6,12,18,.5)}
@@ -2162,6 +2246,9 @@ def _accueil(splash: bool = True) -> str:
             "<i>38 titres &middot; 2 min</i></button>"
             '<button onclick="scan(\'dax\',\'allemagne\')"><b>DAX</b>'
             "<i>37 titres &middot; 2 min</i></button>"
+            '<button data-vers="/restructurations" '
+            'data-fen="carruos-restructurations"><b>RESTRUCTURATIONS</b>'
+            "<i>faillites US (SEC) + Europe suivie</i></button>"
             '</div><div class="msg" id="ms"></div><div id="rs"></div>'
             '<div class="sep2"></div>'
             '<div class="ch">VALIDATION GO / NO-GO</div>'
@@ -2209,13 +2296,15 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                           "/api/cle", "/api/validation", "/api/phase0",
                           "/api/carnet", "/api/cerveau", "/api/brain2",
                           "/api/cerveau/config", "/api/ibkr",
-                          "/api/raccourci"):
+                          "/api/raccourci", "/api/restructurations"):
             return self._envoie("<h1>404</h1>", code=404)
         try:
             n = int(self.headers.get("Content-Length") or 0)
             corps = json.loads(self.rfile.read(n) or b"{}")
             if u.path == "/api/raccourci":
                 return self._json(_raccourci())
+            if u.path == "/api/restructurations":
+                return self._json(_restructurations_ecrit(corps))
             if u.path == "/api/validation":
                 return self._json(_val_lance(corps.get("quoi", "phase0")))
             if u.path == "/api/carnet":
@@ -2324,6 +2413,10 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                 return self._envoie(_page_ibkr())
             if u.path == "/memoire":
                 return self._envoie(_page_memoire())
+            if u.path == "/restructurations":
+                return self._envoie(_page_restructurations())
+            if u.path == "/api/restructurations":
+                return self._json(_restructurations(q))
             # La page complete du majordome. L'ancienne adresse, /brain2,
             # reste servie : un favori ou une fenetre deja nommee y mene.
             if u.path in ("/majordome", "/brain2"):
@@ -2342,6 +2435,8 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                 return self._json(cv.etat())
             if u.path == "/api/objectif":
                 return self._json(_objectif(q))
+            if u.path == "/api/detention":
+                return self._json(_detention(q))
             if u.path == "/api/reglages/visuel":
                 return self._json(rg.visuel())
             if u.path == "/api/veille":
@@ -3306,6 +3401,207 @@ async function classe(){
   $p('pres').innerHTML = '<div class="msg err">Erreur : ' + e + '</div>';
  }
 }
+"""
+
+
+JS_RESTR = r"""
+function $r(i){return document.getElementById(i);}
+function er(t){
+ return String(t==null?'':t).replace(/[&<>"]/g, function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});
+}
+function pcr(v){ return (v>0?'+':'') + String(v).replace('.', ',') + ' %'; }
+function nbr(v){
+ if(v==null) return '—';
+ var a=Math.abs(v), d=a>=100?2:(a>=1?3:4);
+ return Number(v).toLocaleString('fr-FR',{maximumFractionDigits:d});
+}
+var RST = null;
+
+function faitsCours(c, quoi){
+ if(!c) return '';
+ quoi = quoi || 'du dépôt';
+ if(c.absent){
+  return '<div class="coupe">' + (c.sans_ticker
+   ? 'Aucun ticker déclaré à la SEC : titre jamais coté, ou déjà radié.'
+   : 'Aucun cours trouvé pour ' + er(c.ticker) + ' : souvent radié de la '
+     + 'cote, parfois seulement absent des données.') + '</div>';
+ }
+ var f=[];
+ if(c.avant!=null)
+  f.push('<div>veille ' + quoi + ' <b>' + nbr(c.avant) + '</b> (' + er(c.date_avant) + ')</div>');
+ f.push('<div>dernier cours <b>' + nbr(c.dernier) + '</b> (' + er(c.date) + ')</div>');
+ if(c.plus_haut_depuis!=null)
+  f.push('<div>plus haut depuis <b>' + nbr(c.plus_haut_depuis) + '</b> ('
+         + pcr(c.plus_haut_pct) + ')</div>');
+ if(c.volume_dollar_20j!=null)
+  f.push('<div>échangé / séance (20 j) <b>'
+         + Number(c.volume_dollar_20j).toLocaleString('fr-FR') + ' $</b></div>');
+ var h='<div class="faits">' + f.join('') + '</div>';
+ if(c.coupe)
+  h += '<div class="coupe">Mesure arrêtée à la veille de l’item 3.03 ('
+     + er(c.coupe) + ') : au-delà, le cours peut être celui d’actions '
+     + 'NOUVELLES, que l’ancien actionnaire n’a pas forcément reçues.</div>';
+ return h;
+}
+
+function societe(s){
+ var c=s.cours||{}, v='';
+ if(c.variation!=null)
+  v='<span class="var ' + (c.variation>0?'pos':'neg') + '">' + pcr(c.variation) + '</span>';
+ else
+  v='<span class="var nd">' + (c.absent?'sans cours':(c.avant==null
+    ?'pas de cours avant le dépôt':'rien de mesurable après le dépôt')) + '</span>';
+ var tks=(s.tickers||[]).map(function(t){
+  var vivant = c.ticker===t && !c.absent;
+  return '<span class="tk' + (vivant?'':' mort') + '"' + (vivant?' data-tk="'+er(t)+'"':'')
+   + '>' + er(t) + '</span>';}).join(' ');
+ var h='<div class="soc"><div class="tete">'
+  + '<span class="dt">' + er(s.premier_depot) + '</span>'
+  + '<a class="nom" href="' + er(s.fiche) + '" target="_blank" rel="noopener">'
+  + er(s.nom) + '</a>' + (tks||'<span class="pas">SANS TICKER</span>');
+ if(s.plan_confirme)
+  h+=' <a class="puce plan" target="_blank" rel="noopener" href="' + er(s.plan_confirme.lien)
+   + '">PLAN CONFIRMÉ · ' + er(s.plan_confirme.date) + '</a>';
+ if(s.droits_modifies)
+  h+=' <a class="puce droits" target="_blank" rel="noopener" href="' + er(s.droits_modifies.lien)
+   + '">DROITS MODIFIÉS · ' + er(s.droits_modifies.date) + '</a>';
+ h += v + '</div>' + faitsCours(c);
+ var d=s.depots||[];
+ if(d.length){
+  h+='<details><summary>' + d.length + ' DÉPÔT' + (d.length>1?'S':'')
+   + (s.lieu?' · ' + er(s.lieu):'') + '</summary><div class="dep">';
+  d.forEach(function(x){
+   h+='<span class="dt">' + er(x.date) + '</span><a target="_blank" rel="noopener" href="'
+    + er(x.lien) + '">items ' + er((x.items||[]).join(', ')) + '</a>';});
+  h+='</div></details>';
+ }
+ return h + '</div>';
+}
+
+// Un tri = un fait. Les societes sans variation vont a la fin sur le tri
+// par variation, et la page le dit : les oublier flatterait le tableau.
+function trie(l, t){
+ l=l.slice();
+ if(t==='nom') l.sort(function(a,b){return a.nom.localeCompare(b.nom,'fr');});
+ else if(t==='variation') l.sort(function(a,b){
+  var x=(a.cours||{}).variation, y=(b.cours||{}).variation;
+  if(x==null && y==null) return 0; if(x==null) return 1; if(y==null) return -1;
+  return y-x;});
+ else l.sort(function(a,b){return a.premier_depot<b.premier_depot?1:(a.premier_depot>b.premier_depot?-1:0);});
+ return l;
+}
+
+function compte(k){
+ var c=function(n, lib, cl){ return '<div' + (cl?' class="'+cl+'"':'') + '><b>' + n + '</b>' + lib + '</div>'; };
+ return '<div class="cpt">'
+  + c(k.total, 'sociétés, toutes')
+  + c(k.sous_moins_90, 'à −90 % ou pire', 'neg')
+  + c(k.entre, 'entre −90 % et 0')
+  + c(k.en_hausse, 'en hausse depuis la veille du dépôt', 'pos')
+  + c(k.double, 'dont doublé ou plus', 'pos')
+  + c(k.sans_cours, 'ticker sans cours (souvent radié)')
+  + c(k.sans_ticker, 'sans ticker déclaré')
+  + c(k.sans_variation, 'cours sans variation mesurable')
+  + c(k.plan_confirme, 'plan confirmé cité')
+  + c(k.droits_modifies, 'droits des actionnaires modifiés (3.03)')
+  + '</div>';
+}
+
+function rendUS(){
+ if(!RST) return;
+ var j=RST;
+ if(!j.ok){
+  $r('rmsg').innerHTML='<span class="err">' + er(j.erreur||'échec') + '</span>';
+  if(j.contact_demande) $r('rcontact').focus();
+  return;
+ }
+ $r('rmsg').textContent = 'Dépôts 8-K du ' + j.debut + ' au ' + j.fin
+  + ' · relevé le ' + String(j.quand||'').replace('T',' à ')
+  + ' · ' + j.compte.total + ' sociétés, tri : ' + $r('rtri').selectedOptions[0].text;
+ $r('rcompte').innerHTML = compte(j.compte)
+  + ((j.tronque||[]).length ? '<p class="rap fort">LISTE INCOMPLÈTE — '
+     + er(j.tronque.join(' ; ')) + '. La SEC en annonçait davantage que '
+     + 'le programme n’en lit : ce compte ne couvre pas tout.</p>' : '');
+ $r('rrap').innerHTML = (j.rappels||[]).map(function(t, i){
+  return '<p class="rap' + (i===0?' fort':'') + '">' + er(t) + '</p>';}).join('');
+ $r('rus').innerHTML = trie(j.societes||[], $r('rtri').value).map(societe).join('')
+  || '<div class="msg">Aucun dépôt item 1.03 dans la fenêtre.</div>';
+}
+
+async function chargeUS(force){
+ $r('rmsg').textContent = (force ? 'Interrogation de la SEC, puis des cours'
+  : 'Chargement') + '… la première fois, une à deux minutes : chaque '
+  + 'ticker demande trois ans de cours.';
+ try{
+  RST = await (await fetch('/api/restructurations' + (force?'?force=1':''))).json();
+ }catch(e){ RST={ok:false, erreur:'Erreur : ' + e}; }
+ rendUS();
+}
+
+function ligneEU(l){
+ var c=l.cours||{}, v='';
+ if(c.variation!=null)
+  v='<span class="var ' + (c.variation>0?'pos':'neg') + '">' + pcr(c.variation) + '</span>';
+ else
+  v='<span class="var nd">' + (c.absent?'sans cours':(l.depuis?'pas de cours avant cette date':'aucune date posée')) + '</span>';
+ return '<div class="soc"><div class="tete">'
+  + '<span class="dt">' + er(l.depuis||'—') + '</span>'
+  + '<span class="tk' + (c.absent?' mort':'') + '"' + (c.absent?'':' data-tk="' + er(l.ticker) + '"')
+  + '>' + er(l.ticker) + '</span>'
+  + '<span class="pas">' + er(l.note||'') + '</span>' + v
+  + '<button class="retire" data-retire="' + er(l.ticker) + '">RETIRER</button>'
+  + '</div>' + faitsCours(c, 'du jugement') + '</div>';
+}
+
+async function chargeEU(){
+ try{
+  var j = await (await fetch('/api/restructurations?partie=europe')).json();
+  $r('reu').innerHTML = (j.lignes||[]).map(ligneEU).join('')
+   || '<div class="msg">Aucun titre européen suivi pour l’instant.</div>';
+ }catch(e){ $r('reu').innerHTML='<div class="msg err">Erreur : ' + e + '</div>'; }
+}
+
+async function posteR(corps){
+ var r = await fetch('/api/restructurations', {method:'POST',
+  headers:{'Content-Type':'application/json'}, body:JSON.stringify(corps)});
+ return r.json();
+}
+
+document.addEventListener('click', async function(ev){
+ var t = ev.target.closest ? ev.target.closest('.tk[data-tk]') : null;
+ if(t){
+  if(typeof window.ouvreFenetre==='function')
+   ouvreFenetre('/graphique?ticker=' + encodeURIComponent(t.dataset.tk), 'carruos-graphique');
+  else location.href='/graphique?ticker=' + encodeURIComponent(t.dataset.tk);
+  return;
+ }
+ var x = ev.target.closest ? ev.target.closest('[data-retire]') : null;
+ if(x){
+  await posteR({action:'europe', ticker:x.getAttribute('data-retire'), retire:true});
+  chargeEU(); return;
+ }
+});
+
+$r('rtri').addEventListener('change', rendUS);
+$r('ract').addEventListener('click', async function(){
+ var c=$r('rcontact').value.trim();
+ if(c!==$r('rcontact').defaultValue){
+  await posteR({action:'contact', contact:c});
+  $r('rcontact').defaultValue=c;
+ }
+ chargeUS(true);
+});
+$r('reuaj').addEventListener('click', async function(){
+ var tk=$r('reutk').value.trim();
+ if(!tk){ $r('reumsg').textContent='Indiquez le ticker, avec sa place : ORP.PA, VAR1.DE.'; return; }
+ var j = await posteR({action:'europe', ticker:tk, depuis:$r('reudt').value,
+                       note:$r('reunote').value});
+ $r('reumsg').textContent = j.ok ? '' : (j.erreur||'échec');
+ if(j.ok){ $r('reutk').value=''; $r('reunote').value=''; chargeEU(); }
+});
+chargeUS(false);
+chargeEU();
 """
 
 
@@ -4664,10 +4960,10 @@ def _page_palmares() -> str:
         + rg.tiroir_html(reg)
         + mj.html(reg)
         + hd.fond(TRACE_D)
-        + '<div class="app">'
+        + '<div class="app une-zone">'
           + hd.barre(TRACE_D, NOM, actif="palmares",
                      soustitre="MA LISTE")
-          + '<div class="palm">'
+          + '<div class="defile"><div class="palm">'
           '<p class="ex">Collez vos tickers &mdash; <b>COIN HOOD TLX.DE '
           'MC.PA</b> &mdash; séparés par des espaces ou des '
           'virgules. Chacun passe les <b>13 blocs</b> de la '
@@ -4689,7 +4985,7 @@ def _page_palmares() -> str:
           '<div><button class="go" onclick="classe()">CLASSER</button></div>'
           '</div>'
           '<div id="pres"></div>'
-          '</div></div>'
+          '</div></div></div>'
         + f"<script>{hd.BARRE_JS}{JS_PALM}{mj.JS}{rg.tiroir_js()}</script></body></html>")
 
 
@@ -4775,6 +5071,103 @@ def _palmares(q: dict) -> dict:
     except Exception as exc:
         traceback.print_exc()
         return {"ok": False, "erreur": f"{type(exc).__name__}: {exc}"}
+
+
+def _page_restructurations() -> str:
+    """RESTRUCTURATIONS : les societes cotees en faillite, et ce qui a
+    suivi. Etats-Unis par la SEC, Europe a la main — il n'existe pas de
+    registre europeen qui dise quelles societes COTEES sont en procedure.
+
+    Aucun tri de « potentiel » : chaque tri porte sur un fait, et le
+    compte complet accompagne la liste."""
+    from . import faillites as fl
+
+    reg = rg.charge()
+    contact = html.escape(fl._contact(), quote=True)
+    tris = "".join(f'<option value="{k}">{html.escape(v)}</option>'
+                   for k, v in (("date", "date du premier dépôt"),
+                                ("variation", "variation depuis"),
+                                ("nom", "nom")))
+    return (
+        '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<link rel="icon" type="image/svg+xml" href="/carruos.svg">'
+        '<link rel="alternate icon" href="/favicon.ico">'
+        f"<title>{TITRE} — restructurations</title>"
+        f"<style>{rg.variables(reg)}{CSS}{CSS_RESTR}</style></head>"
+        f'<body class="{rg.classes(reg)}"{rg.corps_attrs(reg)}>'
+        + rg.tiroir_html(reg)
+        + mj.html(reg)
+        + hd.fond(TRACE_D)
+        + '<div class="app une-zone">'
+          + hd.barre(TRACE_D, NOM, soustitre="RESTRUCTURATIONS",
+                     fenetre="carruos-restructurations")
+          + '<div class="defile"><div class="rst">'
+          '<p class="ex">Les sociétés <b>américaines</b> qui ont déclaré '
+          'une faillite à la SEC (formulaire 8-K, <b>item 1.03</b>) '
+          f'sur les {fl.MOIS} derniers mois : la date du dépôt, la '
+          'confirmation du plan quand un dépôt la cite, la modification '
+          'des droits des actionnaires (item 3.03), et ce que le cours a '
+          'fait depuis la veille du dépôt. Chaque ligne mène au dépôt : '
+          "c'est lui qui fait foi. Cliquez un ticker pour son graphique.</p>"
+          '<div class="cmd">'
+          f'<div><label>TRI</label><select id="rtri">{tris}</select></div>'
+          '<div><label title="La SEC demande que tout programme se présente '
+          'avec une adresse de contact. Elle ne part que vers la SEC, dans '
+          "l'en-tête de la requête.\">CONTACT SEC (VOTRE E-MAIL, "
+          'DEMANDÉ PAR LA SEC)</label>'
+          f'<input id="rcontact" value="{contact}" autocomplete="off" '
+          'spellcheck="false" placeholder="prenom.nom@exemple.fr"></div>'
+          '<div><button class="go" id="ract">ACTUALISER</button></div>'
+          '</div>'
+          '<div class="msg" id="rmsg"></div>'
+          '<div id="rcompte"></div><div id="rrap"></div><div id="rus"></div>'
+          '<div class="titre-sec">EUROPE — LES TITRES QUE VOUS SUIVEZ</div>'
+          f'<p class="ex">{html.escape(fl.RAPPEL_EUROPE)}</p>'
+          '<div class="eu">'
+          '<div><label>TICKER</label><input id="reutk" '
+          'placeholder="ORP.PA" autocomplete="off" spellcheck="false"></div>'
+          '<div><label>JUGEMENT DU</label><input id="reudt" type="date">'
+          '</div>'
+          '<div><label>NOTE</label><input id="reunote" '
+          'placeholder="sauvegarde accélérée, plan arrêté le…"></div>'
+          '<div><button class="go" id="reuaj">AJOUTER</button></div>'
+          '</div>'
+          '<div class="msg" id="reumsg"></div>'
+          '<div id="reu"></div>'
+          '<div class="liens">Où chercher : '
+          '<a href="https://www.bodacc.fr/" target="_blank" '
+          'rel="noopener">BODACC</a> (France) · '
+          '<a href="https://www.insolvenzbekanntmachungen.de/" '
+          'target="_blank" rel="noopener">insolvenzbekanntmachungen.de</a> '
+          '(Allemagne) · <a href="https://www.thegazette.co.uk/insolvency" '
+          'target="_blank" rel="noopener">The Gazette</a> (Royaume-Uni).'
+          '</div>'
+          '</div></div></div>'
+        + f"<script>{hd.BARRE_JS}{JS_RESTR}{mj.JS}{rg.tiroir_js()}"
+          "</script></body></html>")
+
+
+def _restructurations(q: dict) -> dict:
+    from . import faillites as fl
+    try:
+        if q.get("partie") == "europe":
+            return fl.europe()
+        return fl.liste_us(force=q.get("force") == "1")
+    except Exception as exc:
+        traceback.print_exc()
+        return {"ok": False, "erreur": f"{type(exc).__name__}: {exc}"}
+
+
+def _restructurations_ecrit(corps: dict) -> dict:
+    from . import faillites as fl
+    if corps.get("action") == "contact":
+        return fl.pose_contact(corps.get("contact", ""))
+    if corps.get("action") == "europe":
+        return fl.europe_pose(corps.get("ticker", ""), corps.get("note", ""),
+                              corps.get("depuis", ""),
+                              bool(corps.get("retire")))
+    return {"ok": False, "erreur": "action inconnue"}
 
 
 def _page_strategie() -> str:
@@ -5005,6 +5398,38 @@ def _raccourci() -> dict:
     return {"ok": True, "message": texte or "Raccourci créé sur le Bureau."}
 
 
+def _detention(q: dict) -> dict:
+    """« Si je garde N semaines / mois / ans » : ce que cette duree a donne
+    sur le titre, et sur l'indice aux memes dates. Des faits, pas un avis."""
+    from . import cache as ch
+    from . import detention as dt
+    from .memoire import bench_de
+    tk = (q.get("ticker") or "").strip().upper()
+    if not tk:
+        return {"ok": False, "erreur": "aucun titre"}
+    try:
+        duree = float(str(q.get("duree") or "2").replace(",", "."))
+        if duree <= 0:
+            raise ValueError
+    except ValueError:
+        return {"ok": False, "erreur": "durée illisible"}
+    unite = q.get("unite") if q.get("unite") in dt.UNITES else "mois"
+    h = min(dt.seances(duree, unite), 252 * 20)
+    obj = None
+    if str(q.get("objectif") or "").strip():
+        try:
+            obj = float(str(q["objectif"]).replace(",", "."))
+        except ValueError:
+            return {"ok": False, "erreur": "objectif illisible"}
+    try:
+        m = dt.mesure(ch.charge(tk, annees=20), h,
+                      ch.charge(bench_de(tk), annees=20), objectif=obj)
+    except Exception as exc:
+        return {"ok": False, "erreur": f"{type(exc).__name__}"}
+    return {"ok": True, "mesure": m, "lignes": dt.lignes(m),
+            "rappel": dt.RAPPEL, "rappel_bien": dt.RAPPEL_BIEN}
+
+
 def _raccourci_auto() -> None:
     """Le raccourci du Bureau, pose tout seul.
 
@@ -5038,6 +5463,10 @@ def _raccourci_auto() -> None:
             pass
 
 
+# Les pages qui ont leur fenetre sans avoir d'onglet dans la barre.
+AUTRES_FENETRES = {"/restructurations": "RESTRUCTURATIONS"}
+
+
 def titre_fenetre(adresse: str) -> str:
     """« CARRUOS ALICE — STRATÉGIE » : chaque fenetre dit ce qu'elle
     montre, dans la barre des taches comme dans Alt+Tab."""
@@ -5046,6 +5475,8 @@ def titre_fenetre(adresse: str) -> str:
     for adr, libelle, _cle in hd.ONGLETS:
         if u.path == adr and adr != "/":
             return f"{TITRE} — {libelle}"
+    if u.path in AUTRES_FENETRES:
+        return f"{TITRE} — {AUTRES_FENETRES[u.path]}"
     tk = (up.parse_qs(u.query).get("ticker") or [""])[0].strip().upper()
     if u.path == "/graphique" and tk:
         return f"{TITRE} — {tk}"

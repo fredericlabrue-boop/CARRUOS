@@ -63,6 +63,41 @@ def _objet(doc, marqueur):
     raise ValueError("objet non termine")
 
 
+def _enfants_app(page: str):
+    """Les classes de `.app` et celles de ses enfants DIRECTS."""
+    from html.parser import HTMLParser
+    vides = {"br", "img", "input", "meta", "link", "hr", "source", "wbr",
+             "path", "circle", "rect", "line", "polyline", "polygon",
+             "ellipse", "use", "stop"}
+
+    class P(HTMLParser):
+        def __init__(s):
+            super().__init__()
+            s.pile, s.app, s.cl_app, s.enfants = [], None, [], []
+
+        def handle_starttag(s, tag, attrs):
+            cl = (dict(attrs).get("class") or "").split()
+            if s.app is not None and s.app >= 0 and len(s.pile) == s.app + 1:
+                s.enfants.append(cl)
+            if tag in vides:
+                return
+            s.pile.append(tag)
+            if s.app is None and tag == "div" and "app" in cl:
+                s.app, s.cl_app = len(s.pile) - 1, cl
+
+        def handle_endtag(s, tag):
+            if tag in vides:
+                return
+            if s.pile:
+                s.pile.pop()
+            if s.app is not None and s.app >= 0 and len(s.pile) <= s.app:
+                s.app = -1
+
+    p = P()
+    p.feed(re.sub(r"<script>.*?</script>", "", page, flags=re.S))
+    return p.cl_app, p.enfants
+
+
 def _scripts(html: str) -> str:
     blocs = re.findall(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", html, re.S)
     return "\n;\n".join(blocs)
@@ -310,7 +345,8 @@ def main() -> int:
                  "carnet": app._page_carnet(),
                  "ibkr": app._page_ibkr(),
                  "memoire": app._page_memoire(),
-                 "majordome": app._page_majordome()}
+                 "majordome": app._page_majordome(),
+                 "restructurations": app._page_restructurations()}
     finally:
         dl.load_yf = vrai
 
@@ -1220,6 +1256,75 @@ def main() -> int:
     m_sai = re.search(r"\.palm \.saisie\{[^}]*\}", cssm.replace("\n", " "))
     _v(bool(m_sai) and "minmax" in m_sai.group(0),
        "la grille de saisie a des colonnes bornees, pas fixes")
+
+    print("\n  PAGE RESTRUCTURATIONS")
+    import html as _html
+    from . import faillites as _fl
+    hr = pages["restructurations"]
+    jr = _scripts(hr)
+    src_app = open(_app.__file__, encoding="utf-8").read()
+    _v('data-vers="/restructurations"' in pages["accueil"]
+       and "RESTRUCTURATIONS" in pages["accueil"],
+       "l'accueil porte le bouton, a cote des scans complets")
+    _v('u.path == "/restructurations"' in src_app
+       and 'u.path == "/api/restructurations"' in src_app
+       and '"/api/restructurations"):' in src_app,
+       "la page et son API sont servies (lecture et ecriture)")
+    _v(_app.titre_fenetre("/restructurations").endswith("RESTRUCTURATIONS"),
+       "sa fenetre porte son nom")
+    # Un tri = un fait. Aucun « potentiel », aucun score.
+    opts = re.findall(r'<select id="rtri">(.*?)</select>', hr, re.S)
+    vals = re.findall(r'value="([^"]+)"', opts[0]) if opts else []
+    _v(tuple(vals) == tuple(_fl.TRIS),
+       f"les tris proposes sont ceux du module, un fait chacun ({vals})")
+    _v(not re.search(r"potentiel|score|banger|p[ée]pite", hr + jr, re.I),
+       "aucun mot de potentiel, de score ou de pepite dans la page")
+    # Chaque case du compte est affichee : oublier « sans cours »
+    # flatterait le tableau.
+    cases = [k for k in _fl.compte([]) if k != "avec_variation"]
+    manque = [k for k in cases if f"k.{k}" not in jr]
+    _v(not manque, f"chaque case du compte est affichee ({manque})")
+    _v("j.rappels" in jr and "ligneEU" in jr and "faitsCours" in jr,
+       "les rappels, la liste europeenne et les faits de cours sont rendus")
+    _v(_fl.RAPPEL_EUROPE[:40] in _html.unescape(hr)
+       and "bodacc.fr" in hr and "insolvenzbekanntmachungen.de" in hr,
+       "le rappel europeen et les registres ou chercher sont affiches")
+    _v("j.tronque" in jr and "INCOMPLÈTE" in jr,
+       "une liste tronquee par le plafond de pages est dite incomplete")
+    _v("c.coupe" in jr and "3.03" in jr,
+       "la coupe a l'item 3.03 est expliquee a cote du chiffre")
+    _v('target="_blank"' in jr,
+       "les depots s'ouvrent hors de la fenetre CARRUOS")
+    _v(f'id="rcontact" value="{_html.escape(_fl._contact(), quote=True)}"'
+       in hr,
+       "le champ contact SEC ne contient que ce que le proprietaire a tape")
+    _v("onclick" not in _app.JS_RESTR,
+       "aucun onclick en ligne dans son script : un ecouteur delegue")
+
+    print("\n  UNE PAGE D'UN SEUL BLOC DEFILE")
+    # `.app` est une grille de 100vh en `auto auto minmax(0,1fr)` et
+    # `body{overflow:hidden}`. Un bloc unique sous la barre tombe dans la
+    # deuxieme ligne, `auto` : il s'allonge sous le bas de l'ecran, et la
+    # molette ne l'atteint plus. MA LISTE l'a ete depuis sa creation.
+    css_base = re.sub(r"/\*.*?\*/", " ", _app.CSS, flags=re.S)
+    for nom_page, htm in pages.items():
+        cl_app, enf = _enfants_app(htm)
+        if len(enf) != 2:
+            continue
+        propres = [c for c in cl_app if c != "app"]
+        feuille = re.sub(r"/\*.*?\*/", " ", "".join(
+            re.findall(r"<style>(.*?)</style>", htm, re.S)), flags=re.S)
+        regle = any(re.search(r"\.app\." + re.escape(c)
+                              + r"\{[^}]*grid-template-rows:[^}]*minmax\(0,1fr\)",
+                              feuille) for c in propres)
+        _v(regle, f"{nom_page} : le bloc sous la barre prend la place qui "
+                  f"reste ({' '.join(cl_app)})")
+    _v(".defile{" in css_base and "overflow-y:auto" in
+       css_base.split(".defile{")[1].split("}")[0],
+       "le conteneur .defile defile lui-meme")
+    for nom_page in ("maliste", "restructurations"):
+        _v(_enfants_app(pages[nom_page])[1][1] == ["defile"],
+           f"{nom_page} : son contenu est dans le conteneur qui defile")
 
     print("\n  LECTURE DES CHANDELIERS DANS LA PAGE")
     from . import chandeliers as _cd2

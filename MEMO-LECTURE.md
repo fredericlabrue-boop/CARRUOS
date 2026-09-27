@@ -883,6 +883,85 @@ Bureau, **Actualiser** : Windows garde les icônes en mémoire.
 Voir 5 octies : c'est l'étiquette d'**Alpha Vantage**, attribuée à
 l'écran, et rien ne s'en sert.
 
+## 5 quindecies. « Si je garde… » — `detention.py`
+
+Sur la page graphique, la carte **SI JE GARDE…** prend une durée — un
+nombre et son unité (semaines, mois, ans) — et, si on veut, un objectif
+en pourcentage. **MESURER** rend, sur tout l'historique du titre, ce que
+cette durée **a donné** :
+
+- des périodes qui **ne se chevauchent pas**, comptées à rebours depuis
+  la dernière séance — vingt ans ne font que quatre périodes de cinq
+  ans, et la carte le dit ;
+- combien ont fini en hausse, avec l'intervalle de Wilson ; en dessous
+  de **8** périodes, la proportion n'est pas donnée ;
+- la médiane, le pire, et le **recul en chemin** : de combien le titre
+  est passé sous le prix d'achat avant la fin — ce qu'il faut supporter
+  sans vendre pour avoir le résultat ;
+- combien de périodes ont fait mieux que l'indice (SPY ou ^STOXX selon
+  la place) sur **exactement les mêmes dates** ;
+- avec un objectif : combien de périodes l'ont touché en chemin, et en
+  combien de séances.
+
+Dessous, les durées usuelles, **toujours dans le même ordre** : 1 semaine
+(**5** séances), 1 mois (**21**), 3 mois (**63**), 1 an (**252**),
+5 ans (**1260**). Et « **acheté lundi, vendu vendredi** » : de
+l'ouverture de la première séance de la semaine à la clôture de la
+dernière, contre le taux de base du titre (la semaine prise de clôture à
+clôture). Quand l'intervalle contient le taux de base, c'est écrit :
+indiscernable du hasard.
+
+Ce que la carte ne dit jamais : « c'est bien », « c'est un titre à une
+semaine ». Choisir après coup la durée qui a le mieux marché sur un
+passé connu est la pêche que le protocole interdit — cinq durées
+comparées donnent cinq chances d'en voir une briller par hasard. Le
+majordome répond de même à « Tesla, je garde 2 mois ? ».
+
+## 5 sexdecies. RESTRUCTURATIONS — `faillites.py`
+
+Le bouton **RESTRUCTURATIONS**, à côté des scans complets de l'accueil,
+ouvre sa fenêtre.
+
+**États-Unis.** Toute société cotée qui se place sous la protection du
+tribunal le déclare à la SEC, formulaire 8-K, **item 1.03**. La page
+relève ces dépôts sur les **18** derniers mois (recherche plein texte
+d'EDGAR, relue au plus toutes les **12** heures) et, société par
+société :
+
+- la date du premier dépôt, et le lien vers chaque dépôt — **il fait
+  foi** ;
+- **PLAN CONFIRMÉ** quand un 8-K item 1.03 **postérieur** au premier cite
+  l'ordonnance de confirmation du plan. Le dépôt qui annonce la faillite
+  cite souvent la confirmation qu'il va *demander* : il ne compte pas ;
+- **DROITS MODIFIÉS** quand un dépôt déclare l'item **3.03** — le plus
+  souvent, l'annulation des anciennes actions à l'entrée en vigueur du
+  plan ;
+- le cours à la veille du dépôt, le dernier, le plus haut depuis, et ce
+  qui s'échange par séance. Après un item 3.03, la mesure **s'arrête à
+  la veille** : au-delà, le cours peut être celui d'actions nouvelles,
+  émises aux créanciers.
+
+Le **compte complet** accompagne la liste : toutes les sociétés, celles
+à −90 % ou pire, entre −90 % et 0, en hausse, dont doublées, les tickers
+sans cours (souvent radiés), les sociétés sans ticker, celles sans
+variation mesurable. Chaque société est dans une case, sans reste. Au
+plus **3000** dépôts sont lus par recherche ; au-delà, la page écrit
+LISTE INCOMPLÈTE.
+
+Les tris portent chacun sur **un seul fait** : date du dépôt, variation,
+nom. Aucun « potentiel », aucun score : aucune hypothèse sur ces titres
+n'a été spécifiée ni testée. Et dans un Chapter 11, c'est le plan qui
+décide ce que reçoivent les anciens actionnaires — souvent rien.
+
+La SEC demande que tout programme se présente avec une **adresse de
+contact** : le champ CONTACT SEC la reçoit, elle ne part que vers la SEC.
+
+**Europe.** Aucun registre public ne dit quelles sociétés **cotées** sont
+en procédure (BODACC en France, insolvenzbekanntmachungen.de en
+Allemagne, The Gazette au Royaume-Uni, sans lien avec la cote). Les
+titres s'ajoutent à la main — ticker, date du jugement, note — et
+reçoivent les mêmes mesures de cours.
+
 ---
 
 ## 6. Ce que le programme refuse d'afficher
@@ -904,6 +983,10 @@ Rappel, parce que c'est la colonne vertébrale du projet :
   Phase 0 ;
 - une occasion manquée affichée seule — toujours en face des pièges
   évités, en même nombre.
+- « la bonne durée » pour un titre, ou « c'est bien de le garder deux
+  mois » — ce que chaque durée a donné, dans un ordre fixe ;
+- un « potentiel » ou un classement de « pépites » parmi les sociétés en
+  faillite — la liste complète, et le compte de ce qui a suivi.
 
 ---
 

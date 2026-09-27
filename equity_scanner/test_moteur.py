@@ -2342,9 +2342,12 @@ def test_dossier() -> None:
         elif isinstance(o, bool):
             pass
         elif isinstance(o, (int, float)):
-            for f in (f"{o:g}", f"{o:.0f}", f"{o:.1f}", f"{o:.2f}"):
-                acc.add(f)
-                acc.add(f.replace(".", ","))
+            # Le signe s'ecrit a part (« −10,2 % ») et le releve des
+            # chiffres ne le garde pas : la valeur absolue compte aussi.
+            for x in (o, abs(o)):
+                for f in (f"{x:g}", f"{x:.0f}", f"{x:.1f}", f"{x:.2f}"):
+                    acc.add(f)
+                    acc.add(f.replace(".", ","))
         elif isinstance(o, str):
             for n in _re.findall(r"\d+(?:[.,]\d+)?", o):
                 acc.add(n)
@@ -2375,10 +2378,10 @@ def test_dossier() -> None:
     if not d_plein.get("ok"):
         print(f"          -> {d_plein.get('erreur')}")
     if d_plein.get("ok"):
-        connus = _valeurs(d_plein, set()) | en_dur
         inventes = {}
         for cle in ds.SECTIONS:
-            rep = ds.repond({"sortie": "je sors quand", "entree": "je rentre",
+            rep = ds.repond({"detention": "je garde 2 mois ?",
+                             "sortie": "je sors quand", "entree": "je rentre",
                              "risque": "combien je perds",
                              "bougies": "une figure ?", "horizon": "ca bouge",
                              "donnees": "fiable ?", "seance": "quelle heure",
@@ -2386,6 +2389,10 @@ def test_dossier() -> None:
                              "memoire": "tu t es trompe ?",
                              "avis": "que penses-tu"}[cle], d_plein)
             txt = " ".join(rep["lignes"])
+            # Releve APRES la reponse : une duree nommee dans la question
+            # est mesuree et posee DANS le dossier — c'est ce dossier-la
+            # que les phrases citent et que le modele recoit.
+            connus = _valeurs(d_plein, set()) | en_dur
             hors = sorted({n for n in _re.findall(r"\d+(?:[.,]\d+)?", txt)
                            if n not in connus
                            and n.replace(",", ".") not in connus})
@@ -2440,7 +2447,8 @@ def test_dossier() -> None:
     for cle in ds.SECTIONS:
         try:
             ds.repond("que penses-tu", vide)
-            ds.repond({"sortie": "je sors quand", "entree": "je rentre",
+            ds.repond({"detention": "je garde 2 mois ?",
+                       "sortie": "je sors quand", "entree": "je rentre",
                        "risque": "combien je perds", "bougies": "une figure ?",
                        "horizon": "ca bouge", "donnees": "fiable ?",
                        "seance": "quelle heure",
@@ -2771,6 +2779,61 @@ def test_brain2() -> None:
        "Brokers", r["ticker"] is None
        and (r["faits"] or {}).get("ticker") == "PORTEFEUILLE")
 
+def test_detention() -> None:
+    """« Si je garde deux mois ? » : ce que la duree a donne, jamais un avis."""
+    print("\n— Détention : ce que chaque durée a donné —")
+    import json as _j
+    from . import detention as dt
+
+    idx = pd.bdate_range("2010-01-04", periods=2000)
+    # Une serie qui monte chaque jour : toutes les periodes en hausse, et
+    # jamais sous le prix d'achat.
+    monte = pd.DataFrame({"open": np.linspace(100, 300, 2000),
+                          "close": np.linspace(100.5, 300.5, 2000)}, index=idx)
+    m = dt.mesure(monte, 21, bench=monte)
+    ok("des periodes qui ne se chevauchent pas, comptees depuis la fin",
+       m["periodes"] == (2000 - 1) // 21
+       and m["derniere"]["au"] == str(idx[-1].date()))
+    ok("une serie qui monte chaque jour : toutes les periodes en hausse",
+       m["hausses"] == m["periodes"] and m["wilson"][1] == 100.0)
+    ok("et aucun recul sous le prix d'achat, pas un recul positif",
+       m["recul_median"] == 0.0 and m["recul_pire"] == 0.0)
+    ok("face a lui-meme, le titre ne « bat » jamais l'indice",
+       m["indice"]["battu"] == 0)
+    peu = dt.mesure(monte, 252 * 5, bench=monte)
+    ok("sous huit periodes, aucune proportion n'est donnee",
+       peu["periodes"] < dt.MINI_PERIODES and peu["part"] is None
+       and peu["wilson"] is None
+       and "trop peu" in " ".join(dt.lignes(peu)))
+    # +0,5 % : a 300, trois points, atteints en 15 seances sur 21.
+    o = dt.mesure(monte, 21, objectif=0.5)
+    ok("un objectif se lit en cours de route, sur les clotures",
+       o["objectif"]["touche"] == o["periodes"])
+
+    # Sur du bruit pur, « lundi -> vendredi » ne doit pas briller.
+    r = np.random.default_rng(11)
+    c = 100 * np.exp(np.cumsum(r.normal(0, 0.015, 3000)))
+    i2 = pd.bdate_range("2012-01-02", periods=3000)
+    o2 = pd.Series(c, index=i2).shift(1).fillna(100.0) * np.exp(
+        r.normal(0, 0.003, 3000))
+    lv = dt.lundi_vendredi(pd.DataFrame({"open": o2, "close": c}, index=i2))
+    ok("sur du bruit pur, lundi → vendredi est indiscernable du hasard",
+       lv["semaines"] > 500 and lv["indiscernable"] is True)
+
+    t = dt.tableau(monte, monte)
+    ok("les durees sont dans l'ordre des durees, jamais triees sur le resultat",
+       [x["seances"] for x in t["horizons"]] == [h for _n, h in dt.HORIZONS])
+    brut = _j.dumps(t, ensure_ascii=False).lower()
+    ok("aucune duree n'est designee comme la bonne",
+       not any(mot in brut for mot in ("recommand", "conseill", "meilleur_",
+                                       "ideal", "optimal")))
+    ok("le rappel dit que ce n'est pas un avis, et pourquoi",
+       "pas un avis" in dt.RAPPEL and "Phase 0" in dt.RAPPEL
+       and "« Est-ce bien ? »" in dt.RAPPEL_BIEN)
+    ok("« 2 mois » vaut 42 seances, « 1 an » 252",
+       dt.seances(2, "mois") == 42 and dt.seances(1, "ans") == 252)
+
+
 def test_memo() -> None:
     """Le memo cite des seuils : ils doivent etre ceux qui tournent.
 
@@ -2786,6 +2849,8 @@ def test_memo() -> None:
     from .indicators import PERIODES
 
     from . import brain2 as b2_
+    from . import detention as _dt_
+    from . import faillites as _fl_
     from . import majordome as _mj_
     from . import news as _nw_
     from . import carnet as cn
@@ -3523,6 +3588,17 @@ def test_memo() -> None:
          "positif".format(*(_fr(abs(x), 2) for x in _nw_.SEUILS_AV))),
         # --- majordome.py
         ("seuil du glisser", f"Moins de\n  **{_mj_.SEUIL_GLISSE}** pixels"),
+        # --- detention.py
+        ("periodes minimum", f"de **{_dt_.MINI_PERIODES}** périodes"),
+        ("durees usuelles",
+         "1 semaine\n(**{}** séances), 1 mois (**{}**), 3 mois (**{}**), "
+         "1 an (**{}**),\n5 ans (**{}**)".format(
+             *(h for _l, h in _dt_.HORIZONS))),
+        # --- faillites.py
+        ("fenetre des faillites", f"sur les **{_fl_.MOIS}** derniers mois"),
+        ("relecture SEC", f"au plus toutes les **{_fl_.CACHE_HEURES}**"),
+        ("plafond de lecture",
+         f"plus **{_fl_.PAGES_MAX * _fl_.PAGE}** dépôts"),
     ]
     absents = [(nom, val) for nom, val in ATTENDU if val not in m]
     ok(f"les {len(ATTENDU)} seuils cites dans le memo sont ceux qui "
@@ -3559,6 +3635,218 @@ def test_memo() -> None:
        "une mesure sur\nvingt" in m or "une mesure sur vingt" in m)
 
 
+def test_faillites() -> None:
+    """RESTRUCTURATIONS : des depots SEC regroupes, et le compte complet
+    de ce qui a suivi. Aucun classement de « potentiel »."""
+    print("\n— Restructurations : les faillites US et ce qui a suivi —")
+    import datetime as _dt
+    import inspect
+    from pathlib import Path as _P
+    from . import faillites as fl
+
+    # Des resultats au format EXACT de la recherche plein texte d'EDGAR,
+    # releves sur un vrai passage (septembre 2026) et reduits.
+    def hit(_id, date, items, noms, ciks, typ="8-K"):
+        return {"_id": _id, "_source": {
+            "adsh": _id.partition(":")[0], "file_date": date,
+            "items": items, "display_names": noms, "ciks": ciks,
+            "file_type": typ, "biz_locations": ["Houston, TX"] * len(ciks),
+            "sics": ["1389"] * len(ciks)}}
+    nine = "Nine Energy Service, Inc.  (NINEQ)  (CIK 0001532286)"
+    faill = [
+        # Une simple MENTION de l'item 1.03, sans le declarer : exclue.
+        hit("0001628280-26-049063:goco-20260721.htm", "2026-07-21", ["9.01"],
+            ["GoHealth, Inc.  (GOCOQ)  (CIK 0001808220)"], ["0001808220"]),
+        # Deux declarants dans le meme depot : deux societes.
+        hit("0001415404-26-000038:sats-20260728x8k.htm", "2026-08-03",
+            ["1.03", "2.04", "9.01"],
+            ["EchoStar CORP  (ECHO)  (CIK 0001415404)",
+             "Hughes Satellite Systems Corp  (CIK 0001533758)"],
+            ["0001415404", "0001533758"]),
+        # Le depot de la faillite, qui cite la confirmation qu'il va DEMANDER.
+        hit("0001213900-26-010501:ea0274803-8k_nineenergy.htm", "2026-02-02",
+            ["1.01", "1.03"], [nine.replace("NINEQ", "NINE")],
+            ["0001532286"]),
+    ]
+    plans = [
+        hit("0001213900-26-010501:ea0274803-8k_nineenergy.htm", "2026-02-02",
+            ["1.01", "1.03"], [nine.replace("NINEQ", "NINE")],
+            ["0001532286"]),
+        # La confirmation, puis l'entree en vigueur (3.03), avec sa piece
+        # jointe rendue a part par la recherche — et AVANT le 8-K, comme
+        # la recherche le fait quand la piece jointe est mieux classee.
+        hit("0001213900-26-025721:ea0280259_ex99-1.htm", "2026-03-10",
+            ["1.03", "3.03", "5.02"], [nine], ["0001532286"], "EX-99.1"),
+        hit("0001213900-26-025721:ea0280259-8k_nineenergy.htm", "2026-03-10",
+            ["1.03", "3.03", "5.02"], [nine], ["0001532286"]),
+    ]
+
+    x = fl.lit_nom("QVC INC  (QVCCQ, QVCDQ)  (CIK 0001254699)")
+    ok("le nom affiche par la SEC se lit : nom, tickers, CIK sans zeros",
+       x == {"nom": "QVC INC", "tickers": ["QVCCQ", "QVCDQ"],
+             "cik": "1254699"})
+    ok("une societe sans ticker garde une liste vide, pas un faux ticker",
+       fl.lit_nom("OFFICE PROPERTIES INCOME TRUST  (CIK 0001456772)")
+       ["tickers"] == [])
+    ok("le lien mene au document lui-meme, dans les archives EDGAR",
+       fl._lien(faill[1], "1415404") == "https://www.sec.gov/Archives/edgar/"
+       "data/1415404/000141540426000038/sats-20260728x8k.htm")
+
+    soc = fl.regroupe(faill, plans)
+    par = {s["cik"]: s for s in soc}
+    ok("un 8-K qui MENTIONNE l'item 1.03 sans le declarer n'est pas une "
+       "faillite", "1808220" not in par)
+    ok("deux declarants dans un meme depot font deux societes",
+       "1415404" in par and "1533758" in par
+       and par["1533758"]["tickers"] == [])
+    n = par.get("1532286") or {}
+    ok("un depot rendu par son 8-K et par sa piece jointe compte une fois",
+       len(n.get("depots", [])) == 2)
+    ok("et le lien retenu est celui du 8-K, pas de la piece jointe",
+       all("ex99" not in d["lien"] for d in n.get("depots", [])))
+    ok("tous les tickers declares sont gardes (l'ancien et le suffixe Q)",
+       set(n.get("tickers", [])) == {"NINE", "NINEQ"})
+    ok("le depot de faillite qui cite la confirmation a DEMANDER ne vaut "
+       "pas confirmation ; le depot suivant, si",
+       (n.get("plan_confirme") or {}).get("date") == "2026-03-10")
+    seul = fl.regroupe(faill[2:], plans[:1])
+    ok("sans depot posterieur, aucun plan n'est declare confirme",
+       seul and seul[0]["plan_confirme"] is None)
+    ok("l'item 3.03 est releve avec sa date et son lien",
+       (n.get("droits_modifies") or {}).get("date") == "2026-03-10")
+    ok("la liste va du depot le plus recent au plus ancien",
+       [s["premier_depot"] for s in soc]
+       == sorted((s["premier_depot"] for s in soc), reverse=True))
+
+    # La pagination : cent par page, jusqu'au total annonce.
+    appels = []
+
+    def getter(params):
+        appels.append(params["from"])
+        lot = [faill[1]] * min(100, 230 - params["from"])
+        return {"hits": {"total": {"value": 230}, "hits": lot}}
+    r = fl.recherche(fl.Q_FAILLITE, "2025-03-01", "2026-09-27", getter)
+    ok("la recherche suit les pages jusqu'au total, sans en redemander",
+       len(r) == 230 and appels == [0, 100, 200])
+
+    def sans_fin(params):
+        return {"hits": {"total": {"value": 9999}, "hits": [faill[1]] * 100}}
+    info = {}
+    r = fl.recherche(fl.Q_FAILLITE, "2025-03-01", "2026-09-27", sans_fin, info)
+    ok("au-dela du plafond de pages, la liste se sait tronquee",
+       len(r) == fl.PAGES_MAX * 100 and info == {
+           "total": 9999, "recu": fl.PAGES_MAX * 100})
+
+    def gros(params):
+        lot = faill if params["q"] == fl.Q_FAILLITE else plans
+        return {"hits": {"total": {"value": 9999}, "hits": lot}}
+    rt = fl.liste_us(getter=gros, charge=lambda tk: None,
+                     aujourdhui=_dt.date(2026, 9, 27))
+    ok("et la reponse le dit, pour chaque recherche tronquee",
+       len(rt["tronque"]) == 2 and "sur 9999" in rt["tronque"][0])
+
+    # Les cours : ce qui a suivi.
+    idx = pd.bdate_range("2025-11-03", periods=120)
+    serie = pd.DataFrame({"close": np.linspace(10, 1, 120),
+                          "volume": np.full(120, 1e5)}, index=idx)
+    base = {"NINEQ": serie}
+
+    def charge(tk):
+        return base[tk]      # KeyError : ce ticker n'a pas de cours
+    c = fl.cours(["NINE", "NINEQ"], "2026-02-02", charge)
+    t0 = pd.Timestamp("2026-02-02")
+    p0 = float(serie["close"][serie.index < t0].iloc[-1])
+    ok("un ticker sans donnees est passe, le suivant sert",
+       c.get("ticker") == "NINEQ" and not c.get("absent"))
+    ok("la variation part de la derniere cloture AVANT le depot",
+       abs(c["variation"] - round((1 / p0 - 1) * 100, 1)) < 1e-9
+       and c["date_avant"] < "2026-02-02")
+    cc = fl.cours(["NINEQ"], "2026-02-02", charge, coupe="2026-03-10")
+    ok("apres l'item 3.03, la mesure s'arrete a la veille",
+       cc["date"] < "2026-03-10" and cc["coupe"] == "2026-03-10")
+    meme = fl.cours(["NINEQ"], "2026-02-02", charge, coupe="2026-02-02")
+    ok("un item 3.03 le jour meme du depot ne donne pas « 0 % » : aucune "
+       "variation", "variation" not in meme and "avant" in meme)
+    ok("sans aucun cours, on le dit ; sans ticker, on le dit aussi",
+       fl.cours(["NINE"], "2026-02-02", charge) == {
+           "ticker": "NINE", "absent": True, "sans_ticker": False}
+       and fl.cours([], "2026-02-02", charge)["sans_ticker"] is True)
+
+    def fausse(v, tks=("X",), absent=False):
+        return {"tickers": list(tks), "cours": (
+            {"absent": True} if absent else {"variation": v})}
+    k = fl.compte([fausse(-95), fausse(-40), fausse(0), fausse(150),
+                   fausse(12), fausse(None, absent=True),
+                   fausse(None, tks=(), absent=True), fausse(None)])
+    ok("le compte range CHAQUE societe dans une case, sans reste",
+       k["total"] == 8 and k["avec_variation"] + k["sans_ticker"]
+       + k["sans_cours"] + k["sans_variation"] == k["total"]
+       and k["sous_moins_90"] + k["entre"] + k["en_hausse"]
+       == k["avec_variation"])
+    ok("les cases : −90 % ou pire, entre, hausse dont doublement",
+       (k["sous_moins_90"], k["entre"], k["en_hausse"], k["double"],
+        k["sans_cours"], k["sans_ticker"], k["sans_variation"])
+       == (1, 2, 2, 1, 1, 1, 1))
+
+    # L'ensemble, sans reseau.
+    def getter2(params):
+        lot = faill if params["q"] == fl.Q_FAILLITE else plans
+        return {"hits": {"total": {"value": len(lot)}, "hits": lot}}
+    r = fl.liste_us(getter=getter2, charge=charge,
+                    aujourdhui=_dt.date(2026, 9, 27))
+    ok("la liste US se dresse depuis les depots, avec ses cours et son "
+       "compte", r["ok"] and r["compte"]["total"] == len(r["societes"]) == 3
+       and r["tronque"] == [])
+    ok("les quatre rappels l'accompagnent, dont celui des actions "
+       "annulees", len(r["rappels"]) == 4
+       and "souvent rien" in r["rappels"][0]
+       and "FILIALE" in " ".join(r["rappels"]))
+
+    def cles(o):
+        if isinstance(o, dict):
+            return set(o) | set().union(*(cles(v) for v in o.values()))
+        if isinstance(o, list):
+            return set().union(*(cles(v) for v in o)) if o else set()
+        return set()
+    interdits = {"score", "potentiel", "rang", "banger", "avis",
+                 "conseil", "prevision"}
+    ok("aucune cle de score, de rang ou de potentiel dans la reponse",
+       not (cles(r) & interdits))
+    ok("les tris portent chacun sur un seul fait",
+       tuple(r["tris"]) == ("date", "variation", "nom"))
+
+    def refuse(params):
+        raise fl.RefusSEC("La SEC a refusé la requête (code 403).")
+    rr = fl.liste_us(getter=refuse, charge=charge)
+    ok("un refus de la SEC est dit, avec la demande du contact",
+       rr["ok"] is False and rr.get("contact_demande") is True)
+
+    ok("aucune adresse e-mail dans le module : le contact est celui que "
+       "le proprietaire tape, jamais un ecrit du programme",
+       "@" not in inspect.getsource(fl).replace("prenom.nom@exemple.fr", ""))
+    ok("sans contact donne, l'en-tete n'en invente aucun",
+       "@" not in fl._entetes("")["User-Agent"]
+       and fl._entetes("a@b.fr")["User-Agent"].endswith(" a@b.fr"))
+
+    f = _P(tempfile.mkdtemp()) / "eu.json"
+    ok("un titre europeen s'ajoute avec sa date et sa note",
+       fl.europe_pose("orp.pa", "sauvegarde", "2024-03-26", fichier=f)["ok"]
+       and fl.europe_pose("VAR1.DE", "", "", fichier=f)["n"] == 2)
+    ok("une date illisible est refusee, pas enregistree",
+       fl.europe_pose("X.PA", "", "26/03/2024", fichier=f)["ok"] is False)
+    fl.europe_pose("ORP.PA", "plan arrêté", "2024-06-01", fichier=f)
+    eu = fl.europe(charge=charge, fichier=f)
+    tks = [l["ticker"] for l in eu["lignes"]]
+    ok("le meme ticker ne fait qu'une ligne, la derniere saisie",
+       sorted(tks) == ["ORP.PA", "VAR1.DE"] and any(
+           l["note"] == "plan arrêté" for l in eu["lignes"]))
+    ok("un titre sans cours reste dans la liste, marque « sans cours »",
+       all(l["cours"].get("absent") for l in eu["lignes"]))
+    fl.europe_pose("VAR1.DE", retire=True, fichier=f)
+    ok("et se retire", [l["ticker"] for l in fl.europe(
+        charge=charge, fichier=f)["lignes"]] == ["ORP.PA"])
+
+
 def main() -> int:
     os.chdir(tempfile.mkdtemp())      # aucune ecriture dans le dossier reel
     test_parametres_geles()
@@ -3590,6 +3878,8 @@ def main() -> int:
     test_palmares()
     test_dossier()
     test_brain2()
+    test_detention()
+    test_faillites()
     test_memo()
 
     print()

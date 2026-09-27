@@ -835,6 +835,23 @@ to{transform:translateX(450%) skewX(-18deg)}}
 .int .av{font-size:11.5px;color:#475a72;line-height:1.75;margin-top:15px;
  border-top:1px solid #1a2330;padding-top:12px}
 .int .av b{color:#94a3b8;font-weight:500}
+/* SI JE GARDE… : une duree, un objectif facultatif, et ce que chaque
+   duree a donne. Le formulaire tient dans la colonne de 270 px. */
+.det-f{display:grid;grid-template-columns:52px minmax(0,1fr) minmax(0,1fr);
+ gap:6px;margin-top:10px}
+.det-f input,.det-f select{min-width:0;background:var(--champ-fond);
+ border:1px solid var(--bord);color:var(--txt-fort);padding:6px 7px;
+ font:400 12px ui-monospace,monospace}
+.det-f button{grid-column:1/-1;background:var(--champ-fond);
+ border:1px solid var(--bord-fort);color:var(--acc);cursor:pointer;padding:7px;
+ font:500 10px ui-monospace,monospace;letter-spacing:.14em}
+.det-r{margin-top:10px}
+.det-r>span{display:block;font-size:9.5px;letter-spacing:.18em;color:#475a72}
+.det-r .mo{margin-top:3px}
+.det-r .mo b{color:var(--txt-fort);font-weight:500}
+.det-s{font-size:11.5px}
+.det-w{color:#475a72}
+.det-perso{border-top-color:var(--bord-fort)}
 .n-complet{color:var(--pos)}.n-proche{color:#fbbf24}.n-loin{color:#7c8ba1}
 .n-sortie{color:var(--neg)}.n-hors{color:#c4a5e4}.n-na{color:#a78bfa}
 .n-refus{color:var(--neg)}.n-vide{color:#475a72}
@@ -1065,6 +1082,70 @@ function carteProfil(){
  return h+'</div>';
 }
 
+// « Si je garde deux mois ? » Ce que chaque duree a DONNE sur ce titre,
+// contre l'indice sur les memes dates. Jamais « la bonne duree » : le
+// tableau est dans l'ordre des durees, et n'est jamais trie sur ce qu'il
+// affiche. La duree choisie ici est mesuree par le serveur.
+var DET_PERSO=null, DET_SAISIE={duree:'2', unite:'mois', objectif:''};
+function detPc(x){ return (x==null)?'—':((x>0?'+':'')+x.toFixed(1).replace('.',',')+' %'); }
+function detLigne(m){
+ if(!m || m.erreur || !m.periodes)
+  return '<div class="mo">'+((m&&m.libelle)||'')+' : '+((m&&m.erreur)||'rien à mesurer')+'</div>';
+ let t='<b>'+m.hausses+'</b> en hausse sur '+m.periodes;
+ if(m.wilson) t+=' <span class="det-w">('+m.wilson[0].toFixed(0)+' à '
+   +m.wilson[1].toFixed(0)+' %)</span>';
+ let h='<div class="det-r"><span>'+m.libelle.toUpperCase()+'</span><div class="mo">'+t
+   +' · médiane '+detPc(m.mediane)+'</div><div class="mo det-s">pire '+detPc(m.pire)
+   +' · en chemin '+detPc(m.recul_median)+' (pire '+detPc(m.recul_pire)+')';
+ if(m.indice) h+=' · mieux que l’indice '+m.indice.battu+'/'+m.indice.periodes;
+ h+='</div>';
+ if(m.objectif){
+  const o=m.objectif;
+  h+='<div class="mo det-s">objectif '+detPc(o.cible)+' touché '+o.touche+'/'+m.periodes
+    +(o.seances_medianes!=null?(', en '+o.seances_medianes.toFixed(0)+' séances'):'')+'</div>';
+ }
+ return h+'</div>';
+}
+function carteDetention(){
+ const T=(typeof DETENTION!=='undefined')?DETENTION:null;
+ if(!T) return '';
+ let h='<div class="int"><h3>SI JE GARDE…</h3>'
+  +'<div class="det-f"><input data-det="duree" type="number" min="1" step="1" value="'
+  +DET_SAISIE.duree+'"><select data-det="unite">'
+  +['semaines','mois','ans'].map(u=>'<option'+(u===DET_SAISIE.unite?' selected':'')+'>'+u+'</option>').join('')
+  +'</select><input data-det="objectif" type="number" step="1" placeholder="objectif %" value="'
+  +DET_SAISIE.objectif+'"><button type="button" data-det="mesure">MESURER</button></div>';
+ if(DET_PERSO) h+='<div class="sec det-perso">'+detLigne(DET_PERSO)+'</div>';
+ h+='<div class="sec"><span>LES DURÉES USUELLES</span>';
+ (T.horizons||[]).forEach(m=>{ h+=detLigne(m); });
+ const lv=T.lundi_vendredi;
+ if(lv && !lv.erreur){
+  h+='<div class="det-r"><span>ACHAT LUNDI → VENTE VENDREDI</span><div class="mo">'
+   +lv.hausses+'/'+lv.semaines+' semaines en hausse ('+lv.wilson[0].toFixed(0)+' à '
+   +lv.wilson[1].toFixed(0)+' %), contre '+lv.base_pct.toFixed(0)+' % une semaine '
+   +'quelconque — '+(lv.indiscernable?'indiscernable du hasard':'écart net')+'</div></div>';
+ }
+ h+='</div><div class="av">'+T.rappel_bien+'<br>'+T.rappel+'</div>';
+ return h+'</div>';
+}
+document.addEventListener('click', async function(ev){
+ const b=ev.target.closest ? ev.target.closest('[data-det="mesure"]') : null;
+ if(!b) return;
+ const zone=b.closest('.int');
+ const val=k=>{ const x=zone.querySelector('[data-det="'+k+'"]'); return x?x.value:''; };
+ DET_SAISIE={duree:val('duree')||'2', unite:val('unite')||'mois', objectif:val('objectif')};
+ b.textContent='…';
+ try{
+  const r=await (await fetch('/api/detention?ticker='+encodeURIComponent(TICKER)
+    +'&duree='+encodeURIComponent(DET_SAISIE.duree)+'&unite='+encodeURIComponent(DET_SAISIE.unite)
+    +'&objectif='+encodeURIComponent(DET_SAISIE.objectif))).json();
+  DET_PERSO = r.ok ? r.mesure : {libelle:'', erreur:r.erreur||'mesure impossible'};
+ }catch(e){ DET_PERSO={libelle:'', erreur:'le serveur ne répond pas'}; }
+ const neuf=document.createElement('div');
+ neuf.innerHTML=carteDetention();
+ zone.replaceWith(neuf.firstChild);
+});
+
 // La lecture des chandeliers, dans la colonne de droite. Elle ne dit
 // jamais ce qu'une figure ANNONCE : elle dit ce qu'elle a ete suivie de
 // sur ce titre, a cote de ce que le titre fait un jour quelconque.
@@ -1118,7 +1199,7 @@ function draw(){
      + 'annuelles. Essayez une unite plus fine.';
   }
   document.getElementById('side').innerHTML='<div class="box">'+m+'</div>'
-    + carteInteret(null) + carteProfil() + carteChandeliers();
+    + carteInteret(null) + carteDetention() + carteProfil() + carteChandeliers();
   return;
  }
  bou.setData(d.ohlc); bou.setMarkers(d.markers); vol.setData(d.volume);
@@ -1145,6 +1226,7 @@ function draw(){
  let h='<div class="vd v-'+v.type+'"><div class="t">'+v.titre+
        '</div><div class="s">'+v.sous+'</div></div>';
  h+=carteInteret(d);
+ h+=carteDetention();
  h+=carteProfil();
  h+=carteChandeliers();
  if(d.niveaux){const n=d.niveaux;
@@ -1462,6 +1544,15 @@ def build_html(brut, ticker, bench_brut, sleeve=8000.0, ccy="",
     # dans le `except` et la carte disparaissait sans un mot. D'ou la
     # trace ci-dessous : une carte qui s'efface en silence ne se remarque
     # pas, et c'est exactement ce qui est arrive.
+    # « Si je garde deux mois ? » Les cinq durees usuelles sont mesurees
+    # ici ; la duree choisie par l'utilisateur l'est par /api/detention.
+    try:
+        from . import detention as dtn
+        det_js = dtn.tableau(brut, bench_brut)
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        det_js = None
     prof_js = None
     try:
         from . import profil as pf
@@ -1586,6 +1677,7 @@ def build_html(brut, ticker, bench_brut, sleeve=8000.0, ccy="",
         + ";const INTERET=" + json.dumps(inter, ensure_ascii=False)
         + ";const CHAND=" + json.dumps(chand_js, ensure_ascii=False)
         + ";const PROFIL=" + json.dumps(prof_js, ensure_ascii=False)
+        + ";const DETENTION=" + json.dumps(det_js, ensure_ascii=False)
         + ";" + hd.BARRE_JS + JS + mj.JS + rg.tiroir_js()
         + "</script></body></html>"
     ).replace("__D__", json.dumps(data, separators=(",", ":")))

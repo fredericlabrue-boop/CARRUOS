@@ -50,6 +50,16 @@ INTENTIONS = [
     ("memoire", r"\b(?:tromp|erreur|appris|apprend|memoire|souvien|"
                 r"bilan|loupe|rate)\w*|derniere fois|la fois ou"
                 r"|avais dit|disais"),
+    # « Je garde deux mois ? » donne une DUREE chiffree : ce que cette
+    # duree a donne sur le titre. Avant « je garde ? » (sortie) et avant
+    # « combien de temps » (profil), qui ne portent pas de nombre.
+    ("detention", r"\b(?:gard|conserv|ten|tiens|deten|reste|laiss)\w*\b"
+                  r".{0,40}?\b\d+(?:[.,]\d+)?\s*(?:jours?|semaines?|mois|"
+                  r"ans?|annees?)\b"
+                  r"|\b\d+(?:[.,]\d+)?\s*(?:jours?|semaines?|mois|ans?|"
+                  r"annees?)\b.{0,30}\b(?:gard|conserv|deten|ten)\w*"
+                  r"|lundi.{0,30}vendredi"
+                  r"|(?:une|1) semaine.{0,40}(?:un|1) (?:mois|an)"),
     # « Combien de temps on garde » demande une DUREE ; « je garde ? »
     # demande s'il faut sortir. Le premier doit passer avant le second.
     ("profil", r"combien de temps|duree de detention|on garde combien"),
@@ -280,6 +290,16 @@ def constitue(ticker: str, marche: str | None = None,
         prof["duree"] = pr.duree_detention(serie, bench, tk)
     except Exception:
         prof = None
+    # Ce que chaque duree de detention a donne sur ce titre, contre
+    # l'indice : les cinq durees usuelles et « lundi -> vendredi ».
+    try:
+        from . import detention as dt
+        deten = dt.tableau(brut, bench_brut)
+        _SERIES[tk] = (brut, bench_brut)
+        while len(_SERIES) > 8:
+            _SERIES.pop(next(iter(_SERIES)))
+    except Exception:
+        deten = None
     try:
         from . import seance as sn
         # La place qui compte pour CE titre, pas les neuf.
@@ -306,6 +326,7 @@ def constitue(ticker: str, marche: str | None = None,
         "horizons": amplitudes,
         "horaires": horaires,
         "profil": prof,
+        "detention": deten,
         "memoire": _memoire(tk, serie, bench),
         "position": position or None,
         "rappel": RAPPEL,
@@ -557,7 +578,61 @@ def _profil(d: dict) -> list[str]:
     return out
 
 
+# Les series du dernier dossier constitue, par titre : une duree nommee
+# dans la question se mesure sur les MEMES cours que le reste du dossier,
+# sans nouveau telechargement. Quelques titres seulement.
+_SERIES: dict = {}
+
+
+_DUREE = re.compile(r"(\d+(?:[.,]\d+)?)\s*(jours?|semaines?|mois|ans?|annees?)\b")
+_UNITE = {"jour": "jours", "jours": "jours", "semaine": "semaines",
+          "semaines": "semaines", "mois": "mois", "an": "ans", "ans": "ans",
+          "annee": "ans", "annees": "ans"}
+
+
+def mesure_demandee(question: str, d: dict) -> None:
+    """La duree que la question NOMME, mesuree et posee DANS le dossier :
+    les phrases ne citent que ce qu'il contient, et le modele recoit la
+    meme chose."""
+    m = _DUREE.search(normalise(question))
+    dt_ = d.get("detention")
+    if not m or not dt_ or not d.get("ok"):
+        return
+    from . import cache as ch
+    from . import detention as dt
+    n = dt.seances(float(m.group(1).replace(",", ".")), _UNITE[m.group(2)])
+    bench_tk = "SPY" if d.get("marche") == "us" else "^STOXX"
+    try:
+        brut, bb = _SERIES.get(d["ticker"]) or (
+            ch.charge(d["ticker"], annees=10), ch.charge(bench_tk, annees=10))
+        dt_["demande"] = dt.mesure(brut, n, bb)
+    except Exception as exc:
+        dt_["demande"] = {"libelle": dt.libelle(n), "periodes": 0,
+                          "erreur": type(exc).__name__}
+
+
+def _detention(d: dict) -> list[str]:
+    """Ce que chaque duree de detention a donne sur ce titre.
+
+    « Tesla, je garde deux mois : c'est bien ? » La premiere moitie se
+    mesure ; la seconde est un avis, et la reponse le dit.
+    """
+    t = d.get("detention")
+    if not t:
+        return ["La détention n'a pas pu être mesurée sur ce titre."]
+    from . import detention as dt
+    out = []
+    if t.get("demande"):
+        out += dt.lignes(t["demande"]) + [""]
+    out.append("Les durées usuelles, dans l'ordre des durées :")
+    out += [dt.resume(m) for m in t.get("horizons", [])]
+    out.append(dt.ligne_lundi(t.get("lundi_vendredi") or {}))
+    out += ["", dt.RAPPEL_BIEN, dt.RAPPEL]
+    return out
+
+
 SECTIONS = {
+    "detention": ("CE QUE CETTE DURÉE A DONNÉ SUR CE TITRE", _detention),
     "sortie": ("VOUS SORTEZ QUAND ?", _sortie),
     "entree": ("CE QUE DIT LA SPÉCIFICATION POUR ENTRER", _entree),
     "risque": ("LE RISQUE, TEL QUE LA SPÉCIFICATION LE DÉFINIT", _risque),
@@ -579,6 +654,8 @@ def repond(question: str, d: dict) -> dict:
         return {"ok": False, "ticker": d.get("ticker"),
                 "erreur": d.get("erreur", "dossier indisponible")}
     cle = intention(question)
+    if cle == "detention":
+        mesure_demandee(question, d)
     titre, fabrique = SECTIONS.get(cle, SECTIONS["avis"])
     return {"ok": True, "ticker": d["ticker"], "intention": cle,
             "titre": titre, "lignes": [x for x in fabrique(d)],
