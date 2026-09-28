@@ -962,6 +962,64 @@ Allemagne, The Gazette au Royaume-Uni, sans lien avec la cote). Les
 titres s'ajoutent à la main — ticker, date du jugement, note — et
 reçoivent les mêmes mesures de cours.
 
+## 5 septdecies. RECHERCHE — `recherche.py`
+
+Le bouton **RECHERCHE**, à côté des scans complets de l'accueil, ouvre
+sa fenêtre. On règle **la somme**, **le gain visé** en euros, **la
+durée** (un nombre et son unité, ou un bouton : 1 jour … 5 ans), les
+**frais par ordre** de son courtier, et **l'univers** (US, Europe, ou
+US large + STOXX 600). Pour chaque titre :
+
+- la somme devient un nombre **entier** d'actions au cours du jour,
+  converti en euros ; « IL FAUT » donne le mouvement que +50 € et −50 €
+  demandent **sur ce que la somme achète vraiment**, nets des frais du
+  backtest (**0,15 %** par côté, spread et glissement compris) et des
+  frais par ordre. Une action plus chère que la somme n'est pas
+  achetable, et c'est écrit ;
+- sur les périodes **sans chevauchement** de cette durée — dix ans de
+  cours jusqu'à 6 mois, vingt ans au-delà — combien ont **touché** le
+  gain, combien ont **touché** la même perte, lequel **d'abord**, et
+  combien ont **fini** au gain ; chaque proportion avec son Wilson, rien
+  sous 8 périodes ;
+- le marché (S&P 500, STOXX 600) aux mêmes seuils, en ligne de repère.
+
+Au-dessus du tableau, un chiffre **mesuré sur la liste affichée** : la
+corrélation entre la colonne du gain touché et celle de la perte
+touchée. Quand elle est forte, c'est que toucher +50 € en une semaine
+est d'abord une affaire d'**amplitude** : les mêmes titres touchent la
+perte aussi souvent.
+
+Les tris portent chacun sur un seul fait (gain touché, perte touchée,
+gain d'abord, ticker). « Gain d'abord » sur dix ans, c'est la tendance
+**passée** du titre, sur la composition d'aujourd'hui de l'indice. Ce
+n'est pas une prévision, et la page le dit à chaque résultat.
+
+**Une heure** est proposée et **refusée avec sa raison** : une bougie
+journalière ne contient aucune heure, et le programme n'a pas
+d'historique intraday (chantier 7). L'impôt et le change ne sont pas
+comptés.
+
+## 5 octodecies. La bande des bougies, sous le RSI
+
+Sur la page graphique, entre le RSI et le MACD, une bande porte une
+**pastille** sous chaque bougie où une figure est détectée (les 17
+figures de la section des chandeliers), sur l'unité de temps affichée.
+Elle suit le zoom et le défilement des trois autres graphiques.
+
+- **Grise** : ce que la figure a été suivie de sur ce titre est dans le
+  bruit — l'intervalle contient le taux de base.
+- **Verte** ou **rouge** : écart net, dans un sens ou dans l'autre,
+  à **5** barres. Mesuré, pas annoncé.
+
+Au survol, le nom de la figure et la phrase complète : « suivie,
+5 barres plus tard, de x % de hausses (a–b %) contre y % une barre
+quelconque ». Sans survol, le compte : combien d'écarts nets sur
+combien de mesures, et combien le seul hasard en donnerait.
+
+« Enclume » n'est pas une figure répertoriée ; les plus proches sont le
+marteau inversé et l'étoile filante, qui ont la même forme et ne
+diffèrent que par ce qui précède.
+
 ---
 
 ## 6. Ce que le programme refuse d'afficher
@@ -987,6 +1045,10 @@ Rappel, parce que c'est la colonne vertébrale du projet :
   mois » — ce que chaque durée a donné, dans un ordre fixe ;
 - un « potentiel » ou un classement de « pépites » parmi les sociétés en
   faillite — la liste complète, et le compte de ce qui a suivi.
+- « les actions qui feront +50 € la semaine prochaine » — ce que chaque
+  titre a donné, gain et perte côte à côte ;
+- ce qu'une bougie « annonce » — ce qu'elle a été suivie de, sur ce
+  titre, contre son taux de base.
 
 ---
 

@@ -21,6 +21,7 @@ py -m equity_scanner.dossier "je sors quand sur TLX.DE"
 py -m equity_scanner.pead         # stratégie 2 : préparation, puis passage unique sur OUI
 py -m equity_scanner.detention TSLA 2 mois   # ce que cette durée a donné, contre l'indice
 py -m equity_scanner.faillites   # RESTRUCTURATIONS : les 8-K item 1.03 et ce qui a suivi
+py -m equity_scanner.recherche nasdaq100 800 50 "1 semaine"   # somme, gain visé, durée
 ```
 
 `MEMO-LECTURE.md` à la racine rassemble **tous les seuils** du
@@ -321,6 +322,28 @@ jeu de paramètres qui ne l'a pas produit.
   et le rappel qu'un Chapter 11 laisse souvent **rien** aux anciens
   actionnaires. L'Europe n'a pas de registre qui relie procédures et
   cote : les titres s'y ajoutent à la main.
+- **« Les actions qui feront +50 € cette semaine ».** « Je mets 800 €,
+  je veux +50 € en une semaine, scanne-moi des actions US et Europe. »
+  `recherche.py` passe l'univers à la question qui se mesure : la somme
+  devient un nombre **entier** d'actions au cours du jour converti en
+  euros, le gain et la même perte deviennent le mouvement qu'ils
+  demandent **nets des frais du backtest**, puis sur chaque période non
+  chevauchante de la durée : gain touché, perte touchée, lequel
+  **d'abord**, fin au gain — chaque proportion avec son Wilson. La
+  colonne de la perte est **toujours** à côté de celle du gain, le
+  marché aux mêmes seuils sert de repère, et la page **mesure** sur sa
+  propre liste la corrélation entre les deux colonnes : toucher un seuil
+  est d'abord de l'amplitude, dans les deux sens. Tris sur un fait
+  unique. « Une heure » est proposée et **refusée avec sa raison**
+  (aucun historique intraday, chantier 7) — plutôt que remplie avec des
+  chiffres qui n'existent pas.
+- **Ce qu'une suite de bougies « annonce ».** « Marteau, étoile filante :
+  ça annonce une hausse ? » La bande **sous le RSI** pose une pastille
+  sous chaque bougie où une figure est détectée, sur l'unité affichée ;
+  sa couleur dit ce que la figure a été **suivie de sur ce titre** à
+  5 barres — grise dans le bruit, verte ou rouge pour un écart net — et
+  le survol donne la phrase complète contre le taux de base, avec le
+  compte des écarts nets attendus par hasard. Jamais « annonce ».
 - Une ligne de prédiction de prix. Le cône de dispersion existe : dérive
   fixée à zéro, il donne l'amplitude, jamais le sens.
 - Un take-profit **actif**. Les spécifications 2 et 3 disent « aucun
@@ -368,6 +391,7 @@ jeu de paramètres qui ne l'a pas produit.
 | | `_raccourci_auto` pose le raccourci du Bureau au premier lancement, et le repose quand le logo change (marque `~/.carruos/raccourci.json`, taille de l'icône) |
 | `chart.py` | page graphique, 4 colonnes, cône de dispersion, **6 unités de temps** dont 5 ANS |
 | | une unité est identifiée par sa **clé**, jamais par sa règle de rééchantillonnage : 5 ANS et 1 SEMAINE partagent la taille de bougie, et la déduire de la règle donnait à la seconde les longueurs de la première |
+| | **quatre** graphiques alignés (`TOUS`) : prix, RSI, la **bande des bougies** (`_bougies`, figures des barres affichées et leur suivi par `chandeliers.suivi`), MACD. La bande n'a pas d'axe du temps et son texte est posé **sur** elle |
 | | la fenêtre affichée sous chaque onglet est **calculée sur les vraies dates** : une constante mentirait dès que l'historique du titre est plus court |
 | | `chart.source_trace()` choisit **côté serveur** où prendre la bibliothèque de tracé : la copie locale (`equity_scanner/statique/lightweight-charts.js`) si elle existe, sinon le CDN. **Une seule balise, bloquante.** Jamais de repli `onerror` : il ajouterait le script de façon asynchrone, le code de la page tournerait avant, et la bibliothèque serait toujours absente |
 | `hud.py` | éléments visuels : cerf, cadrans, rails, radar, **icône** |
@@ -406,6 +430,9 @@ jeu de paramètres qui ne l'a pas produit.
 | | un dépôt compte **une fois** (numéro d'enregistrement), même rendu par son 8-K et ses pièces jointes ; le lien retenu est celui du 8-K. Une simple **mention** de l'item 1.03 sans le déclarer n'est pas une faillite |
 | | au-delà de `PAGES_MAX` pages, la réponse porte `tronque` et la page écrit LISTE INCOMPLÈTE : un compte présenté comme complet qui ne l'est pas serait pire que pas de compte |
 | | la SEC exige une adresse de contact dans l'en-tête : c'est **celle que le propriétaire tape**, rangée dans `~/.carruos/sec.json`, jamais écrite par le programme — `test_moteur` refuse toute adresse dans le module |
+| `recherche.py` | **RECHERCHE** : une somme, un gain visé, une durée, un univers — et pour chaque titre ce que cette durée a **donné**, gain et perte côte à côte |
+| | les chemins de toutes les périodes sont une **matrice** (périodes × durée) : une boucle par période coûtait des secondes par univers sur les périodes d'une séance ; `test_moteur` la confronte à une boucle écrite à la main |
+| | une recherche à la fois, dans un fil ; la page suit sa progression. L'heure est refusée **avant** tout téléchargement |
 | `dossier.py` | la **porte en français** du majordome : une question, une intention, une section de faits |
 | | aucune phrase n'est *générée*. `constitue()` rassemble ce que les autres modules ont déjà calculé, `intention()` reconnaît ce qui est demandé par une table de motifs écrite d'avance, et les réponses sont des gabarits remplis avec les chiffres du dossier |
 | | conséquence tenue **par construction** : si un chiffre n'est pas dans le dossier, aucune phrase ne peut le sortir. `test_moteur` le vérifie en passant un dossier VIDE à chaque section et en exigeant qu'aucun nombre n'en sorte |
@@ -683,6 +710,15 @@ jeu de paramètres qui ne l'a pas produit.
   d'un seul bloc porte `une-zone` et son contenu va dans `.defile`.
   `test_pages` regarde **chaque** page : si `.app` n'a que la barre et
   un bloc, sa coquille doit redéfinir les lignes.
+- **Un texte sous un petit graphique le réduit à zéro.** La bande des
+  bougies avait sa phrase en dessous, sur trois lignes, et son axe du
+  temps : dans une rangée de 80 px, il restait 0 px au tracé. Le rendu ne
+  plantait pas, la bande était simplement vide. Le texte est posé SUR la
+  bande, l'axe du temps retiré (les dates se lisent sous le prix, aligné),
+  et une largeur minimale commune aux échelles de droite garde les dates
+  des quatre graphiques au même endroit. Et le premier essai de survol
+  ne donnait rien parce qu'il visait l'axe du temps, pas le tracé :
+  regarder où l'on clique avant de conclure que l'événement ne part pas.
 - **Une grille dimensionne ses enfants par ses lignes EXPLICITES.**
   Ajouter un panneau à une grille qui n'en déclarait qu'une envoie le
   nouveau dans une ligne implicite calée sur son contenu. Sur la page

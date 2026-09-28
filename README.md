@@ -291,6 +291,7 @@ py -m equity_scanner.cache --etat              taille du cache
 py -m equity_scanner.data --figer sp500        composition datée
 py -m equity_scanner.detention TSLA 2 mois     ce que cette durée a donné
 py -m equity_scanner.faillites                 faillites US (SEC, 18 mois)
+py -m equity_scanner.recherche nasdaq100 800 50 "1 semaine"
 ```
 
 `--fils N` règle le nombre de téléchargements simultanés (8 par défaut,

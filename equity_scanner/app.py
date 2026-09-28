@@ -1931,6 +1931,73 @@ CSS_RESTR = """
 """
 
 
+# La page RECHERCHE. Des parametres, un univers, et pour chaque titre ce
+# que la duree a DONNE. La colonne de la perte est toujours a cote de
+# celle du gain.
+CSS_RECH = """
+.rch{max-width:1320px;margin:0 auto 24px;padding:14px 16px 26px;
+ background:var(--pan-fond);border:1px solid var(--bord);border-radius:12px}
+.rch label{display:block;font-size:10px;letter-spacing:.16em;
+ color:var(--txt-faible);margin-bottom:5px}
+.rch select,.rch input{width:100%;background:var(--champ-fond,#0a1620);
+ border:1px solid var(--bord);color:var(--txt);border-radius:9px;
+ padding:9px 11px;font:400 13px inherit}
+.rch input:focus,.rch select:focus{outline:0;border-color:var(--acc)}
+.rch .par{display:grid;gap:11px;align-items:end;margin-bottom:10px;
+ grid-template-columns:repeat(auto-fit,minmax(min(100%,128px),1fr))}
+.rch .par>div{min-width:0}
+.rch .dur{display:grid;grid-template-columns:minmax(0,64px) minmax(0,1fr);gap:6px}
+.rch .vite{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 10px}
+.rch .vite button{background:none;border:1px solid var(--bord);
+ border-radius:7px;color:var(--txt-mi);font:400 11px inherit;
+ letter-spacing:.08em;padding:5px 9px;cursor:pointer;
+ transition:border-color .15s,color .15s}
+.rch .vite button:hover{border-color:var(--acc);color:var(--txt-fort)}
+.rch .vite button.non{border-style:dashed;color:var(--txt-faible)}
+.rch .go{width:100%;background:#0e2b34;border:1px solid var(--acc);
+ color:var(--txt-fort);border-radius:9px;padding:10px;cursor:pointer;
+ font:500 13px inherit;letter-spacing:.1em}
+.rch .go:hover{background:#123a46}
+.rch .calc{font-size:12px;color:var(--txt-mi);line-height:1.6;margin:0 0 8px}
+.rch .calc b{color:var(--txt-fort);font-weight:500}
+.rch .cpt{display:grid;gap:8px;margin:10px 0 12px;
+ grid-template-columns:repeat(auto-fit,minmax(min(100%,132px),1fr))}
+.rch .cpt div{min-width:0;border:1px solid var(--bord);border-radius:9px;
+ padding:8px 10px;font-size:10.5px;color:var(--txt-faible);line-height:1.45}
+.rch .cpt b{display:block;font:500 19px ui-monospace,Consolas,monospace;
+ color:var(--txt-fort);font-variant-numeric:tabular-nums}
+.rch .rap{font-size:11.5px;line-height:1.65;color:var(--txt-mi);
+ border-left:2px solid var(--acc);padding:2px 0 2px 10px;margin:0 0 8px}
+.rch .rap.fort{border-left-color:var(--neg);color:var(--txt-doux)}
+.rch .corr{font-size:12.5px;line-height:1.6;color:var(--txt-doux);
+ border:1px solid var(--bord);border-radius:9px;padding:9px 12px;
+ margin:0 0 10px}
+.rch .corr b{font:500 16px ui-monospace,monospace;color:var(--txt-fort)}
+.rch .tri{display:flex;gap:10px;align-items:center;margin:12px 0 6px;
+ flex-wrap:wrap}
+.rch .tri label{margin:0}
+.rch .tri select{width:auto;flex:0 1 auto;min-width:0;max-width:100%}
+.rch .tab{width:100%;border-collapse:collapse;font-size:12px}
+.rch .tab th{text-align:left;font:400 9.5px ui-monospace,monospace;
+ letter-spacing:.14em;color:var(--txt-faible);padding:7px 8px;
+ border-bottom:1px solid var(--bord)}
+.rch .tab td{padding:7px 8px;border-top:1px solid var(--bord);
+ color:var(--txt-doux);font-variant-numeric:tabular-nums;vertical-align:top}
+.rch .tab td i{font-style:normal;color:var(--txt-faible);font-size:11px}
+.rch .tab tr.repere td{color:var(--txt-mi);background:rgba(0,0,0,.22)}
+.rch .tab tr.sans td{color:var(--txt-faible)}
+.rch .tk{font:500 12.5px ui-monospace,Consolas,monospace;color:var(--acc);
+ letter-spacing:.05em;cursor:pointer}
+.rch .g{color:var(--pos)}.rch .p{color:var(--neg)}
+.rch .enveloppe{overflow-x:auto}
+.rch details{margin-top:10px}
+.rch summary{cursor:pointer;font-size:10.5px;letter-spacing:.12em;
+ color:var(--txt-faible)}
+.rch .refus{font-size:11px;color:var(--txt-faible);line-height:1.6;
+ margin-top:6px}
+"""
+
+
 CSS_STRAT = """
 .obj{margin-top:11px;padding:11px 13px;border:1px solid var(--bord);
  border-left:2px solid var(--acc);background:rgba(6,12,18,.5)}
@@ -2246,6 +2313,8 @@ def _accueil(splash: bool = True) -> str:
             "<i>38 titres &middot; 2 min</i></button>"
             '<button onclick="scan(\'dax\',\'allemagne\')"><b>DAX</b>'
             "<i>37 titres &middot; 2 min</i></button>"
+            '<button data-vers="/recherche" data-fen="carruos-recherche">'
+            "<b>RECHERCHE</b><i>somme, gain visé, durée</i></button>"
             '<button data-vers="/restructurations" '
             'data-fen="carruos-restructurations"><b>RESTRUCTURATIONS</b>'
             "<i>faillites US (SEC) + Europe suivie</i></button>"
@@ -2296,7 +2365,8 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                           "/api/cle", "/api/validation", "/api/phase0",
                           "/api/carnet", "/api/cerveau", "/api/brain2",
                           "/api/cerveau/config", "/api/ibkr",
-                          "/api/raccourci", "/api/restructurations"):
+                          "/api/raccourci", "/api/restructurations",
+                          "/api/recherche"):
             return self._envoie("<h1>404</h1>", code=404)
         try:
             n = int(self.headers.get("Content-Length") or 0)
@@ -2305,6 +2375,8 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                 return self._json(_raccourci())
             if u.path == "/api/restructurations":
                 return self._json(_restructurations_ecrit(corps))
+            if u.path == "/api/recherche":
+                return self._json(_recherche_lance(corps))
             if u.path == "/api/validation":
                 return self._json(_val_lance(corps.get("quoi", "phase0")))
             if u.path == "/api/carnet":
@@ -2415,6 +2487,12 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                 return self._envoie(_page_memoire())
             if u.path == "/restructurations":
                 return self._envoie(_page_restructurations())
+            if u.path == "/recherche":
+                return self._envoie(_page_recherche())
+            if u.path == "/api/recherche":
+                return self._json({"actif": _RCH["actif"],
+                                   "journal": _RCH["journal"][-3:],
+                                   "resultat": _RCH["resultat"]})
             if u.path == "/api/restructurations":
                 return self._json(_restructurations(q))
             # La page complete du majordome. L'ancienne adresse, /brain2,
@@ -3602,6 +3680,158 @@ $r('reuaj').addEventListener('click', async function(){
 });
 chargeUS(false);
 chargeEU();
+"""
+
+
+JS_RECH = r"""
+function $q(i){return document.getElementById(i);}
+function eq(t){
+ return String(t==null?'':t).replace(/[&<>"]/g, function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});
+}
+function pq(v, d){ return Number(v).toLocaleString('fr-FR',
+  {minimumFractionDigits:d==null?1:d, maximumFractionDigits:d==null?1:d}); }
+var RCH = null, RCH_TIC = null;
+
+function calcule(){
+ var c=parseFloat(($q('qcap').value||'').replace(',','.')),
+     g=parseFloat(($q('qgain').value||'').replace(',','.'));
+ if(!(c>0) || !(g>0)){ $q('qcalc').textContent=''; return; }
+ $q('qcalc').innerHTML='+<b>' + pq(g,0) + ' €</b> sur <b>' + pq(c,0)
+  + ' €</b> = <b>+' + pq(g/c*100, 2) + ' %</b> sur la somme entière, '
+  + 'avant frais. Titre par titre, le nombre d’actions ENTIÈRES que la '
+  + 'somme achète change ce pourcentage : la colonne IL FAUT le donne.';
+}
+
+function frac(k, n, w){
+ if(n==null || !n) return '—';
+ return k + ' / ' + n + (w ? '<br><i>' + pq(w[0]) + '–' + pq(w[1]) + ' %</i>' : '');
+}
+
+function cleTri(t){
+ function v(x,k){ return (x.mesure||{})[k]; }
+ if(t==='nom') return function(a,b){ return a.ticker<b.ticker?-1:(a.ticker>b.ticker?1:0); };
+ var k={gain:'part_gain', perte:'part_perte', dabord:'part_dabord'}[t]||'part_gain';
+ var s=(t==='perte')?1:-1;
+ return function(a,b){
+  var x=v(a,k), y=v(b,k);
+  if(x==null && y==null) return a.ticker<b.ticker?-1:1;
+  if(x==null) return 1; if(y==null) return -1;
+  if(x!==y) return s*(x-y);
+  return a.ticker<b.ticker?-1:1;
+ };
+}
+
+function ligneR(x, repere){
+ var m=x.mesure||{}, per=m.periodes;
+ var tk = repere ? '<b>' + eq(x.nom) + '</b> <i>' + eq(x.ticker) + '</i>'
+  : '<span class="tk" data-tk="' + eq(x.ticker) + '">' + eq(x.ticker) + '</span>';
+ var achat = repere ? '<i>la somme entière</i>'
+  : (x.achetable===false ? '<i>la somme n’achète pas une action ('
+       + pq(x.prix_eur,2) + ' €)</i>'
+  : (x.achetable==null ? '<i>pas de taux de change</i>'
+  : x.titres + ' × ' + pq(x.prix_eur,2) + ' € = ' + pq(x.investi,0) + ' €'));
+ var faut = (x.seuil_gain!=null)
+  ? '<span class="g">+' + pq(x.seuil_gain*100,2) + ' %</span> / <span class="p">'
+    + pq(x.seuil_perte*100,2) + ' %</span>'
+  : (x.frais_trop_lourds ? '<i>les frais seuls coûtent la somme</i>' : '—');
+ if(repere && m.periodes)
+  faut = '<i>mêmes seuils sur la somme entière</i>';
+ var dab = per ? m.gain_dabord + ' / ' + m.perte_dabord + ' / ' + m.ni_l_un_ni_l_autre
+   + (m.wilson_dabord ? '<br><i>gain d’abord ' + pq(m.wilson_dabord[0]) + '–'
+      + pq(m.wilson_dabord[1]) + ' %</i>' : '') : (m.erreur ? '<i>' + eq(m.erreur) + '</i>' : '—');
+ return '<tr' + (repere?' class="repere"':(per?'':' class="sans"')) + '><td>' + tk + '</td>'
+  + '<td>' + (repere ? '' : pq(x.prix, 2) + ' <i>' + eq(x.devise) + '</i>') + '</td>'
+  + '<td>' + achat + '</td><td>' + faut + '</td>'
+  + '<td class="g">' + (per ? frac(m.gain_touche, per, m.wilson_gain) : '—') + '</td>'
+  + '<td class="p">' + (per ? frac(m.perte_touchee, per, m.wilson_perte) : '—') + '</td>'
+  + '<td>' + dab + '</td>'
+  + '<td>' + (per ? m.fini_au_gain + ' / ' + per : '—') + '</td></tr>';
+}
+
+function rendR(){
+ var j=RCH; if(!j) return;
+ if(!j.ok){ $q('qres').innerHTML='<p class="rap fort">' + eq(j.erreur) + '</p>'; return; }
+ var k=j.compte;
+ var c=function(n, lib){ return '<div><b>' + n + '</b>' + lib + '</div>'; };
+ var h='<div class="cpt">' + c(k.univers, 'titres dans l’univers')
+  + c(k.mesures, 'mesurés') + c(k.trop_peu, 'moins de ' + j.mini + ' périodes : aucune proportion')
+  + c(k.non_achetables, 'plus chers que la somme') + c(k.sans_change, 'sans taux de change')
+  + c(k.frais_trop_lourds, 'frais plus lourds que le gain')
+  + c(k.refuses, 'refusés (données)') + '</div>';
+ if(j.correlation!=null)
+  h+='<div class="corr">Corrélation entre la colonne GAIN TOUCHÉ et la colonne '
+   + 'PERTE TOUCHÉE, sur les ' + k.mesures + ' titres mesurés : <b>r = '
+   + pq(j.correlation,2) + '</b>. '
+   + (j.correlation>=0.5 ? 'Les titres qui ont le plus souvent donné +' + pq(j.gain,0)
+      + ' € sont aussi ceux qui ont le plus souvent coûté ' + pq(j.gain,0)
+      + ' € : c’est leur amplitude qui touche les seuils, dans les deux sens.'
+    : 'Mesurée ici, pas supposée : lisez les deux colonnes ensemble.') + '</div>';
+ h += (j.rappels||[]).map(function(t,i){
+  return '<p class="rap' + (i===0?' fort':'') + '">' + eq(t) + '</p>'; }).join('');
+ var t=$q('qtri').value;
+ var l=(j.lignes||[]).slice().sort(cleTri(t));
+ h+='<div class="enveloppe"><table class="tab"><thead><tr><th>TITRE</th><th>COURS</th>'
+  + '<th>ACHAT</th><th>IL FAUT (NET DE FRAIS)</th><th>+' + pq(j.gain,0) + ' € TOUCHÉ</th>'
+  + '<th>−' + pq(j.gain,0) + ' € TOUCHÉ</th><th>D’ABORD : GAIN / PERTE / AUCUN</th>'
+  + '<th>FINI À +' + pq(j.gain,0) + ' €</th></tr></thead><tbody>'
+  + (j.reperes||[]).map(function(x){ return ligneR(x, true); }).join('')
+  + l.map(function(x){ return ligneR(x, false); }).join('') + '</tbody></table></div>';
+ if((j.refus||[]).length)
+  h+='<details><summary>' + j.refus.length + ' TITRE(S) REFUSÉ(S), AVEC LEUR MOTIF</summary>'
+   + '<div class="refus">' + j.refus.map(function(r){ return eq(r.ticker) + ' : ' + eq(r.motif); }).join('<br>')
+   + '</div></details>';
+ $q('qres').innerHTML=h;
+ $q('qmsg').textContent = j.nom_univers + ' · ' + pq(j.capital,0) + ' € pour +' + pq(j.gain,0)
+  + ' € en ' + j.libelle + ' · périodes sans chevauchement sur ' + j.annees + ' ans de cours';
+}
+
+async function suitR(){
+ try{
+  var j = await (await fetch('/api/recherche')).json();
+  if(j.actif){
+   $q('qmsg').textContent = 'Recherche en cours… ' + (j.journal||[]).slice(-1).join('')
+    + ' — la première fois, chaque titre télécharge ses cours.';
+   RCH_TIC = setTimeout(suitR, 1500); return;
+  }
+  if(j.resultat){ RCH=j.resultat; rendR(); }
+ }catch(e){ $q('qmsg').textContent='Le serveur ne répond pas : ' + e; }
+}
+
+async function lanceR(){
+ var corps={univers:$q('quni').value, capital:$q('qcap').value, gain:$q('qgain').value,
+  nombre:$q('qnb').value, unite:$q('qun').value, frais:$q('qfrais').value,
+  tri:$q('qtri').value};
+ $q('qres').innerHTML='';
+ try{
+  var r = await (await fetch('/api/recherche', {method:'POST',
+    headers:{'Content-Type':'application/json'}, body:JSON.stringify(corps)})).json();
+  if(!r.ok){ $q('qmsg').textContent=''; $q('qres').innerHTML='<p class="rap fort">'
+     + eq(r.erreur||'échec') + '</p>'; return; }
+  clearTimeout(RCH_TIC); suitR();
+ }catch(e){ $q('qmsg').textContent='Le serveur ne répond pas : ' + e; }
+}
+
+document.addEventListener('click', function(ev){
+ var t = ev.target.closest ? ev.target.closest('.tk[data-tk]') : null;
+ if(t){
+  if(typeof window.ouvreFenetre==='function')
+   ouvreFenetre('/graphique?ticker=' + encodeURIComponent(t.dataset.tk), 'carruos-graphique');
+  else location.href='/graphique?ticker=' + encodeURIComponent(t.dataset.tk);
+  return;
+ }
+ var v = ev.target.closest ? ev.target.closest('[data-duree]') : null;
+ if(v){
+  var p=v.getAttribute('data-duree').split(' ');
+  $q('qnb').value=p[0]; $q('qun').value=p[1];
+  if(p[1]==='heures') lanceR();
+ }
+});
+['qcap','qgain'].forEach(function(i){ $q(i).addEventListener('input', calcule); });
+$q('qtri').addEventListener('change', rendR);
+$q('qlance').addEventListener('click', lanceR);
+calcule();
+suitR();
 """
 
 
@@ -5170,6 +5400,119 @@ def _restructurations_ecrit(corps: dict) -> dict:
     return {"ok": False, "erreur": "action inconnue"}
 
 
+def _page_recherche() -> str:
+    """RECHERCHE : une somme, un gain vise, une duree, un univers — et pour
+    chaque titre ce que cette duree a DONNE. Aucune « action potentielle » :
+    un tri sur un fait, la perte toujours a cote du gain."""
+    from . import recherche as rc
+
+    reg = rg.charge()
+    unis = "".join(f'<option value="{k}"'
+                   + (' selected' if k == "us_europe" else "")
+                   + f">{html.escape(v)}</option>"
+                   for k, v in rc.UNIVERS.items())
+    tris = "".join(f'<option value="{k}"'
+                   + (' selected' if k == rc.TRI_DEFAUT else "")
+                   + f">{html.escape(v)}</option>"
+                   for k, v in rc.TRIS.items())
+    unites = "".join(f'<option value="{u}"'
+                     + (' selected' if u == "semaines" else "")
+                     + f">{u}</option>"
+                     for u in ("heures", "jours", "semaines", "mois", "ans"))
+    vite = "".join(
+        f'<button type="button" data-duree="{nb} {un}">{html.escape(lab)}'
+        '</button>'
+        for lab, nb, un in (("1 jour", 1, "jours"), ("1 semaine", 1, "semaines"),
+                            ("1 mois", 1, "mois"), ("3 mois", 3, "mois"),
+                            ("6 mois", 6, "mois"), ("1 an", 1, "ans"),
+                            ("2 ans", 2, "ans"), ("5 ans", 5, "ans")))
+    vite += ('<button type="button" class="non" data-duree="1 heures" '
+             'title="Pas de données intraday : la page dit pourquoi">'
+             '1 heure</button>')
+    return (
+        '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<link rel="icon" type="image/svg+xml" href="/carruos.svg">'
+        '<link rel="alternate icon" href="/favicon.ico">'
+        f"<title>{TITRE} — recherche</title>"
+        f"<style>{rg.variables(reg)}{CSS}{CSS_RECH}</style></head>"
+        f'<body class="{rg.classes(reg)}"{rg.corps_attrs(reg)}>'
+        + rg.tiroir_html(reg)
+        + mj.html(reg)
+        + hd.fond(TRACE_D)
+        + '<div class="app une-zone">'
+          + hd.barre(TRACE_D, NOM, soustitre="RECHERCHE",
+                     fenetre="carruos-recherche")
+          + '<div class="defile"><div class="rch">'
+          '<p class="ex">Réglez <b>la somme</b>, <b>le gain visé</b> en '
+          'euros et <b>la durée</b>. Chaque titre de l’univers est passé '
+          'à la même question : sur son historique, combien de périodes '
+          'de cette durée ont donné ce gain — et combien ont coûté la '
+          'même somme. Ce qui a eu lieu, pas ce qui va avoir lieu.</p>'
+          '<div class="par">'
+          '<div><label>SOMME (€)</label><input id="qcap" value="800" '
+          'inputmode="decimal"></div>'
+          '<div><label>GAIN VISÉ (€)</label><input id="qgain" value="50" '
+          'inputmode="decimal"></div>'
+          '<div><label>DURÉE</label><div class="dur">'
+          '<input id="qnb" value="1" inputmode="decimal">'
+          f'<select id="qun">{unites}</select></div></div>'
+          '<div><label title="Ce que votre courtier prend par ordre, en '
+          'plus des frais du backtest">FRAIS PAR ORDRE (€)</label>'
+          '<input id="qfrais" value="0" inputmode="decimal"></div>'
+          f'<div><label>UNIVERS</label><select id="quni">{unis}</select>'
+          '</div>'
+          '<div><button class="go" id="qlance">CHERCHER</button></div>'
+          '</div>'
+          f'<div class="vite">{vite}</div>'
+          '<p class="calc" id="qcalc"></p>'
+          '<div class="tri"><label for="qtri">TRI</label>'
+          f'<select id="qtri">{tris}</select></div>'
+          '<div class="msg" id="qmsg"></div>'
+          '<div id="qres"></div>'
+          '</div></div></div>'
+        + f"<script>{hd.BARRE_JS}{JS_RECH}{mj.JS}{rg.tiroir_js()}"
+          "</script></body></html>")
+
+
+# Une recherche a la fois : elle passe tout un univers.
+_RCH = {"actif": False, "journal": [], "resultat": None}
+_RCH_VERROU = threading.Lock()
+
+
+def _recherche_lance(corps: dict) -> dict:
+    """Lance la recherche dans un fil. Une duree refusee (l'heure) est
+    dite tout de suite, sans rien telecharger."""
+    from . import recherche as rc
+    d = rc.seances(corps.get("nombre", 1), corps.get("unite", "semaines"))
+    if "refus" in d:
+        return {"ok": False, "erreur": d["refus"]}
+    if corps.get("univers") not in rc.UNIVERS:
+        return {"ok": False, "erreur": "univers inconnu"}
+    with _RCH_VERROU:
+        if _RCH["actif"]:
+            return {"ok": False, "erreur": "une recherche tourne déjà"}
+        _RCH.update({"actif": True, "journal": [], "resultat": None})
+
+    def note(m):
+        _RCH["journal"] = (_RCH["journal"] + [str(m).strip()])[-20:]
+
+    def travail():
+        try:
+            r = rc.cherche(corps.get("univers"), corps.get("capital"),
+                           corps.get("gain"), corps.get("nombre"),
+                           corps.get("unite"), corps.get("frais") or 0,
+                           corps.get("tri") or rc.TRI_DEFAUT, journal=note)
+        except Exception as exc:
+            traceback.print_exc()
+            r = {"ok": False, "erreur": f"{type(exc).__name__}: {exc}"}
+        _RCH["resultat"] = r
+        _RCH["actif"] = False
+
+    threading.Thread(target=travail, daemon=True).start()
+    return {"ok": True}
+
+
 def _page_strategie() -> str:
     """La page STRATEGIE. Deux moities de nature differente, et le texte
     le dit : a gauche de l'arithmetique, a droite des faits mesures."""
@@ -5464,7 +5807,8 @@ def _raccourci_auto() -> None:
 
 
 # Les pages qui ont leur fenetre sans avoir d'onglet dans la barre.
-AUTRES_FENETRES = {"/restructurations": "RESTRUCTURATIONS"}
+AUTRES_FENETRES = {"/restructurations": "RESTRUCTURATIONS",
+                   "/recherche": "RECHERCHE"}
 
 
 def titre_fenetre(adresse: str) -> str:

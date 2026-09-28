@@ -346,7 +346,8 @@ def main() -> int:
                  "ibkr": app._page_ibkr(),
                  "memoire": app._page_memoire(),
                  "majordome": app._page_majordome(),
-                 "restructurations": app._page_restructurations()}
+                 "restructurations": app._page_restructurations(),
+                 "recherche": app._page_recherche()}
     finally:
         dl.load_yf = vrai
 
@@ -1123,6 +1124,9 @@ def main() -> int:
     hb = pages["majordome"]
     jb = _scripts(hb)
     src_app = open(_app.__file__, encoding="utf-8").read()
+    # Les adresses que do_POST accepte : la liste FERMEE en tete de la
+    # methode, avant tout traitement.
+    _post_api = src_app.split("def do_POST")[1].split("try:")[0]
     # La v29 servait la page sous /api/brain2 et aucun onglet n'y menait.
     _v('if u.path in ("/majordome", "/brain2"):' in src_app,
        "la page a son adresse, /majordome, et l'ancienne /brain2 y mene")
@@ -1268,7 +1272,7 @@ def main() -> int:
        "l'accueil porte le bouton, a cote des scans complets")
     _v('u.path == "/restructurations"' in src_app
        and 'u.path == "/api/restructurations"' in src_app
-       and '"/api/restructurations"):' in src_app,
+       and '"/api/restructurations"' in _post_api,
        "la page et son API sont servies (lecture et ecriture)")
     _v(_app.titre_fenetre("/restructurations").endswith("RESTRUCTURATIONS"),
        "sa fenetre porte son nom")
@@ -1301,6 +1305,44 @@ def main() -> int:
     _v("onclick" not in _app.JS_RESTR,
        "aucun onclick en ligne dans son script : un ecouteur delegue")
 
+    print("\n  PAGE RECHERCHE")
+    from . import recherche as _rc
+    hq = pages["recherche"]
+    jq = _app.JS_RECH
+    _v('data-vers="/recherche"' in pages["accueil"],
+       "l'accueil porte le bouton RECHERCHE, a cote des scans complets")
+    _v('u.path == "/recherche"' in src_app
+       and 'u.path == "/api/recherche"' in src_app
+       and '"/api/recherche"' in _post_api,
+       "la page et son API sont servies (lancement et suivi)")
+    _v(_app.titre_fenetre("/recherche").endswith("RECHERCHE"),
+       "sa fenetre porte son nom")
+    for champ in ("qcap", "qgain", "qnb", "qun", "qfrais", "quni", "qtri",
+                  "qlance"):
+        _v(f'id="{champ}"' in hq, f"le reglage {champ} est dans la page")
+    optq = re.findall(r'<select id="qtri">(.*?)</select>', hq, re.S)
+    _v(tuple(re.findall(r'value="([^"]+)"', optq[0]) if optq else ())
+       == tuple(_rc.TRIS), "les tris proposes sont ceux du module")
+    optu = re.findall(r'<select id="quni">(.*?)</select>', hq, re.S)
+    _v(tuple(re.findall(r'value="([^"]+)"', optu[0]) if optu else ())
+       == tuple(_rc.UNIVERS), "les univers proposes sont ceux du module")
+    _v('data-duree="1 heures"' in hq,
+       "« 1 heure » est proposee — et refusee avec sa raison")
+    propre_q = hq.split('<div class="rch">')[1].split("<script>")[0]
+    _v(not re.search(r"potentiel|score|banger|p[ée]pite|meilleur",
+                     propre_q + jq, re.I),
+       "aucun mot de potentiel, de score ou de « meilleur » dans la page")
+    cases = [k for k in ("univers", "mesures", "trop_peu", "non_achetables",
+                         "sans_change", "frais_trop_lourds", "refuses")]
+    _v(all(f"k.{c}" in jq for c in cases),
+       "chaque case du compte est affichee")
+    _v("m.perte_touchee" in jq and "m.gain_touche" in jq
+       and jq.index("m.gain_touche") < jq.index("m.perte_touchee"),
+       "la colonne de la perte est a cote de celle du gain")
+    _v("j.correlation" in jq and "j.reperes" in jq and "j.rappels" in jq,
+       "la correlation mesuree, le repere du marche et les rappels")
+    _v("onclick" not in jq, "aucun onclick en ligne dans son script")
+
     print("\n  UNE PAGE D'UN SEUL BLOC DEFILE")
     # `.app` est une grille de 100vh en `auto auto minmax(0,1fr)` et
     # `body{overflow:hidden}`. Un bloc unique sous la barre tombe dans la
@@ -1322,7 +1364,7 @@ def main() -> int:
     _v(".defile{" in css_base and "overflow-y:auto" in
        css_base.split(".defile{")[1].split("}")[0],
        "le conteneur .defile defile lui-meme")
-    for nom_page in ("maliste", "restructurations"):
+    for nom_page in ("maliste", "restructurations", "recherche"):
         _v(_enfants_app(pages[nom_page])[1][1] == ["defile"],
            f"{nom_page} : son contenu est dans le conteneur qui defile")
 
@@ -1351,6 +1393,37 @@ def main() -> int:
     sans_nom = [c for c in _cd2.NOMS if c not in _cd2.FORMES
                 and not c.startswith(("hausse_", "baisse_"))]
     _v(not sans_nom, f"chaque figure a sa definition ecrite ({sans_nom})")
+
+
+    print("\n  LA BANDE DES BOUGIES, SOUS LE RSI")
+    from . import chart as _ch7
+    g7 = pages["graphique"]
+    i2, i4, i3 = (g7.find('id="p2"'), g7.find('id="p4"'), g7.find('id="p3"'))
+    _v(0 < i2 < i4 < i3, "la bande est posee SOUS le RSI, au-dessus du MACD")
+    _v(set(_ch7.ABREGES) == {k for k in _cd2.NOMS
+                             if not k.startswith(("hausse_", "baisse_"))},
+       "chaque figure du detecteur a son abreviation, et aucune de plus")
+    D7 = _objet(js6, "const DATA=")
+    b7 = (D7.get("jour") or {}).get("bougies") or {}
+    _v(b7.get("points") is not None and b7.get("stats") is not None,
+       "l'unite JOUR porte ses figures et leur suivi")
+    vues = {k for p_ in b7.get("points", []) for k in p_["cles"]}
+    _v(vues == set(b7.get("stats", {})),
+       "chaque figure affichee a son suivi, et seulement elles")
+    _v(all(any(x["horizon"] == b7["horizon"] for x in st["suivi"])
+           for st in b7.get("stats", {}).values()),
+       "le suivi de chaque figure contient l'horizon de la pastille")
+    _v("comptage" in b7 and "rappel" in b7,
+       "le compte des mesures et le rappel voyagent avec la bande")
+    jb = js6[js6.index("function pastilles"):js6.index("function bgTexte")]
+    _v("indiscernable" in jb and "une barre quelconque" in jb,
+       "la pastille dit ce qui a suivi CONTRE le taux de base")
+    _v(not re.search(r"annonce|haussi[eè]re? probable|signal d.achat", jb,
+                     re.I),
+       "aucune figure « n'annonce » rien dans la bande")
+    _v("const TOUS=[cP,cR,cM,cB]" in js6
+       and "TOUS.forEach(src=>src.timeScale()" in js6,
+       "la bande suit le zoom et le defilement des trois autres")
 
     print("\n  BANDEAU DES MODULES")
     # Le defaut trouve : `.mods`, `.mod`, `.hdr2`, `.gg`, `.zone`, `.val`,

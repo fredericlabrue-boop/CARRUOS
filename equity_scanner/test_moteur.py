@@ -2849,8 +2849,13 @@ def test_memo() -> None:
     from .indicators import PERIODES
 
     from . import brain2 as b2_
+    from . import chart as _ch_
     from . import detention as _dt_
     from . import faillites as _fl_
+    from . import recherche as _rc_
+
+    def _nb_(x):
+        return {10: "dix", 20: "vingt"}.get(x, str(x))
     from . import majordome as _mj_
     from . import news as _nw_
     from . import carnet as cn
@@ -3599,6 +3604,17 @@ def test_memo() -> None:
         ("relecture SEC", f"au plus toutes les **{_fl_.CACHE_HEURES}**"),
         ("plafond de lecture",
          f"plus **{_fl_.PAGES_MAX * _fl_.PAGE}** dépôts"),
+        # --- recherche.py
+        ("frais par cote de la recherche",
+         "backtest (**{}** par côté".format(
+             f"{_rc_.cout_par_cote() * 100:.2f}".replace(".", ",") + " %")),
+        ("historique de la recherche",
+         f"{_nb_(_rc_.ANNEES_COURT)} ans de\n  cours jusqu'à "
+         f"{_rc_.SEUIL_LONG // 21} mois, {_nb_(_rc_.ANNEES_LONG)} ans au-delà"),
+        ("periodes minimum de la recherche",
+         f"rien\n  sous {_rc_.MINI_PERIODES} périodes"),
+        # --- chart.py : la bande des bougies
+        ("horizon de la bande", f"à **{_ch_.HORIZON_BANDE}** barres"),
     ]
     absents = [(nom, val) for nom, val in ATTENDU if val not in m]
     ok(f"les {len(ATTENDU)} seuils cites dans le memo sont ceux qui "
@@ -3847,6 +3863,191 @@ def test_faillites() -> None:
         charge=charge, fichier=f)["lignes"]] == ["ORP.PA"])
 
 
+def test_recherche() -> None:
+    """RECHERCHE : une somme, un gain vise, une duree — et ce que chaque
+    titre a DONNE. Jamais « les actions potentielles »."""
+    print("\n— Recherche : somme, gain visé, durée —")
+    from . import backtest as bt
+    from . import recherche as rc
+
+    ok("une heure est refusée, avec sa raison (pas d'intraday)",
+       "refus" in rc.seances(1, "heure") and "intraday" in rc.REFUS_HEURE)
+    ok("« 1 semaine » au singulier se lit, comme « 2 mois » et « 1 an »",
+       rc.seances(1, "semaine")["seances"] == 5
+       and rc.seances(2, "mois")["seances"] == 42
+       and rc.seances(1, "an")["seances"] == 252)
+    ok("plus de vingt ans : refusé, aucun historique n'y suffit",
+       "refus" in rc.seances(21, "ans"))
+
+    c = bt.COUT_PAR_COTE + bt.SLIPPAGE
+    s = rc.seuils(800, 50, 300.0)
+    ok("800 € sur une action à 300 € : deux titres, 600 € investis",
+       s["titres"] == 2 and s["investi"] == 600.0)
+    ok("et +50 € NETS demandent +50/600 plus les frais des deux côtés",
+       abs(s["seuil_gain"] - (50 / 600 + 2 * c)) < 1e-12
+       and abs(s["seuil_perte"] - (-50 / 600 + 2 * c)) < 1e-12)
+    ok("une action plus chère que la somme n'est pas achetable",
+       rc.seuils(800, 50, 1050.0)["achetable"] is False)
+    ok("des frais fixes qui coûtent à eux seuls la somme sont signalés",
+       rc.seuils(800, 50, 10.0, frais_fixes=30).get("frais_trop_lourds"))
+    ok("sans taux de change, rien n'est converti au hasard",
+       rc.seuils(800, 50, None)["achetable"] is None)
+
+    idx = pd.bdate_range("2016-01-04", periods=1000)
+    monte = pd.Series(100 * 1.01 ** np.arange(1000), index=idx)
+    m = rc.mesure(monte, 5, 0.03, -0.03)
+    ok("+1 % par séance : chaque semaine touche +3 %, aucune ne perd",
+       m["gain_touche"] == m["periodes"] == 199 and m["perte_touchee"] == 0
+       and m["gain_dabord"] == 199 and m["part_gain"] == 1.0)
+    ok("et le gain est touché à la troisième séance",
+       m["seances_au_gain"] == 3.0)
+
+    # Contre une boucle ecrite a la main : la matrice des chemins doit
+    # rendre exactement les memes comptes.
+    r = np.random.default_rng(4)
+    alea = pd.Series(100 * np.exp(np.cumsum(r.normal(0, .02, 1500))),
+                     index=pd.bdate_range("2019-01-01", periods=1500))
+    for h in (1, 5, 21):
+        mv = rc.mesure(alea, h, 0.04, -0.035)
+        px = alea.to_numpy()
+        kg = kp = gd = pd_ = 0
+        for a0, f0 in dt_bornes(len(px), h):
+            ch_ = px[a0 + 1:f0 + 1] / px[a0] - 1
+            ig = next((i for i, v in enumerate(ch_) if v >= 0.04), None)
+            ip = next((i for i, v in enumerate(ch_) if v <= -0.035), None)
+            kg += ig is not None
+            kp += ip is not None
+            gd += ig is not None and (ip is None or ig < ip)
+            pd_ += ip is not None and (ig is None or ip < ig)
+        ok(f"vectorisé = boucle, périodes de {h} séance(s)",
+           (mv["gain_touche"], mv["perte_touchee"], mv["gain_dabord"],
+            mv["perte_dabord"]) == (kg, kp, gd, pd_))
+    peu = rc.mesure(monte, 252, 0.03, -0.03)
+    ok("sous huit périodes, aucune proportion n'est donnée",
+       peu["periodes"] < rc.MINI_PERIODES and peu["part_gain"] is None
+       and peu["wilson_gain"] is None)
+
+    ok("Londres cote en pence : le taux par euro est multiplié par cent",
+       rc.taux_change(["GBp", "USD"], lambda t: pd.DataFrame(
+           {"close": [0.85 if "GBP" in t else 1.10]}))
+       == {"EUR": 1.0, "GBp": 85.0, "USD": 1.10})
+
+    # Un univers entier, sans reseau.
+    fin = pd.Timestamp.today().normalize()
+    ix = pd.bdate_range(end=fin, periods=2520)
+
+    def fausse(vol, p0, graine):
+        g = np.random.default_rng(graine)
+        cc = p0 * np.exp(np.cumsum(g.normal(0, vol, len(ix))))
+        oo = pd.Series(cc, index=ix).shift(1).fillna(cc[0])
+        return pd.DataFrame({"open": oo, "high": np.maximum(oo, cc) * 1.003,
+                             "low": np.minimum(oo, cc) * .997, "close": cc,
+                             "volume": np.full(len(ix), 2e6)}, index=ix)
+    lot = {f"T{i:02d}": fausse(0.006 + 0.002 * i, 20 + 3 * i, i)
+           for i in range(14)}
+    lot["CHER"] = fausse(0.01, 5000, 99)
+    lot["SPY"] = fausse(0.01, 400, 7)
+    appels = []
+
+    def charge_lot(l):
+        appels.append(list(l))
+        return ({t: lot[t] for t in l if t in lot},
+                [(t, "aucune donnee") for t in l if t not in lot])
+
+    def charge(t):
+        return pd.DataFrame({"close": [1.0]})
+    ancien = rc._liste
+    rc._liste = lambda u: sorted(k for k in lot if k != "SPY") + ["ABSENT"]
+    try:
+        rr = rc.cherche("us", 800, 50, 1, "heures", charge_lot=charge_lot,
+                        charge=charge)
+        ok("une heure demandée : refusée AVANT tout téléchargement",
+           rr["ok"] is False and rr.get("refus") and appels == [])
+        r = rc.cherche("us", 800, 50, 1, "semaine", charge_lot=charge_lot,
+                       charge=charge)
+    finally:
+        rc._liste = ancien
+    k = r["compte"]
+    ok("chaque titre chargé est rangé : mesuré, trop cher, sans change, "
+       "frais trop lourds", k["mesures"] + k["non_achetables"]
+       + k["sans_change"] + k["frais_trop_lourds"] == len(r["lignes"]))
+    ok("un titre sans données ressort refusé, avec son motif",
+       any(x["ticker"] == "ABSENT" for x in r["refus"]))
+    ok("un titre à 5 000 € est dit « pas achetable » avec 800 €",
+       any(x["ticker"] == "CHER" and x["achetable"] is False
+           for x in r["lignes"]))
+    parts = [x["mesure"]["part_gain"] for x in r["lignes"]
+             if x.get("mesure") and x["mesure"].get("part_gain") is not None]
+    ok("le tri par défaut porte sur UN fait : le gain touché, décroissant",
+       parts == sorted(parts, reverse=True))
+    ok("les titres sans mesure vont en fin de liste",
+       all(x.get("mesure") for x in r["lignes"][:len(parts)])
+       and not any(x.get("mesure") for x in r["lignes"][len(parts):]))
+    ok("la corrélation gain touché / perte touchée est MESURÉE sur la liste",
+       r["correlation"] is not None and r["correlation"] > 0.5)
+    ok("les rappels : pas un avis, l'amplitude, le survivant, les frais",
+       len(r["rappels"]) == 4 and "pas un avis" in r["rappels"][0]
+       and "amplitude" in r["rappels"][1]
+       and "flatté" in r["rappels"][2] and "impôt" in r["rappels"][3])
+    ok("le marché aux mêmes seuils sert de ligne de repère",
+       r["reperes"] and r["reperes"][0]["ticker"] == "SPY"
+       and r["reperes"][0]["mesure"]["periodes"] > 0)
+
+    def cles(o):
+        if isinstance(o, dict):
+            return set(o) | set().union(*(cles(v) for v in o.values()))
+        if isinstance(o, list):
+            return set().union(*(cles(v) for v in o)) if o else set()
+        return set()
+    ok("aucune clé de score, de rang ou de potentiel dans la réponse",
+       not (cles(r) & {"score", "potentiel", "rang", "banger", "avis",
+                       "conseil", "prevision", "note"}))
+    ok("chaque tri porte sur un seul fait",
+       set(rc.TRIS) == {"gain", "perte", "dabord", "nom"})
+
+
+def test_bande_bougies() -> None:
+    """La bande sous le RSI : les figures des barres AFFICHEES, et pour
+    chacune ce qui l'a suivie sur tout l'historique."""
+    print("\n— Bande des bougies sous le RSI —")
+    from . import chandeliers as cdl
+    from . import chart as chg
+    from .indicators import enrich
+    g = np.random.default_rng(11)
+    n = 900
+    ix = pd.bdate_range("2022-01-03", periods=n)
+    cc = 50 * np.exp(np.cumsum(g.normal(0, .02, n)))
+    oo = pd.Series(cc, index=ix).shift(1).fillna(cc[0]) * np.exp(
+        g.normal(0, .01, n))
+    d = enrich(pd.DataFrame({
+        "open": oo, "close": cc,
+        "high": np.maximum(oo, cc) * (1 + np.abs(g.normal(0, .012, n))),
+        "low": np.minimum(oo, cc) * (1 - np.abs(g.normal(0, .012, n))),
+        "volume": g.uniform(1e6, 2e6, n)}, index=ix))
+    b = chg._bougies(d, 60)
+    dates = set(ix[-60:].strftime("%Y-%m-%d"))
+    ok("seules les barres affichées portent des pastilles",
+       b["points"] and all(p_["time"] in dates for p_ in b["points"]))
+    fig = cdl.figures(d)
+    attendu = sum(1 for i in range(n - 60, n)
+                  if any(bool(m[i]) for m in fig.values()))
+    ok("et chacune de celles qui ont une figure en porte une",
+       len(b["points"]) == attendu)
+    vues = {k for p_ in b["points"] for k in p_["cles"]}
+    ok("le suivi est celui de chandeliers.py, sur tout l'historique",
+       set(b["stats"]) == vues and all(
+           b["stats"][k]["suivi"] == cdl.suivi(d, np.asarray(fig[k], bool))
+           for k in vues))
+    ok("le compte des mesures et des écarts nets est donné",
+       b["comptage"]["mesures"] == sum(
+           1 for k in vues for x in b["stats"][k]["suivi"] if x["assez"]))
+
+
+def dt_bornes(n, h):
+    from . import detention as _d
+    return _d._bornes(n, h)
+
+
 def main() -> int:
     os.chdir(tempfile.mkdtemp())      # aucune ecriture dans le dossier reel
     test_parametres_geles()
@@ -3880,6 +4081,8 @@ def main() -> int:
     test_brain2()
     test_detention()
     test_faillites()
+    test_recherche()
+    test_bande_bougies()
     test_memo()
 
     print()

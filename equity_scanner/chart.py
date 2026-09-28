@@ -437,6 +437,63 @@ def _sous_verdict(u: dict) -> str:
     return f"{u['ko']} bloc(s) manquant(s)"
 
 
+# ---------------------------------------------------------------------
+# La bande des bougies, sous le RSI.
+#
+# « Tesla, suite de bougies : marteau, etoile filante, ca annonce une
+# hausse ? » Une figure est une relation GEOMETRIQUE, et elle se detecte ;
+# ce qu'elle « annonce » ne se lit pas dans son nom. Chaque pastille dit
+# donc ce que la figure a ete suivie de SUR CE TITRE, A CETTE UNITE, a
+# cote de ce que fait le titre une barre quelconque — les memes chiffres
+# que la carte LECTURE DES CHANDELIERS, calcules par `chandeliers.py`.
+# ---------------------------------------------------------------------
+
+# Deux ou trois lettres par figure, pour la pastille. Le nom entier est
+# au survol, avec sa definition geometrique.
+ABREGES = {"doji": "Dj", "marubozu_hausse": "MzH", "marubozu_baisse": "MzB",
+           "marteau": "Ma", "pendu": "Pe", "etoile_filante": "EF",
+           "marteau_inverse": "MI", "harami_hausse": "HaH",
+           "harami_baisse": "HaB", "avalement_hausse": "AvH",
+           "avalement_baisse": "AvB", "penetrante": "Pé",
+           "nuage_noir": "NN", "etoile_matin": "EM", "etoile_soir": "ES",
+           "trois_soldats": "3S", "trois_corbeaux": "3C"}
+
+# La couleur d'une pastille se lit a cet horizon, en barres. Fixe, comme
+# les horizons de `chandeliers.py` dont il fait partie.
+HORIZON_BANDE = 5
+
+
+def _bougies(d, nb) -> dict:
+    """Les figures de chaque barre affichee, et pour chaque figure vue
+    ce qui l'a suivie sur tout l'historique de l'unite."""
+    from . import chandeliers as cdl
+    fig = cdl.figures(d)
+    n = len(d)
+    debut = max(0, n - nb)
+    dates = _dates(d.index[debut:])
+    cles = list(fig)
+    tableau = np.array([np.asarray(fig[k], dtype=bool) for k in cles])
+    points, vues = [], set()
+    for j in np.flatnonzero(tableau[:, debut:].any(axis=0)):
+        ici = [cles[i] for i in np.flatnonzero(tableau[:, debut + j])]
+        points.append({"time": dates[j], "cles": ici})
+        vues.update(ici)
+    stats, mesures, nets = {}, 0, 0
+    for k in sorted(vues):
+        suivi = cdl.suivi(d, np.asarray(fig[k], dtype=bool))
+        for x in suivi:
+            if x.get("assez"):
+                mesures += 1
+                nets += not x["indiscernable"]
+        stats[k] = {"nom": cdl.NOMS.get(k, k), "abrege": ABREGES.get(k, k[:2]),
+                    "forme": cdl.FORMES.get(k, ""),
+                    "n": int(np.asarray(fig[k]).sum()), "suivi": suivi}
+    return {"points": points, "stats": stats, "horizon": HORIZON_BANDE,
+            "comptage": {"mesures": mesures, "nets": nets,
+                         "attendus": round(mesures * 0.05, 1)},
+            "rappel": cdl.RAPPEL}
+
+
 def _analyse(brut, bench_brut, regle, nb, ticker, sleeve, ccy, pre=None,
              cle=None, qual=None):
     """Une unite de temps.
@@ -538,6 +595,14 @@ def _analyse(brut, bench_brut, regle, nb, ticker, sleeve, ccy, pre=None,
         "markers": _marqueurs(d, bo, nb),
         "cone": _cone(d, regle),
     }
+    try:
+        out["bougies"] = _bougies(d, nb)
+    except Exception:
+        # Une bande qui disparait sans un mot ne se remarque pas : on
+        # trace, et la page dit « aucune lecture » au lieu de se taire.
+        import traceback
+        traceback.print_exc()
+        out["bougies"] = None
     for k, col in [("ema20", "ema20"), ("sma50", "sma50"), ("sma200", "sma200"),
                    ("bbu", "bb_up"), ("bbl", "bb_low"), ("rsi", "rsi14"),
                    ("macd", "macd"), ("macds", "macd_sig"), ("macdh", "macd_hist")]:
@@ -656,7 +721,20 @@ body{background:var(--fond);color:var(--txt);
    ce qui est en dessous, quoi qu'il arrive. */
 .pil-c{grid-column:2;grid-row:3;min-height:0;display:grid;gap:7px;
  overflow:hidden;
- grid-template-rows:minmax(0,3.2fr) minmax(0,1fr) minmax(0,1fr)}
+ grid-template-rows:minmax(0,2.7fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)}
+/* La bande des bougies. Le texte qui dit ce que la pastille survolee a
+   ete suivie de est POSE SUR le graphique, en haut : sous lui, il prenait
+   trois lignes a une bande de 80 px, et le graphique tombait a zero. Les
+   pastilles vivent en bas de la bande, le texte en haut. Un <p>, pas un
+   <div id> : la regle qui donne au graphique « tout le reste » ne doit
+   pas le toucher. */
+.pil-c .box.bg{position:relative}
+.pil-c .bgtx{position:absolute;left:11px;right:62px;top:27px;margin:0;
+ font-size:10.5px;line-height:1.4;color:var(--txt-mi);max-height:2.8em;
+ overflow:hidden;pointer-events:none;z-index:2;
+ background:linear-gradient(rgba(13,18,25,.92),rgba(13,18,25,.55))}
+.pil-c .bgtx b{color:var(--txt-fort);font-weight:500}
+.pil-c .bgtx .g{color:var(--pos)}.pil-c .bgtx .p{color:var(--neg)}
 /* La boite en colonne flex : le libelle prend ce qu'il lui faut, le
    graphique prend EXACTEMENT le reste. Plus rien a deviner — c'est la
    mise en page qui donne la hauteur, le script se contente de la lire. */
@@ -735,7 +813,7 @@ body{background:var(--fond);color:var(--txt);
  .wrap{height:auto;grid-template-columns:1fr;grid-template-rows:none}
  .pil-l,.pil-c,.pil-h,.pil-r{grid-column:1;grid-row:auto}
  .pil-h{min-height:300px}
- .pil-c{grid-template-rows:480px 140px 140px}}
+ .pil-c{grid-template-rows:480px 140px 150px 140px}}
 .hd{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-bottom:18px}
 .hd h1{font-size:30px;font-weight:600;color:#f8fafc;letter-spacing:.02em}
 .hd .px{font-size:19px;color:#cbd5e1;font-variant-numeric:tabular-nums}
@@ -901,7 +979,8 @@ const D=DATA; const LC=(typeof LightweightCharts!=='undefined')
 let U='jour';
 const base={layout:{background:{color:'transparent'},textColor:'#64748b',fontSize:11},
  grid:{vertLines:{color:'#141c27'},horzLines:{color:'#141c27'}},
- rightPriceScale:{borderColor:'#1a2330'},timeScale:{borderColor:'#1a2330',rightOffset:5},
+ rightPriceScale:{borderColor:'#1a2330',minimumWidth:62},
+ timeScale:{borderColor:'#1a2330',rightOffset:5},
  crosshair:{mode:0,vertLine:{color:'#33465e',labelBackgroundColor:'#22d3ee'},
             horzLine:{color:'#33465e',labelBackgroundColor:'#22d3ee'}},
  handleScroll:{mouseWheel:true,pressedMouseMove:true,horzTouchDrag:true},
@@ -943,7 +1022,22 @@ function mk(id){const el=document.getElementById(id);
  if(!LC||!el) return MUET;
  return LC.createChart(el,Object.assign({},base,
   {height:hauteurUtile(el),width:el.clientWidth}));}
-const cP=mk('p1'),cR=mk('p2'),cM=mk('p3');
+const cP=mk('p1'),cR=mk('p2'),cM=mk('p3'),cB=mk('p4');
+const TOUS=[cP,cR,cM,cB];
+// La bande des bougies : une ligne invisible sur les memes dates, qui
+// porte les pastilles. Echelle figee : la ligne en bas, la place pour
+// les pastilles au-dessus.
+const bgl=cB.addLineSeries({color:'rgba(0,0,0,0)',lineWidth:1,
+ priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false,
+ autoscaleInfoProvider:function(){return {priceRange:{minValue:0,maxValue:1}};}});
+// Pas d'axe du temps sous la bande : il prenait la moitie de sa hauteur,
+// et les dates se lisent sous le graphique des prix, aligne sur elle.
+// L'echelle de droite reste, vide, pour que les dates tombent au meme
+// endroit que sur les trois autres graphiques.
+cB.applyOptions({rightPriceScale:{visible:true,ticksVisible:false,
+ borderColor:'#1a2330',scaleMargins:{top:.62,bottom:.1}},
+ timeScale:{visible:false},grid:{horzLines:{visible:false}},
+ localization:{priceFormatter:function(){return '';}}});
 // Cone de dispersion : quatre lignes pointillees vers l'avenir. Elles ne
 // disent rien du SENS, seulement de l'amplitude plausible.
 const co2h=cP.addLineSeries({color:'rgba(148,163,184,.35)',lineWidth:1,
@@ -1146,6 +1240,72 @@ document.addEventListener('click', async function(ev){
  zone.replaceWith(neuf.firstChild);
 });
 
+// --- La bande des bougies ---------------------------------------------
+// Une pastille par figure detectee. Sa COULEUR dit ce que la figure a ete
+// suivie de sur ce titre, a HORIZON barres : grise quand l'intervalle
+// contient le taux de base (dans le bruit), verte ou rouge seulement pour
+// un ecart net — mesure, pas annonce.
+let BG=null;
+function bgLigne(st, h){
+ return (st.suivi||[]).find(x=>x.horizon===h)||null;
+}
+// Les couleurs du THEME : un graphique ne lit pas var(--pos), on la lit
+// pour lui. Sinon la pastille reste verte sur un theme ou le positif est
+// cyan.
+function couleurTheme(v, defaut){
+ try{ const c=getComputedStyle(document.body).getPropertyValue(v).trim();
+      return c||defaut; }catch(e){ return defaut; }
+}
+function pastilles(b){
+ if(!b || !b.points) return [];
+ const out=[], POS=couleurTheme('--pos','#10b981'),
+       NEG=couleurTheme('--neg','#ef4444');
+ b.points.forEach(p=>p.cles.forEach(k=>{
+  const st=b.stats[k]||{}, x=bgLigne(st, b.horizon);
+  const net=x && x.assez && !x.indiscernable;
+  // Sans texte sous la pastille : a quatre cents bougies, les
+  // abreviations se chevauchaient en une bande grise illisible. Le nom
+  // et ce qui a suivi viennent au survol.
+  out.push({time:p.time, position:'inBar', shape:'circle', size:0.4,
+   color: net ? (x.ecart>0?POS:NEG) : '#64748b'});
+ }));
+ return out;
+}
+function bgPhrase(st, h){
+ const x=bgLigne(st, h);
+ let t='<b>'+st.nom+'</b> — ';
+ if(!x || !x.assez)
+  return t+'moins de dix cas sur l\u2019historique de ce titre : rien de publiable.';
+ const cl=x.indiscernable?'':(x.ecart>0?' class="g"':' class="p"');
+ return t+'suivie, '+h+' barres plus tard, de <span'+cl+'>'
+  +x.taux.toFixed(0)+' % de hausses</span> ('+x.ic[0].toFixed(0)+'\u2013'
+  +x.ic[1].toFixed(0)+' %) contre '+x.base.toFixed(0)
+  +' % une barre quelconque \u2014 '
+  +(x.indiscernable?'dans le bruit':'\u00e9cart net')+', '+x.n+' cas.';
+}
+function bgTexte(t){
+ const el=document.getElementById('bgtx'); if(!el) return;
+ if(!BG){ el.textContent='Aucune lecture des bougies sur cette unit\u00e9.'; return; }
+ const p=t ? BG.points.find(q=>q.time===t) : null;
+ if(p){
+  el.innerHTML=p.cles.map(k=>bgPhrase(BG.stats[k]||{nom:k}, BG.horizon)).join(' ');
+  el.title=p.cles.map(k=>(BG.stats[k]||{}).forme||'').join(' \u00b7 ');
+  return;
+ }
+ const c=BG.comptage||{};
+ el.title=BG.rappel||'';
+ el.innerHTML=BG.points.length+' figure(s) sur la p\u00e9riode affich\u00e9e. '
+  +'Survolez une pastille : grise = dans le bruit sur ce titre, '
+  +'<span class="g">verte</span> ou <span class="p">rouge</span> = \u00e9cart net '
+  +'\u00e0 '+BG.horizon+' barres. '+(c.mesures?c.nets+' \u00e9cart(s) net(s) sur '
+  +c.mesures+' mesures, environ '+Math.round(c.attendus)+' attendu(s) par le seul hasard.':'');
+}
+[cB,cP,cR,cM].forEach(c=>c.subscribeCrosshairMove(function(pa){
+ bgTexte(pa && pa.time ? (typeof pa.time==='string'?pa.time
+   :(pa.time.year?pa.time.year+'-'+String(pa.time.month).padStart(2,'0')+'-'
+     +String(pa.time.day).padStart(2,'0'):null)) : null);
+}));
+
 // La lecture des chandeliers, dans la colonne de droite. Elle ne dit
 // jamais ce qu'une figure ANNONCE : elle dit ce qu'elle a ete suivie de
 // sur ce titre, a cote de ce que le titre fait un jour quelconque.
@@ -1200,6 +1360,7 @@ function draw(){
   }
   document.getElementById('side').innerHTML='<div class="box">'+m+'</div>'
     + carteInteret(null) + carteDetention() + carteProfil() + carteChandeliers();
+  bgl.setData([]); bgl.setMarkers([]); BG=null; bgTexte(null);
   return;
  }
  bou.setData(d.ohlc); bou.setMarkers(d.markers); vol.setData(d.volume);
@@ -1220,7 +1381,10 @@ function draw(){
  macd.setData(d.macd); macs.setData(d.macds);
  mach.setData(d.macdh.map(p=>({time:p.time,value:p.value,
    color:p.value>=0?'#10b98180':'#ef444480'})));
- [cP,cR,cM].forEach(c=>c.timeScale().fitContent());
+ bgl.setData(d.ohlc.map(p=>({time:p.time,value:0})));
+ bgl.setMarkers(pastilles(d.bougies));
+ BG=d.bougies||null; bgTexte(null);
+ TOUS.forEach(c=>c.timeScale().fitContent());
 
  const v=d.verdict;
  let h='<div class="vd v-'+v.type+'"><div class="t">'+v.titre+
@@ -1292,11 +1456,11 @@ document.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click',
  try{majLong();}catch(e){} draw();}));
 
 let lock=false;
-[cP,cR,cM].forEach(src=>src.timeScale().subscribeVisibleLogicalRangeChange(r=>{
+TOUS.forEach(src=>src.timeScale().subscribeVisibleLogicalRangeChange(r=>{
  if(lock||!r)return; lock=true;
- [cP,cR,cM].forEach(c=>{if(c!==src)c.timeScale().setVisibleLogicalRange(r);});
+ TOUS.forEach(c=>{if(c!==src)c.timeScale().setVisibleLogicalRange(r);});
  lock=false;}));
-function redim(){[[cP,'p1'],[cR,'p2'],[cM,'p3']].forEach(([c,id])=>{
+function redim(){[[cP,'p1'],[cR,'p2'],[cM,'p3'],[cB,'p4']].forEach(([c,id])=>{
  const el=document.getElementById(id);
  c.applyOptions({width:el.clientWidth,height:hauteurUtile(el)});});}
 // --- interrupteurs d'indicateurs : ils pilotent la visibilite des series
@@ -1316,9 +1480,9 @@ window.CARRUOS_IND=function(cle,actif){
  (SERIES[cle]||[]).forEach(function(s){s.applyOptions({visible:actif});});
 };
 
-// --- zoom : on agit sur l'echelle de temps des trois graphiques a la fois
+// --- zoom : on agit sur l'echelle de temps des graphiques a la fois
 function zoom(f){
- [cP,cR,cM].forEach(function(c){
+ TOUS.forEach(function(c){
   const ts=c.timeScale(), r=ts.getVisibleLogicalRange();
   if(!r) return;
   const mid=(r.from+r.to)/2, demi=(r.to-r.from)/2*f;
@@ -1377,11 +1541,12 @@ if(b_vx){
 if(window.speechSynthesis) speechSynthesis.onvoiceschanged=function(){};
 
 document.getElementById('z0').onclick=function(){
- [cP,cR,cM].forEach(function(c){c.timeScale().fitContent();});
+ TOUS.forEach(function(c){c.timeScale().fitContent();});
 };
-// les trois graphiques restent alignes quand on zoome a la molette
+// les graphiques restent alignes quand on zoome a la molette
 let sync=false;
-[[cP,[cR,cM]],[cR,[cP,cM]],[cM,[cP,cR]]].forEach(function(pair){
+TOUS.map(function(c){return [c, TOUS.filter(function(x){return x!==c;})];})
+ .forEach(function(pair){
  pair[0].timeScale().subscribeVisibleLogicalRangeChange(function(r){
   if(sync||!r) return; sync=true;
   pair[1].forEach(function(c){c.timeScale().setVisibleLogicalRange(r);});
@@ -1640,6 +1805,9 @@ def build_html(brut, ticker, bench_brut, sleeve=8000.0, ccy="",
         '<span id="nsig"></span></div><div id="p1"></div></div>'
         '<div class="box"><div class="lb"><span>RSI 14</span>'
         '<span>zone 40-55</span></div><div id="p2"></div></div>'
+        '<div class="box bg"><div class="lb"><span>BOUGIES &middot; FIGURES'
+        '</span><span>ce qui a suivi, sur ce titre</span></div>'
+        '<div id="p4"></div><p class="bgtx" id="bgtx"></p></div>'
         '<div class="box"><div class="lb"><span>MACD 12-26-9</span></div>'
         '<div id="p3"></div></div></div>'
         # --- colonne hologramme : le cerf, le nom, le verdict ---
