@@ -336,7 +336,12 @@ jeu de paramètres qui ne l'a pas produit.
   est d'abord de l'amplitude, dans les deux sens. Tris sur un fait
   unique. « Une heure » est proposée et **refusée avec sa raison**
   (aucun historique intraday, chantier 7) — plutôt que remplie avec des
-  chiffres qui n'existent pas.
+  chiffres qui n'existent pas. Les titres du propriétaire s'y ajoutent —
+  ceux qu'il tape, et ses lignes **détenues** (registre, IBKR), mesurées
+  sur leur **quantité réelle** et non sur la somme — dans un tableau à
+  part, en tête. Un ticker tapé sans place est pris tel quel, jamais
+  « corrigé » : « TLX » est Telix à New York, pas Talanx ; quand le
+  propriétaire détient TLX.DE, la ligne le **dit** à côté.
 - **Ce qu'une suite de bougies « annonce ».** « Marteau, étoile filante :
   ça annonce une hausse ? » La bande **sous le RSI** pose une pastille
   sous chaque bougie où une figure est détectée, sur l'unité affichée ;
@@ -433,6 +438,7 @@ jeu de paramètres qui ne l'a pas produit.
 | `recherche.py` | **RECHERCHE** : une somme, un gain visé, une durée, un univers — et pour chaque titre ce que cette durée a **donné**, gain et perte côte à côte |
 | | les chemins de toutes les périodes sont une **matrice** (périodes × durée) : une boucle par période coûtait des secondes par univers sur les périodes d'une séance ; `test_moteur` la confronte à une boucle écrite à la main |
 | | une recherche à la fois, dans un fil ; la page suit sa progression. L'heure est refusée **avant** tout téléchargement |
+| | `ajouts` (tapés) et `detenus` ({ticker: quantité}, `app._lignes_detenues` : registre puis IBKR, IBKR l'emporte) rejoignent l'univers ; l'univers `mes_titres` n'a qu'eux. Les réglages reviennent d'une ouverture à l'autre (`localStorage`, par poste) ; une adresse `/recherche?capital=…&lance=1` les impose — c'est ce qu'écrit le majordome |
 | `dossier.py` | la **porte en français** du majordome : une question, une intention, une section de faits |
 | | aucune phrase n'est *générée*. `constitue()` rassemble ce que les autres modules ont déjà calculé, `intention()` reconnaît ce qui est demandé par une table de motifs écrite d'avance, et les réponses sont des gabarits remplis avec les chiffres du dossier |
 | | conséquence tenue **par construction** : si un chiffre n'est pas dans le dossier, aucune phrase ne peut le sortir. `test_moteur` le vérifie en passant un dossier VIDE à chaque section et en exigeant qu'aucun nombre n'en sorte |
@@ -445,6 +451,7 @@ jeu de paramètres qui ne l'a pas produit.
 | | et cette échelle regarde les **vetos**, ce que l'ancienne ne faisait pas — un titre à 13/13 dont le volume dollar est sous le plancher s'affichait ACHAT, entrée, stop et nombre de titres compris |
 | | le vocabulaire suit l'unité de temps : « la veille » est faux sur l'onglet 1 MOIS, et le génitif se contracte |
 | `positions.py` | registre manuel des positions |
+| | `controle()` rend un **état compté** — sous le stop inscrit, ou « n conditions de sortie actives sur 4 » — et `RAPPEL_ETAT` : la spécification ferme à la première. Il rendait CONSERVER / SURVEILLER / SORTIE, affiché sous « VERDICT » dans MES POSITIONS de l'accueil, deux versions après que `portefeuille.py` eut perdu le même verdict |
 | | chaque ligne porte sa **devise de cotation** (déduite du suffixe de place) et un **contrôle de cohérence** du prix d'entrée : s'il n'est jamais tombé dans l'intervalle parcouru par le titre, la carte le dit et prévient que le gain latent affiché est faux |
 | `news.py` | Alpha Vantage — quota 25/jour, caches obligatoires |
 | | `ton()` : l'**étiquette** du fournisseur (positif … négatif), traduite mot pour mot et attribuée à l'écran ; rien ne s'en sert |
@@ -719,6 +726,18 @@ jeu de paramètres qui ne l'a pas produit.
   des quatre graphiques au même endroit. Et le premier essai de survol
   ne donnait rien parce qu'il visait l'axe du temps, pas le tracé :
   regarder où l'on clique avant de conclure que l'événement ne part pas.
+- **Un bouton sous le pli d'un panneau qui défile n'existe pas.**
+  RECHERCHE et RESTRUCTURATIONS avaient été posés en BAS des scans
+  complets : à 1 420 px, la taille de la fenêtre, le panneau s'arrêtait
+  à 917 px et le bouton commençait à 948. « Je ne vois pas le bouton
+  RECHERCHE. » Les deux outils sont en tête du panneau, et les scans sur
+  plusieurs colonnes ; `test_pages` exige que RECHERCHE vienne avant le
+  premier scan. Un test qui vérifie qu'un bouton est DANS la page ne dit
+  pas qu'on le VOIT.
+- **Un verdict retiré à un endroit survit à un autre.** `portefeuille.py`
+  avait perdu CONSERVER / SURVEILLER / SORTIE ; `positions.controle()`
+  les produisait toujours, et l'accueil les affichait sous « VERDICT ».
+  Chercher le mot dans tout le code, pas dans le module qu'on corrige.
 - **Une grille dimensionne ses enfants par ses lignes EXPLICITES.**
   Ajouter un panneau à une grille qui n'en déclarait qu'une envoie le
   nouveau dans une ligne implicite calée sur son contenu. Sur la page

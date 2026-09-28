@@ -999,6 +999,17 @@ journalière ne contient aucune heure, et le programme n'a pas
 d'historique intraday (chantier 7). L'impôt et le change ne sont pas
 comptés.
 
+**Vos titres.** Le champ **MES TITRES** ajoute ceux que vous tapez
+(avec leur place : TLX.DE, MC.PA — « TLX » seul est la cote américaine,
+une autre société), et la case **mes lignes détenues** ajoute celles du
+registre de l'accueil et du compte IBKR branché. L'univers **Mes titres
+seulement** ne passe qu'eux, en quelques secondes. Ils ont leur tableau,
+en tête, marqués DÉTENU ou AJOUTÉ ; une ligne détenue est mesurée sur
+**sa quantité** — 12 TLX.DE à 68 € font 816 €, et +50 € y demandent
++6,4 % frais compris — pas sur la somme écrite en haut. Les réglages reviennent à
+l'ouverture suivante. Le majordome ouvre la page réglée et lancée : « je
+mets 800 € pour gagner 50 € en une semaine ».
+
 ## 5 octodecies. La bande des bougies, sous le RSI
 
 Sur la page graphique, entre le RSI et le MACD, une bande porte une
@@ -1029,7 +1040,9 @@ Rappel, parce que c'est la colonne vertébrale du projet :
 - un pourcentage seul de « chances de gagner » — toujours l'intervalle
   de Wilson avec le nombre de trades ;
 - un avis « garder / vendre » — le compte des conditions, jamais le
-  verbe ;
+  verbe ; MES POSITIONS, sur l'accueil, écrit « 2 conditions de sortie
+  actives sur 4 » ou « sous le stop inscrit », plus « surveiller » ni
+  « conserver » ;
 - une « meilleure heure » pour passer un ordre — il faudrait des
   données intraday que le programme n'a pas ;
 - un score composite sur des poids non testés, ni le verdict

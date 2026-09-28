@@ -560,6 +560,38 @@ async function exec(txt){
   }
   return;
  }
+ // « Je mets 800 €, je veux gagner 50 € en une semaine » : la page
+ // RECHERCHE, ouverte avec ces reglages et lancee. Deux sommes en euros,
+ // ou le mot « recherche » : une question sur un titre n'en porte pas.
+ var eu=[], m_;
+ var re_=/(\d+(?:[.,]\d+)?)\s*(?:€|euros?)/g;
+ while((m_=re_.exec(q))) eu.push(parseFloat(m_[1].replace(',','.')));
+ if(/^(?:ouvre |lance )?(?:la )?recherche\b/.test(q) || eu.length>=2){
+  var u='/recherche';
+  if(eu.length>=2){
+   var cap=Math.max.apply(null,eu), gn=Math.min.apply(null,eu);
+   var du=q.match(/(\d+(?:[.,]\d+)?|une?)\s*(heures?|jours?|journees?|semaines?|mois|ans?|annees?)\b/);
+   var nb='1', un='semaines';
+   if(du){
+    nb=/^une?$/.test(du[1])?'1':du[1].replace(',','.');
+    var w=du[2];
+    un=/^heure/.test(w)?'heures':/^(?:jour|journee)/.test(w)?'jours'
+      :/^semaine/.test(w)?'semaines':w==='mois'?'mois':'ans';
+   }
+   u+='?capital='+cap+'&gain='+gn+'&nombre='+nb+'&unite='+un+'&lance=1';
+   dit('Je lance la recherche : '+cap+' euros, '+gn+' euros visés, '+nb+' '
+     +un+'. Ce que chaque titre a donné, gain et perte côte à côte.');
+  }else dit('J\'ouvre la recherche.');
+  if(typeof window.ouvreFenetre==='function') ouvreFenetre(u, 'carruos-recherche');
+  else location.href=u;
+  return;
+ }
+ if(/faillite|restructuration/.test(q)){
+  dit('J\'ouvre les restructurations.');
+  if(typeof window.ouvreFenetre==='function')
+   ouvreFenetre('/restructurations', 'carruos-restructurations');
+  return;
+ }
  var ma=q.match(/^(?:analyse|regarde|ouvre|affiche)\s+(.+)/);
  if(ma && !/portefeuille|mes lignes/.test(q)){
   var t=ma[1].replace(/[.?!]/g,'').trim();
@@ -583,7 +615,8 @@ async function exec(txt){
 
  dit('Je n\'ai pas compris. Essayez : je sors quand sur TLX, combien je '
   +'peux perdre sur Coin, que penses-tu de Nvidia, ouvre Sanofi, '
-  +'scan Cac 40, état du marché, la veille sur mes lignes, ou mes positions.');
+  +'scan Cac 40, je mets 800 € pour gagner 50 € en une semaine, '
+  +'état du marché, la veille sur mes lignes, ou mes positions.');
 }
 
 // --- Le dossier, et le cerveau par-dessus -------------------------------

@@ -84,7 +84,11 @@ UNIVERS = {
     "us_europe": "US large + STOXX 600",
     "us_total": "Toute la cote US",
     "europe_total": "Toute l'Europe",
+    "mes_titres": "Mes titres seulement",
 }
+
+# Pas plus de titres saisis a la main : chacun demande dix ans de cours.
+MAX_AJOUTS = 60
 
 # Un tri = un fait. Aucun tri sur une combinaison.
 TRIS = {
@@ -175,17 +179,40 @@ def seuils(capital: float, gain: float, prix_eur: float | None,
     gain net ≥ G   ⇔  r ≥ (G + 2F) / investi + 2c
     perte nette ≥ G ⇔ r ≤ −(G − 2F) / investi + 2c
     """
-    c = cout_par_cote()
     if not prix_eur or prix_eur <= 0 or not math.isfinite(prix_eur):
         return {"achetable": None}
     titres = int(capital // prix_eur)
     if titres < 1:
         return {"achetable": False, "titres": 0,
                 "prix_eur": round(prix_eur, 2)}
+    return _sur(titres, prix_eur, gain, frais_fixes)
+
+
+def seuils_ligne(quantite: float, gain: float, prix_eur: float | None,
+                 frais_fixes: float = 0.0) -> dict:
+    """La meme question pour une ligne DETENUE : c'est la quantite qu'on a
+    qui compte, pas la somme saisie. +50 € sur 12 TLX a 68 € demandent
+    +6,4 % frais compris, quelle que soit la somme ecrite en haut."""
+    if not prix_eur or prix_eur <= 0 or not math.isfinite(prix_eur):
+        return {"achetable": None}
+    try:
+        q = abs(float(quantite))
+    except (TypeError, ValueError):
+        q = 0.0
+    if q <= 0:
+        return {"achetable": None}
+    return {**_sur(q, prix_eur, gain, frais_fixes), "sur_la_ligne": True}
+
+
+def _sur(titres: float, prix_eur: float, gain: float,
+         frais_fixes: float) -> dict:
+    c = cout_par_cote()
     investi = titres * prix_eur
     sg = (gain + 2 * frais_fixes) / investi + 2 * c
     sp = -(gain - 2 * frais_fixes) / investi + 2 * c
-    out = {"achetable": True, "titres": titres, "investi": round(investi, 2),
+    out = {"achetable": True,
+           "titres": int(titres) if float(titres).is_integer() else titres,
+           "investi": round(investi, 2),
            "prix_eur": round(prix_eur, 2),
            "seuil_gain": sg, "seuil_perte": sp}
     if sp >= 0:
@@ -258,6 +285,8 @@ def mesure(close: pd.Series, h: int, sg: float, sp: float) -> dict:
 
 def _liste(univers: str) -> list[str]:
     from . import data as dl
+    if univers == "mes_titres":
+        return []
     if univers == "us_europe":
         return list(dict.fromkeys(dl.UNIVERS["us"][1]()
                                   + dl.UNIVERS["stoxx600"][1]()))
@@ -317,11 +346,33 @@ def cle_tri(tri: str):
                       else (0, signe * v(x, k), x["ticker"]))
 
 
+def nettoie(tickers) -> list[str]:
+    """Des tickers saisis a la main : en capitales, sans doublon, sans
+    caractere qui n'appartient pas a un ticker. « tlx.de, voya » ->
+    ["TLX.DE", "VOYA"]."""
+    import re as _re
+    brut = " ".join(tickers) if isinstance(tickers, (list, tuple)) else str(
+        tickers or "")
+    brut = brut.replace(";", " ").replace(",", " ")
+    out = []
+    for m in brut.split():
+        t = m.strip().upper()
+        if t and len(t) <= 20 and _re.fullmatch(r"[A-Z0-9.^=&-]+", t) \
+                and t not in out:
+            out.append(t)
+    return out[:MAX_AJOUTS]
+
+
 def cherche(univers: str, capital: float, gain: float, nombre, unite: str,
             frais_fixes: float = 0.0, tri: str = TRI_DEFAUT,
-            charge_lot=None, charge=None, journal=None) -> dict:
+            charge_lot=None, charge=None, journal=None,
+            ajouts=None, detenus: dict | None = None) -> dict:
     """Le passage complet d'un univers. Rend des FAITS par titre, le
-    compte de ce qui n'a pas pu etre mesure, et les rappels."""
+    compte de ce qui n'a pas pu etre mesure, et les rappels.
+
+    `ajouts` : des tickers tapes a la main, ajoutes a l'univers.
+    `detenus` : {ticker: quantite} des lignes detenues (registre, IBKR),
+    ajoutees aussi, et mesurees sur leur quantite reelle."""
     if univers not in UNIVERS:
         return {"ok": False, "erreur": "univers inconnu"}
     try:
@@ -344,31 +395,63 @@ def cherche(univers: str, capital: float, gain: float, nombre, unite: str,
         charge = charge or (lambda tk: ch.charge(tk, annees=1))
 
     from . import qualite as ql
-    liste = _liste(univers)
+    ajouts = nettoie(ajouts or [])
+    detenus = {t.upper(): q for t, q in (detenus or {}).items() if t}
+    vous = list(dict.fromkeys(list(detenus) + ajouts))
+    if univers == "mes_titres" and not vous:
+        return {"ok": False, "erreur": "Aucun titre : tapez-en dans MES "
+                                       "TITRES (TLX.DE VOYA…), ou ajoutez "
+                                       "des lignes au registre ou dans IBKR."}
+    liste = list(dict.fromkeys(vous + _liste(univers)))
     series, echecs = charge_lot(liste)
     fx = taux_change([_devise(t) for t in series], charge)
 
-    lignes, refus = [], [{"ticker": t, "motif": m} for t, m in echecs]
+    def motif(t, m):
+        # Un ticker tape sans place part sur la cote americaine : TLX, c'est
+        # Telix a New York, pas Talanx a Francfort. On le dit.
+        if t in ajouts and "." not in t:
+            m += (" — sans suffixe de place, c'est la cote US qui est "
+                  "demandée : TLX.DE pour Francfort, MC.PA pour Paris")
+        return {"ticker": t, "motif": m, "vous": t in vous}
+    lignes, refus = [], [motif(t, m) for t, m in echecs]
     for tk in sorted(series):
         brut = series[tk]
         try:
             rap = ql.controle(brut, ticker=tk)
             if not rap.utilisable:
-                refus.append({"ticker": tk, "motif": rap.resume()})
+                refus.append({"ticker": tk, "motif": rap.resume(),
+                              "vous": tk in vous})
                 continue
             close = pd.Series(brut["close"], dtype=float).dropna()
             dv = _devise(tk)
             prix = float(close.iloc[-1])
             prix_eur = prix / fx[dv] if dv in fx else None
-            s = seuils(capital, gain, prix_eur, frais_fixes)
+            if tk in detenus:
+                s = seuils_ligne(detenus[tk], gain, prix_eur, frais_fixes)
+                if s.get("achetable") is None and prix_eur:
+                    s = seuils(capital, gain, prix_eur, frais_fixes)
+            else:
+                s = seuils(capital, gain, prix_eur, frais_fixes)
             ligne = {"ticker": tk, "devise": dv, "prix": round(prix, 4),
-                     "date": str(close.index[-1].date()), **s}
+                     "date": str(close.index[-1].date()),
+                     "origine": ("detenu" if tk in detenus else
+                                 "ajoute" if tk in ajouts else "univers"),
+                     **s}
+            # « TLX » tape alors que la ligne detenue est TLX.DE : ce sont
+            # deux societes (Telix a New York, Talanx a Francfort). On ne
+            # corrige pas la saisie, on le DIT a cote.
+            if tk in ajouts and "." not in tk:
+                meme = [d for d in detenus if d.split(".")[0] == tk
+                        and d != tk]
+                if meme:
+                    ligne["homonyme"] = meme[0]
             if s.get("achetable") and not s.get("frais_trop_lourds"):
                 ligne["mesure"] = mesure(close, h, s["seuil_gain"],
                                          s["seuil_perte"])
             lignes.append(ligne)
         except Exception as exc:
-            refus.append({"ticker": tk, "motif": f"{type(exc).__name__}"})
+            refus.append({"ticker": tk, "motif": f"{type(exc).__name__}",
+                          "vous": tk in vous})
 
     mes = [x for x in lignes if x.get("mesure")]
     lignes.sort(key=cle_tri(tri if tri in TRIS else TRI_DEFAUT))
@@ -401,6 +484,8 @@ def cherche(univers: str, capital: float, gain: float, nombre, unite: str,
         "taux": {k: round(v, 4) for k, v in fx.items()},
         "compte": {
             "univers": len(liste), "charges": len(series),
+            "detenus": sum(1 for x in lignes if x["origine"] == "detenu"),
+            "ajoutes": sum(1 for x in lignes if x["origine"] == "ajoute"),
             "mesures": len(mes),
             "non_achetables": sum(1 for x in lignes
                                   if x.get("achetable") is False),

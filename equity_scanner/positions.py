@@ -99,20 +99,37 @@ def controle(charge_fn, bench_tk="SPY") -> list[dict]:
         except Exception as exc:
             l["erreur"] = f"{type(exc).__name__}: {exc}"
 
+    # Un ETAT, pas un verdict. L'ancienne colonne disait CONSERVER,
+    # SURVEILLER ou SORTIE — exactement l'avis « garder / vendre » que le
+    # projet refuse, et que portefeuille.py avait deja perdu. Ce qui se
+    # verifie : le cours est-il sous le stop INSCRIT, combien des
+    # conditions de sortie de la specification sont actives. La
+    # specification ferme a la PREMIERE atteinte ; le dire est citer sa
+    # regle, pas trancher a la place du proprietaire.
     for l in lignes:
         n = sum(1 for v in (l.get("sorties") or {}).values() if v)
+        total = len(l.get("sorties") or {}) or 4
         l["n_sorties"] = n
+        sous_stop = l.get("marge_stop") is not None and l["marge_stop"] <= 0
         if l["erreur"]:
-            l["verdict"] = "INDISPONIBLE"
-        elif l.get("marge_stop") is not None and l["marge_stop"] <= 0:
-            l["verdict"] = "STOP TOUCHE"
-        elif n >= 2:
-            l["verdict"] = "SORTIE"
-        elif n == 1:
-            l["verdict"] = "SURVEILLER"
+            l["etat"], l["etat_libelle"] = "indisponible", "DONNÉES INDISPONIBLES"
+        elif sous_stop:
+            l["etat"], l["etat_libelle"] = "stop", "SOUS LE STOP INSCRIT"
+        elif n:
+            l["etat"] = "conditions"
+            l["etat_libelle"] = (f"{n} CONDITION{'S' if n > 1 else ''} DE "
+                                 f"SORTIE ACTIVE{'S' if n > 1 else ''} "
+                                 f"SUR {total}")
         else:
-            l["verdict"] = "CONSERVER"
+            l["etat"] = "aucune"
+            l["etat_libelle"] = f"0 CONDITION DE SORTIE ACTIVE SUR {total}"
+        l["a_traiter"] = bool(sous_stop or n)
     return sorted(lignes, key=lambda l: (-l["n_sorties"], l["ticker"]))
+
+
+RAPPEL_ETAT = ("La spécification ferme la position à la PREMIÈRE condition "
+               "de sortie atteinte. Ce tableau compte les conditions ; la "
+               "décision reste la vôtre.")
 
 
 def rapport(charge_fn=None) -> None:
@@ -126,18 +143,18 @@ def rapport(charge_fn=None) -> None:
         return
     print(f"\n  {len(lignes)} POSITION(S)")
     print(f"    {'TITRE':<12}{'QTE':>6}{'ENTREE':>10}{'COURS':>10}"
-          f"{'P&L':>9}{'STOP':>9}   VERDICT")
+          f"{'P&L':>9}{'STOP':>9}   SORTIES (SPÉC.)")
     for l in lignes:
         stop = "--" if l.get("marge_stop") is None else f'{l["marge_stop"]:+.1f}%'
         print(f"    {l['ticker']:<12}{l['quantite']:>6.0f}{l['entree']:>10.2f}"
               f"{l.get('cours', 0):>10.2f}{l.get('pnl_pct', 0):>8.1f}%"
-              f"{stop:>9}   {l['verdict']}")
+              f"{stop:>9}   {l['etat_libelle']}")
         actives = [k for k, v in (l.get("sorties") or {}).items() if v]
         if actives:
             print(f"                 -> {', '.join(actives)}")
         if l["erreur"]:
             print(f"                 -> {l['erreur']}")
-    print("\n  Carruos decide, tu passes les ordres sur IBKR.\n")
+    print("\n  " + RAPPEL_ETAT + "\n")
 
 
 if __name__ == "__main__":

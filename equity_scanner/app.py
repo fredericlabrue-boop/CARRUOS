@@ -568,7 +568,14 @@ button:active{transform:translateY(1px)}
 .posf button{grid-column:1/-1;padding:9px}
 
 /* scans : une colonne de quatre lignes compactes */
-.gh{display:flex;flex-direction:column;gap:7px}
+/* Les scans sur plusieurs colonnes quand le panneau le permet : empiles
+   un par ligne, dix boutons en demandaient 600 px. La largeur vient du
+   PANNEAU, pas de la fenetre. */
+.gh{display:grid;gap:7px;
+ grid-template-columns:repeat(auto-fit,minmax(min(100%,196px),1fr))}
+.gh>button{min-width:0;white-space:normal}
+.gh.outils{margin-bottom:9px}
+.gh.outils button{border-color:var(--acc);background:#0b2129}
 .gh button{text-align:left;padding:10px 13px;background:#0a1620;
  border-color:#123c47;color:var(--txt-doux)}
 .gh button:hover{border-color:var(--acc);color:var(--txt-fort)}
@@ -741,11 +748,11 @@ async function pos(){
    return;}
   mp.textContent='';
   var h='<table><tr><th>TITRE</th><th>QTE</th><th>ENTREE</th><th>COURS</th>'
-   +'<th>P&amp;L</th><th>STOP</th><th>VERDICT</th><th></th></tr>';
+   +'<th>P&amp;L</th><th>STOP</th><th>SORTIES (SPÉC.)</th><th></th></tr>';
   j.lignes.forEach(function(l){
-   var vc=(l.verdict==='CONSERVER')?'var(--txt)'
-        :((l.verdict==='SURVEILLER')?'#fbbf24'
-        :((l.verdict==='INDISPONIBLE')?'#64748b':'#f87171'));
+   // Un ETAT compte, pas un verdict : la couleur suit le compte.
+   var vc={aucune:'var(--txt)', conditions:'#fbbf24', stop:'var(--neg)',
+           indisponible:'#64748b'}[l.etat]||'var(--txt)';
    var act=Object.keys(l.sorties||{}).filter(function(k){return l.sorties[k];});
    var pnl=(l.pnl_pct==null)?'<td>&ndash;</td>'
         :'<td style="color:'+coul(l.pnl_pct)+'">'+l.pnl_pct+'%</td>';
@@ -758,10 +765,11 @@ async function pos(){
    h+='<tr><td class="go" onclick="pick(\'' +clean(l.ticker)+ '\')"><b>'
     +clean(l.ticker)+'</b></td><td>'+l.quantite+'</td><td>'+l.entree+'</td>'
     +'<td>'+(l.cours==null?'&ndash;':l.cours)+'</td>'+pnl+stp
-    +'<td style="color:'+vc+'">'+clean(l.verdict)+det+'</td>'
+    +'<td style="color:'+vc+'">'+clean(l.etat_libelle||'')+det+'</td>'
     +'<td class="go" onclick="delpos(\'' +clean(l.ticker)+ '\')">retirer</td></tr>';
   });
-  rp.innerHTML=h+'</table>';
+  rp.innerHTML=h+'</table><div class="note" style="margin-top:6px">'
+   +clean(j.rappel||'')+'</div>';
  }catch(e){
   rp.innerHTML='';
   mp.className='msg err';
@@ -1167,7 +1175,7 @@ async function lignesATraiter(){
  try{
   var j = await (await fetch('/api/positions')).json();
   var l = (j.lignes||[]).filter(function(x){
-   return x.verdict !== 'CONSERVER'; });
+   return x.a_traiter; });
   var h = '<div class="pourquoi"><b>Ce que compte ce chiffre</b><br>'
         + "Ce ne sont pas des titres a acheter : ce sont VOS positions "
         + "dont au moins une condition de sortie de votre specification "
@@ -1176,13 +1184,14 @@ async function lignesATraiter(){
    h += '<div class="msg">Aucune position enregistree.</div>';
   }else if(!l.length){
    h += '<div class="msg">Vos ' + j.lignes.length + ' ligne(s) sont '
-      + 'toutes a CONSERVER : aucune condition de sortie active.</div>';
+      + 'n’ont aucune condition de sortie active, et aucune n’est sous '
+      + 'son stop inscrit.</div>';
   }else{
    l.forEach(function(x){
     var actives = Object.keys(x.sorties||{}).filter(function(k){
      return x.sorties[k]; });
     h += '<div class="rap"><div class="n">' + x.ticker + ' &mdash; '
-       + x.verdict + '</div><div class="d">'
+       + x.etat_libelle + '</div><div class="d">'
        + 'cours ' + (x.cours||'?') + ' &middot; P&amp;L '
        + (x.pnl_pct>0?'+':'') + (x.pnl_pct||0) + ' %'
        + (x.marge_stop_pct!==undefined && x.marge_stop_pct!==null
@@ -1797,7 +1806,10 @@ CSS_CARNET = """
 """
 
 CSS_PALM = """
-.palm{max-width:1180px;margin:0 auto;padding:0 4px 40px}
+/* Un panneau du theme sous la liste, comme RESTRUCTURATIONS et
+   RECHERCHE : posee a nu sur le decor, elle se lisait a travers le cerf. */
+.palm{max-width:1180px;margin:0 auto 24px;padding:14px 16px 30px;
+ background:var(--pan-fond);border:1px solid var(--bord);border-radius:12px}
 .palm .saisie{display:grid;gap:11px;align-items:end;margin-bottom:14px;
  grid-template-columns:minmax(min(100%,240px),1fr) minmax(118px,150px)
  minmax(118px,150px)}
@@ -1995,6 +2007,21 @@ CSS_RECH = """
  color:var(--txt-faible)}
 .rch .refus{font-size:11px;color:var(--txt-faible);line-height:1.6;
  margin-top:6px}
+.rch .refus b{color:var(--txt-doux);font-weight:500}
+.rch .mes{display:grid;gap:11px;align-items:end;margin:0 0 6px;
+ grid-template-columns:minmax(0,1fr) auto}
+.rch .mes>*{min-width:0}
+@media(max-width:760px){.rch .mes{grid-template-columns:minmax(0,1fr)}}
+.rch label.ck{display:flex;gap:7px;align-items:center;margin:0 0 10px;
+ font-size:11px;letter-spacing:.06em;color:var(--txt-mi);cursor:pointer}
+.rch label.ck input{width:auto;flex:none;margin:0}
+.rch .pastille{font:500 9px ui-monospace,monospace;letter-spacing:.12em;
+ padding:1px 6px;border-radius:5px;border:1px solid var(--acc);
+ color:var(--acc);margin-left:6px;white-space:nowrap}
+.rch .pastille.aj{border-color:var(--bord);color:var(--txt-mi)}
+.rch h3.sec{font:500 10px ui-monospace,monospace;letter-spacing:.2em;
+ color:var(--txt-faible);margin:16px 0 6px;padding-top:10px;
+ border-top:1px solid var(--bord)}
 """
 
 
@@ -2295,6 +2322,16 @@ def _accueil(splash: bool = True) -> str:
             "C'est du contexte avant de passer un ordre, pas un signal."
             '</div></div></section>'
             '<section class="pan"><div class="trait"><i></i></div><h2>SCANS COMPLETS</h2><div class="corps">'
+            # Les deux outils EN TETE : poses en bas de la liste, ils
+            # tombaient sous le pli du panneau a 1420 px — la taille de la
+            # fenetre — et on ne les voyait pas.
+            '<div class="gh outils">'
+            '<button data-vers="/recherche" data-fen="carruos-recherche">'
+            "<b>RECHERCHE</b><i>somme, gain visé, durée, vos titres</i></button>"
+            '<button data-vers="/restructurations" '
+            'data-fen="carruos-restructurations"><b>RESTRUCTURATIONS</b>'
+            "<i>faillites US (SEC) + Europe suivie</i></button>"
+            '</div>'
             '<div class="gh">'
             '<button onclick="scan(\'us_total\',\'us\')"><b>TOUTE LA COTE US</b>'
             "<i>~900 titres &middot; 25-40 min</i></button>"
@@ -2313,11 +2350,6 @@ def _accueil(splash: bool = True) -> str:
             "<i>38 titres &middot; 2 min</i></button>"
             '<button onclick="scan(\'dax\',\'allemagne\')"><b>DAX</b>'
             "<i>37 titres &middot; 2 min</i></button>"
-            '<button data-vers="/recherche" data-fen="carruos-recherche">'
-            "<b>RECHERCHE</b><i>somme, gain visé, durée</i></button>"
-            '<button data-vers="/restructurations" '
-            'data-fen="carruos-restructurations"><b>RESTRUCTURATIONS</b>'
-            "<i>faillites US (SEC) + Europe suivie</i></button>"
             '</div><div class="msg" id="ms"></div><div id="rs"></div>'
             '<div class="sep2"></div>'
             '<div class="ch">VALIDATION GO / NO-GO</div>'
@@ -2489,6 +2521,8 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                 return self._envoie(_page_restructurations())
             if u.path == "/recherche":
                 return self._envoie(_page_recherche())
+            if u.path == "/api/recherche/lignes":
+                return self._json({"lignes": _lignes_detenues()})
             if u.path == "/api/recherche":
                 return self._json({"actif": _RCH["actif"],
                                    "journal": _RCH["journal"][-3:],
@@ -2545,7 +2579,8 @@ class Bruce(http.server.BaseHTTPRequestHandler):
             if u.path == "/api/positions":
                 from . import cache as ch
                 return self._json({"lignes": ps.controle(
-                    lambda tk: ch.charge(tk, annees=3))})
+                    lambda tk: ch.charge(tk, annees=3)),
+                    "rappel": ps.RAPPEL_ETAT})
             if u.path == "/api/validation":
                 return self._json({"ok": True, "actif": _VAL["actif"],
                                    "quoi": _VAL["quoi"], "fini": _VAL["fini"],
@@ -2790,8 +2825,7 @@ def _etat():
         try:
             from . import cache as ch
             ctrl = ps.controle(lambda tk: ch.charge(tk, annees=3))
-            surv = sum(1 for x in ctrl
-                       if x["verdict"] in ("SORTIE", "STOP TOUCHE", "SURVEILLER"))
+            surv = sum(1 for x in ctrl if x.get("a_traiter"))
         except Exception:
             surv = 0
 
@@ -3725,12 +3759,18 @@ function cleTri(t){
 function ligneR(x, repere){
  var m=x.mesure||{}, per=m.periodes;
  var tk = repere ? '<b>' + eq(x.nom) + '</b> <i>' + eq(x.ticker) + '</i>'
-  : '<span class="tk" data-tk="' + eq(x.ticker) + '">' + eq(x.ticker) + '</span>';
+  : '<span class="tk" data-tk="' + eq(x.ticker) + '">' + eq(x.ticker) + '</span>'
+    + (x.origine==='detenu' ? '<span class="pastille">DÉTENU</span>'
+       : x.origine==='ajoute' ? '<span class="pastille aj">AJOUTÉ</span>' : '')
+    + (x.homonyme ? '<br><i>vous détenez ' + eq(x.homonyme) + ' : '
+       + eq(x.ticker) + ' seul est la cote US, une autre société</i>' : '');
  var achat = repere ? '<i>la somme entière</i>'
   : (x.achetable===false ? '<i>la somme n’achète pas une action ('
        + pq(x.prix_eur,2) + ' €)</i>'
   : (x.achetable==null ? '<i>pas de taux de change</i>'
-  : x.titres + ' × ' + pq(x.prix_eur,2) + ' € = ' + pq(x.investi,0) + ' €'));
+  : (x.sur_la_ligne ? '<i>votre ligne :</i> ' : '')
+    + pq(x.titres, Number.isInteger(x.titres)?0:2) + ' × ' + pq(x.prix_eur,2)
+    + ' € = ' + pq(x.investi,0) + ' €'));
  var faut = (x.seuil_gain!=null)
   ? '<span class="g">+' + pq(x.seuil_gain*100,2) + ' %</span> / <span class="p">'
     + pq(x.seuil_perte*100,2) + ' %</span>'
@@ -3771,15 +3811,35 @@ function rendR(){
   return '<p class="rap' + (i===0?' fort':'') + '">' + eq(t) + '</p>'; }).join('');
  var t=$q('qtri').value;
  var l=(j.lignes||[]).slice().sort(cleTri(t));
- h+='<div class="enveloppe"><table class="tab"><thead><tr><th>TITRE</th><th>COURS</th>'
+ function table(lig, reperes){
+  return '<div class="enveloppe"><table class="tab"><thead><tr><th>TITRE</th><th>COURS</th>'
   + '<th>ACHAT</th><th>IL FAUT (NET DE FRAIS)</th><th>+' + pq(j.gain,0) + ' € TOUCHÉ</th>'
   + '<th>−' + pq(j.gain,0) + ' € TOUCHÉ</th><th>D’ABORD : GAIN / PERTE / AUCUN</th>'
   + '<th>FINI À +' + pq(j.gain,0) + ' €</th></tr></thead><tbody>'
-  + (j.reperes||[]).map(function(x){ return ligneR(x, true); }).join('')
-  + l.map(function(x){ return ligneR(x, false); }).join('') + '</tbody></table></div>';
- if((j.refus||[]).length)
-  h+='<details><summary>' + j.refus.length + ' TITRE(S) REFUSÉ(S), AVEC LEUR MOTIF</summary>'
-   + '<div class="refus">' + j.refus.map(function(r){ return eq(r.ticker) + ' : ' + eq(r.motif); }).join('<br>')
+  + (reperes ? (j.reperes||[]).map(function(x){ return ligneR(x, true); }).join('') : '')
+  + lig.map(function(x){ return ligneR(x, false); }).join('') + '</tbody></table></div>';
+ }
+ // Vos titres d'abord, dans leur propre tableau : ils se perdraient dans
+ // six cents lignes. Le meme tri, les memes colonnes, rien de plus.
+ var vous=l.filter(function(x){ return x.origine!=='univers'; });
+ var autres=l.filter(function(x){ return x.origine==='univers'; });
+ var rv=(j.refus||[]).filter(function(r){ return r.vous; });
+ if(vous.length || rv.length){
+  h+='<h3 class="sec">VOS TITRES — ' + vous.length + ' MESURÉ(S)'
+   + (vous.some(function(x){ return x.sur_la_ligne; })
+      ? ' · une ligne détenue est mesurée sur SA quantité, pas sur la somme' : '')
+   + '</h3>' + (vous.length ? table(vous, true) : '');
+  if(rv.length)
+   h+='<div class="refus">' + rv.map(function(r){
+     return '<b>' + eq(r.ticker) + '</b> : ' + eq(r.motif); }).join('<br>') + '</div>';
+ }
+ if(autres.length)
+  h+='<h3 class="sec">' + eq(j.nom_univers).toUpperCase() + ' — '
+   + autres.length + ' TITRE(S)</h3>' + table(autres, !vous.length);
+ var ra=(j.refus||[]).filter(function(r){ return !r.vous; });
+ if(ra.length)
+  h+='<details><summary>' + ra.length + ' TITRE(S) REFUSÉ(S), AVEC LEUR MOTIF</summary>'
+   + '<div class="refus">' + ra.map(function(r){ return eq(r.ticker) + ' : ' + eq(r.motif); }).join('<br>')
    + '</div></details>';
  $q('qres').innerHTML=h;
  $q('qmsg').textContent = j.nom_univers + ' · ' + pq(j.capital,0) + ' € pour +' + pq(j.gain,0)
@@ -3801,7 +3861,8 @@ async function suitR(){
 async function lanceR(){
  var corps={univers:$q('quni').value, capital:$q('qcap').value, gain:$q('qgain').value,
   nombre:$q('qnb').value, unite:$q('qun').value, frais:$q('qfrais').value,
-  tri:$q('qtri').value};
+  tri:$q('qtri').value, titres:$q('qtit').value, mes_lignes:$q('qmes').checked};
+ retiens();
  $q('qres').innerHTML='';
  try{
   var r = await (await fetch('/api/recherche', {method:'POST',
@@ -3827,11 +3888,50 @@ document.addEventListener('click', function(ev){
   if(p[1]==='heures') lanceR();
  }
 });
+// Les reglages de la derniere recherche reviennent a l'ouverture : une
+// commodite de CE poste, rien de plus. Une adresse qui porte ses propres
+// reglages (le majordome l'ecrit) passe devant.
+var CHAMPS_R=['qcap','qgain','qnb','qun','qfrais','quni','qtit','qtri'];
+function retiens(){
+ try{
+  var o={}; CHAMPS_R.forEach(function(i){ o[i]=$q(i).value; });
+  o.qmes=$q('qmes').checked;
+  localStorage.setItem('carruos_recherche', JSON.stringify(o));
+ }catch(e){}
+}
+function reprends(){
+ try{
+  var o=JSON.parse(localStorage.getItem('carruos_recherche')||'{}');
+  CHAMPS_R.forEach(function(i){ if(o[i]!=null && o[i]!=='') $q(i).value=o[i]; });
+  if(o.qmes!=null) $q('qmes').checked=!!o.qmes;
+ }catch(e){}
+ try{
+  var a=new URLSearchParams(location.search);
+  [['capital','qcap'],['gain','qgain'],['nombre','qnb'],['unite','qun'],
+   ['titres','qtit'],['univers','quni']].forEach(function(c){
+   var v=a.get(c[0]); if(v) $q(c[1]).value=v; });
+  return a.get('lance')==='1';
+ }catch(e){ return false; }
+}
+async function lignesR(){
+ try{
+  var j=await (await fetch('/api/recherche/lignes')).json();
+  var L=j.lignes||[];
+  $q('qdet').innerHTML = L.length
+   ? 'Vos lignes détenues : ' + L.map(function(l){ return '<b>' + eq(l.ticker)
+       + '</b> <i>(' + pq(l.quantite, Number.isInteger(l.quantite)?0:2) + ', '
+       + eq(l.source) + ')</i>'; }).join(' · ')
+   : 'Aucune ligne détenue trouvée : ni au registre de l’accueil, ni dans '
+     + 'IBKR (onglet IBKR pour le brancher). Tapez vos titres ci-dessus.';
+ }catch(e){ $q('qdet').textContent=''; }
+}
 ['qcap','qgain'].forEach(function(i){ $q(i).addEventListener('input', calcule); });
 $q('qtri').addEventListener('change', rendR);
 $q('qlance').addEventListener('click', lanceR);
+var LANCE_R=reprends();
 calcule();
-suitR();
+lignesR();
+if(LANCE_R) lanceR(); else suitR();
 """
 
 
@@ -5448,7 +5548,9 @@ def _page_recherche() -> str:
           'euros et <b>la durée</b>. Chaque titre de l’univers est passé '
           'à la même question : sur son historique, combien de périodes '
           'de cette durée ont donné ce gain — et combien ont coûté la '
-          'même somme. Ce qui a eu lieu, pas ce qui va avoir lieu.</p>'
+          'même somme. Vos propres titres s’ajoutent : ceux que vous '
+          'tapez, et vos lignes détenues, mesurées sur leur vraie '
+          'quantité. Ce qui a eu lieu, pas ce qui va avoir lieu.</p>'
           '<div class="par">'
           '<div><label>SOMME (€)</label><input id="qcap" value="800" '
           'inputmode="decimal"></div>'
@@ -5464,6 +5566,15 @@ def _page_recherche() -> str:
           '</div>'
           '<div><button class="go" id="qlance">CHERCHER</button></div>'
           '</div>'
+          '<div class="mes">'
+          '<div><label for="qtit">MES TITRES — AJOUTÉS À LA RECHERCHE</label>'
+          '<input id="qtit" autocomplete="off" spellcheck="false" '
+          'placeholder="TLX.DE VOYA MC.PA… avec la place : TLX seul, '
+          'c’est la cote US"></div>'
+          '<label class="ck"><input type="checkbox" id="qmes" checked> '
+          'ajouter mes lignes détenues (registre et IBKR)</label>'
+          '</div>'
+          '<p class="calc" id="qdet"></p>'
           f'<div class="vite">{vite}</div>'
           '<p class="calc" id="qcalc"></p>'
           '<div class="tri"><label for="qtri">TRI</label>'
@@ -5478,6 +5589,29 @@ def _page_recherche() -> str:
 # Une recherche a la fois : elle passe tout un univers.
 _RCH = {"actif": False, "journal": [], "resultat": None}
 _RCH_VERROU = threading.Lock()
+
+
+def _lignes_detenues() -> list[dict]:
+    """Les lignes que le proprietaire DETIENT : le registre, et le compte
+    IBKR s'il est branche. IBKR l'emporte sur le registre pour la meme
+    ligne : c'est la quantite vivante. Une position IBKR sans ticker sur
+    (option, place inconnue) n'est pas devinee."""
+    out = {}
+    for l in ps.charge():
+        tk = (l.get("ticker") or "").upper()
+        if tk:
+            out[tk] = {"ticker": tk, "quantite": l.get("quantite"),
+                       "source": "registre"}
+    try:
+        from . import ibkr as ik
+        for l in (ik.LIAISON.photo().get("lignes") or []):
+            tk = (l.get("ticker") or "").upper()
+            if tk and l.get("quantite"):
+                out[tk] = {"ticker": tk, "quantite": l.get("quantite"),
+                           "source": "IBKR"}
+    except Exception:
+        traceback.print_exc()
+    return sorted(out.values(), key=lambda x: x["ticker"])
 
 
 def _recherche_lance(corps: dict) -> dict:
@@ -5499,10 +5633,15 @@ def _recherche_lance(corps: dict) -> dict:
 
     def travail():
         try:
+            detenus = ({l["ticker"]: l["quantite"]
+                        for l in _lignes_detenues()}
+                       if corps.get("mes_lignes") else {})
             r = rc.cherche(corps.get("univers"), corps.get("capital"),
                            corps.get("gain"), corps.get("nombre"),
                            corps.get("unite"), corps.get("frais") or 0,
-                           corps.get("tri") or rc.TRI_DEFAUT, journal=note)
+                           corps.get("tri") or rc.TRI_DEFAUT, journal=note,
+                           ajouts=corps.get("titres") or "",
+                           detenus=detenus)
         except Exception as exc:
             traceback.print_exc()
             r = {"ok": False, "erreur": f"{type(exc).__name__}: {exc}"}

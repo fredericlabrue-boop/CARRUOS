@@ -1037,6 +1037,10 @@ const bgl=cB.addLineSeries({color:'rgba(0,0,0,0)',lineWidth:1,
 cB.applyOptions({rightPriceScale:{visible:true,ticksVisible:false,
  borderColor:'#1a2330',scaleMargins:{top:.62,bottom:.1}},
  timeScale:{visible:false},grid:{horzLines:{visible:false}},
+ // Le logo de la bibliotheque reste sur les trois autres graphiques (sa
+ // licence demande l'attribution sur la page) ; sur la bande, il masquait
+ // la premiere pastille.
+ layout:{attributionLogo:false},
  localization:{priceFormatter:function(){return '';}}});
 // Cone de dispersion : quatre lignes pointillees vers l'avenir. Elles ne
 // disent rien du SENS, seulement de l'amplitude plausible.

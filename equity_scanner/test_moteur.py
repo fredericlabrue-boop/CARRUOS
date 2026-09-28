@@ -26,6 +26,7 @@ from __future__ import annotations
 import os
 import sys
 import tempfile
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -4005,6 +4006,45 @@ def test_recherche() -> None:
     ok("chaque tri porte sur un seul fait",
        set(rc.TRIS) == {"gain", "perte", "dabord", "nom"})
 
+    # Vos titres : tapes, et detenus.
+    ok("une saisie libre se nettoie : capitales, sans doublon",
+       rc.nettoie("tlx.de, voya;VOYA  mc.pa <b>") == ["TLX.DE", "VOYA",
+                                                      "MC.PA"])
+    sl = rc.seuils_ligne(12, 50, 68.0)
+    ok("une ligne détenue est mesurée sur SA quantité, pas sur la somme",
+       sl["sur_la_ligne"] and sl["titres"] == 12
+       and sl["investi"] == 816.0
+       and abs(sl["seuil_gain"] - (50 / 816 + 2 * c)) < 1e-12)
+    ok("une quantité fractionnaire (IBKR) reste fractionnaire",
+       rc.seuils_ligne(2.5, 50, 100.0)["titres"] == 2.5)
+    lot["TLX.DE"] = fausse(0.015, 68, 31)
+    lot["TLX"] = fausse(0.02, 12, 32)
+    rc._liste = lambda u: []
+    try:
+        rv = rc.cherche("mes_titres", 800, 50, 1, "semaine",
+                        charge_lot=charge_lot, charge=charge)
+        ok("« mes titres » sans aucun titre : dit, pas un tableau vide",
+           rv["ok"] is False and "MES TITRES" in rv["erreur"])
+        rm = rc.cherche("mes_titres", 800, 50, 1, "semaine",
+                        charge_lot=charge_lot, charge=charge,
+                        ajouts="tlx T03 INCONNU", detenus={"TLX.DE": 12})
+    finally:
+        rc._liste = ancien
+    par = {x["ticker"]: x for x in rm["lignes"]}
+    ok("la ligne détenue est là, marquée, sur sa quantité",
+       par["TLX.DE"]["origine"] == "detenu"
+       and par["TLX.DE"].get("sur_la_ligne") and par["TLX.DE"]["titres"] == 12)
+    ok("les titres tapés sont là, marqués « ajouté »",
+       par["TLX"]["origine"] == "ajoute" and par["T03"]["origine"] == "ajoute")
+    ok("« TLX » tapé quand on détient TLX.DE : l'homonyme est signalé",
+       par["TLX"].get("homonyme") == "TLX.DE"
+       and not par["T03"].get("homonyme"))
+    inc = [r for r in rm["refus"] if r["ticker"] == "INCONNU"]
+    ok("un titre tapé introuvable ressort avec la raison probable",
+       inc and inc[0]["vous"] and "suffixe" in inc[0]["motif"])
+    ok("le compte dit combien sont à vous",
+       rm["compte"]["detenus"] == 1 and rm["compte"]["ajoutes"] == 2)
+
 
 def test_bande_bougies() -> None:
     """La bande sous le RSI : les figures des barres AFFICHEES, et pour
@@ -4041,6 +4081,51 @@ def test_bande_bougies() -> None:
     ok("le compte des mesures et des écarts nets est donné",
        b["comptage"]["mesures"] == sum(
            1 for k in vues for x in b["stats"][k]["suivi"] if x["assez"]))
+
+
+def test_etat_positions() -> None:
+    """MES POSITIONS de l'accueil : un compte de conditions, jamais
+    CONSERVER / SURVEILLER / SORTIE."""
+    print("\n— Mes positions : un état compté, pas un verdict —")
+    from . import positions as ps_
+    g = np.random.default_rng(5)
+    ix = pd.bdate_range(end=pd.Timestamp.today().normalize(), periods=400)
+
+    def serie(derive):
+        cc = 100 * np.exp(np.cumsum(g.normal(derive, .01, len(ix))))
+        return pd.DataFrame({"open": cc, "high": cc * 1.01,
+                             "low": cc * .99, "close": cc,
+                             "volume": np.full(len(ix), 1e6)}, index=ix)
+    base = {"SPY": serie(.0005), "MONTE": serie(.002), "BAISSE": serie(-.003)}
+    ancien = ps_.FICHIER
+    ps_.FICHIER = Path(tempfile.mkdtemp()) / "positions.json"
+    try:
+        ps_.ajoute("MONTE", 10, float(base["MONTE"]["close"].iloc[-300]))
+        ps_.ajoute("BAISSE", 5, float(base["BAISSE"]["close"].iloc[-300]),
+                   stop=float(base["BAISSE"]["close"].iloc[-300]) * .9)
+        ps_.ajoute("ABSENT", 1, 10.0)
+
+        def charge(tk):
+            return base[tk]
+        L = {l["ticker"]: l for l in ps_.controle(charge)}
+    finally:
+        ps_.FICHIER = ancien
+    ok("aucune ligne ne porte plus de « verdict »",
+       all("verdict" not in l for l in L.values()))
+    ok("aucun mot d'avis dans l'état affiché",
+       not any(m in l["etat_libelle"] for l in L.values()
+               for m in ("CONSERVER", "SURVEILLER", "VENDRE", "GARDER"))
+       and not any(l["etat_libelle"] in ("SORTIE", "STOP TOUCHE")
+                   for l in L.values()))
+    ok("sous son stop inscrit : c'est un fait, et il est dit",
+       L["BAISSE"]["etat"] == "stop" and L["BAISSE"]["a_traiter"])
+    ok("sinon, le compte des conditions de sortie, sur leur total",
+       "SUR 4" in L["MONTE"]["etat_libelle"]
+       and L["MONTE"]["etat_libelle"].startswith(str(L["MONTE"]["n_sorties"])))
+    ok("une ligne sans données le dit, sans rien inventer",
+       L["ABSENT"]["etat"] == "indisponible")
+    ok("le rappel : la spécification ferme à la PREMIÈRE condition",
+       "PREMIÈRE" in ps_.RAPPEL_ETAT)
 
 
 def dt_bornes(n, h):
@@ -4083,6 +4168,7 @@ def main() -> int:
     test_faillites()
     test_recherche()
     test_bande_bougies()
+    test_etat_positions()
     test_memo()
 
     print()

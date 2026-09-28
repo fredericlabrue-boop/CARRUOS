@@ -1306,6 +1306,7 @@ def main() -> int:
        "aucun onclick en ligne dans son script : un ecouteur delegue")
 
     print("\n  PAGE RECHERCHE")
+    from . import majordome as _mj_mod
     from . import recherche as _rc
     hq = pages["recherche"]
     jq = _app.JS_RECH
@@ -1342,6 +1343,36 @@ def main() -> int:
     _v("j.correlation" in jq and "j.reperes" in jq and "j.rappels" in jq,
        "la correlation mesuree, le repere du marche et les rappels")
     _v("onclick" not in jq, "aucun onclick en ligne dans son script")
+    _v('id="qtit"' in hq and 'id="qmes"' in hq and 'id="qdet"' in hq,
+       "le champ MES TITRES, la case des lignes détenues et leur liste")
+    _v('u.path == "/api/recherche/lignes"' in src_app
+       and "mes_lignes" in jq and "titres:$q('qtit').value" in jq,
+       "vos titres et vos lignes partent avec la recherche")
+    _v("x.origine==='detenu'" in jq and "x.sur_la_ligne" in jq
+       and "x.homonyme" in jq,
+       "une ligne détenue est marquée, mesurée sur sa quantité, "
+       "et l'homonyme signalé")
+    _v("localStorage" in jq and "try{" in jq.split("function retiens")[1][:60],
+       "les derniers réglages reviennent, et le stockage ne peut rien casser")
+    _v("URLSearchParams" in jq and "'lance'" in jq,
+       "une adresse peut porter ses réglages et lancer la recherche")
+    # LE BOUTON : il etait en bas des scans, sous le pli du panneau a
+    # 1420 px, la taille de la fenetre. Il doit venir AVANT le premier scan.
+    ha = pages["accueil"]
+    _v(0 < ha.find('data-vers="/recherche"') < ha.find("TOUTE LA COTE US")
+       and 'class="gh outils"' in ha,
+       "RECHERCHE est EN TETE du panneau des scans, pas sous le pli")
+    css_acc = re.sub(r"/\*.*?\*/", " ", _app.CSS, flags=re.S)
+    m_gh = re.search(r"\.gh\{[^}]*\}", css_acc.replace("\n", " "))
+    _v(bool(m_gh) and "auto-fit" in m_gh.group(0),
+       "les scans se rangent sur plusieurs colonnes selon le panneau")
+    ja_ = _scripts(pages["accueil"])
+    _v("CONSERVER" not in ja_ and "l.verdict" not in ja_
+       and "x.verdict" not in ja_,
+       "MES POSITIONS : plus de CONSERVER / SURVEILLER, un compte d'état")
+    jmj = _mj_mod.JS
+    _v(0 < jmj.find("recherche\\b") < jmj.find("var ma=q.match"),
+       "le majordome ouvre la recherche avant de chercher un titre")
 
     print("\n  UNE PAGE D'UN SEUL BLOC DEFILE")
     # `.app` est une grille de 100vh en `auto auto minmax(0,1fr)` et
