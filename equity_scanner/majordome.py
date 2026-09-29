@@ -579,8 +579,22 @@ async function exec(txt){
       :/^semaine/.test(w)?'semaines':w==='mois'?'mois':'ans';
    }
    u+='?capital='+cap+'&gain='+gn+'&nombre='+nb+'&unite='+un+'&lance=1';
+   // La SITUATION que la phrase decrit, en mots de la page : « en crise
+   // avec un rebond », « en hausse mais pas a son pic »… Des criteres
+   // que la page mesure, jamais un titre qui « correspond ».
+   var sit=/rebon|remont|se relev/.test(q) ? 'rebond'
+    : /(?:pas|jamais|loin) (?:encore )?(?:a|au|de|du) (?:son |un |le |sa )?(?:pic|sommet|plus haut)|haussi|en tendance|debut de (?:la )?(?:hausse|tendance)/.test(q) ? 'tendance'
+    : /(?:a|au) (?:son |un |le |sa )?(?:pic|sommet|plus haut)/.test(q) ? 'sommet'
+    : /crise|en chute|chut|baisse|effondr|degringol/.test(q) ? 'chute' : '';
+   var LIB_SIT={rebond:'en rebond après une chute', tendance:'en tendance, '
+    +'sans être à son plus haut', sommet:'à son plus haut', chute:'en chute'};
+   if(sit) u+='&situation='+sit;
+   var UN1={heures:'heure',jours:'jour',semaines:'semaine',mois:'mois',ans:'an'};
    dit('Je lance la recherche : '+cap+' euros, '+gn+' euros visés, '+nb+' '
-     +un+'. Ce que chaque titre a donné, gain et perte côte à côte.');
+     +(nb==='1' ? UN1[un] : un)+(sit ? ', titres '+LIB_SIT[sit]+' aujourd\'hui' : '')
+     +'. Ce que chaque titre a donné, gain et perte côte à côte'
+     +(sit ? ', et dans cette situation contre une période quelconque' : '')
+     +'. Des mesures, pas un conseil.');
   }else dit('J\'ouvre la recherche.');
   if(typeof window.ouvreFenetre==='function') ouvreFenetre(u, 'carruos-recherche');
   else location.href=u;
@@ -615,7 +629,8 @@ async function exec(txt){
 
  dit('Je n\'ai pas compris. Essayez : je sors quand sur TLX, combien je '
   +'peux perdre sur Coin, que penses-tu de Nvidia, ouvre Sanofi, '
-  +'scan Cac 40, je mets 800 € pour gagner 50 € en une semaine, '
+  +'scan Cac 40, je mets 3000 € pour gagner 100 € en un mois sur une '
+  +'action en crise avec rebond, sommes-nous en temps de crise ?, '
   +'TLX a baissé de 25 %, rebond ?, Tesla nouveau modèle, '
   +'état du marché, la veille sur mes lignes, ou mes positions.');
 }

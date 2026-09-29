@@ -22,6 +22,7 @@ py -m equity_scanner.pead         # stratégie 2 : préparation, puis passage un
 py -m equity_scanner.detention TSLA 2 mois   # ce que cette durée a donné, contre l'indice
 py -m equity_scanner.faillites   # RESTRUCTURATIONS : les 8-K item 1.03 et ce qui a suivi
 py -m equity_scanner.recherche nasdaq100 800 50 "1 semaine"   # somme, gain visé, durée
+py -m equity_scanner.recherche us_europe 3000 100 "1 mois" rebond   # + une situation
 py -m equity_scanner.rebond TLX.DE 25   # après une chute de 25 % : ce qui a suivi, sur ce titre
 ```
 
@@ -360,6 +361,25 @@ jeu de paramètres qui ne l'a pas produit.
   rappel qu'un titre encore coté s'est **par construction** relevé de
   ses chutes. Pour une annonce, les articles qui nomment le titre, et le
   rappel qu'elle est dans les cours quand on la lit.
+- **« Cette action te correspond », « on est en crise », « en temps de
+  crise, prends celle-là ».** Demandé le 29 septembre 2026 : « je rentre
+  mes paramètres — 100 € sur 3 000 €, une action en crise avec un rebond
+  confirmé, ou haussière mais pas à son pic — et il me conseille ». La
+  moitié qui se mesure est faite : la **situation** est un critère que le
+  propriétaire choisit et règle (`recherche.SITUATIONS`, seuils X, Y, Z1,
+  Z2), lu sur les clôtures **jusqu'au jour dit** ; la page garde les
+  titres qui y sont aujourd'hui et mesure ce que sa durée a donné
+  **dans cette situation**, contre une période quelconque du même titre,
+  avec le compte des écarts nets attendus par hasard. « Rebond
+  confirmé » ne se sait qu'après coup : la page dit « rebond amorcé,
+  remonté de Y % depuis le plus bas de 3 mois ». Le mot « haussière »
+  n'est pas repris (mot de direction) : « en tendance, pas à son
+  sommet », défini par ses faits. « Crise » n'a pas de définition
+  mesurable : le marché est rendu en **faits** (écart à la moyenne 200
+  séances, recul sous le plus haut d'un an, volatilité rangée dans son
+  historique) avec la seule règle écrite d'avance — la spécification
+  n'autorise aucune entrée sous la moyenne 200 de l'indice. Aucun titre
+  n'est désigné, et la consigne du modèle l'interdit aussi.
 - Une ligne de prédiction de prix. Le cône de dispersion existe : dérive
   fixée à zéro, il donne l'amplitude, jamais le sens.
 - Un take-profit **actif**. Les spécifications 2 et 3 disent « aucun
@@ -450,9 +470,11 @@ jeu de paramètres qui ne l'a pas produit.
 | | les chemins de toutes les périodes sont une **matrice** (périodes × durée) : une boucle par période coûtait des secondes par univers sur les périodes d'une séance ; `test_moteur` la confronte à une boucle écrite à la main |
 | | une recherche à la fois, dans un fil ; la page suit sa progression. L'heure est refusée **avant** tout téléchargement |
 | | `ajouts` (tapés) et `detenus` ({ticker: quantité}, `app._lignes_detenues` : registre puis IBKR, IBKR l'emporte) rejoignent l'univers ; l'univers `mes_titres` n'a qu'eux. Les réglages reviennent d'une ouverture à l'autre (`localStorage`, par poste) ; une adresse `/recherche?capital=…&lance=1` les impose — c'est ce qu'écrit le majordome |
+| | la **situation** (`chute`, `rebond`, `tendance`, `sommet`) : `masque_situation()` n'utilise que des fenêtres glissantes jusqu'au jour dit — `test_moteur` coupe la série à plusieurs dates et exige le même verdict. Hors situation aujourd'hui, un titre de l'univers sort du tableau et est **compté** ; une ligne détenue reste, marquée. `mesure(..., situation=)` ne prend que des périodes qui **commencent** dans la situation, sans chevauchement (`_bornes_si`) ; `marche()` rend les faits de SPY et ^STOXX, les deux indices du régime |
 | `rebond.py` | « rebond ? » : les épisodes de chute ≥ seuil sous le dernier sommet (un par cycle — il faut un **nouveau sommet** pour en ouvrir un autre), et ce qui a suivi à 1, 3, 6, 12 mois contre le taux de base du titre ; Wilson, rien sous 8 épisodes, le biais du survivant écrit à chaque affichage |
 | `dossier.py` | la **porte en français** du majordome : une question, une intention, une section de faits |
 | | intentions `rebond` (seuil tiré de la question, mesure posée DANS le dossier comme `detention`) et `actualite` (titres d'articles, source, date — **jamais** le ton du fournisseur) ; une question sans titre a sa réponse écrite d'avance (`general`) |
+| | intention `marche` (« temps de crise », « tout va bien », « le marché ») : les faits des deux indices posés sous `indices` — `marche` y dit déjà la place du titre, et réutiliser la clé aurait écrasé le choix de l'indice de référence. Il faut des mots de **marché** : « TLX est en crise, rebond ? » reste une question sur le titre |
 | | le ticker se tranche par trois dictionnaires, dans l'ordre : les lignes **détenues** (« TLX » quand on détient TLX.DE), la table des noms de `resolve.py` (« Tesla »), puis la cote |
 | | aucune phrase n'est *générée*. `constitue()` rassemble ce que les autres modules ont déjà calculé, `intention()` reconnaît ce qui est demandé par une table de motifs écrite d'avance, et les réponses sont des gabarits remplis avec les chiffres du dossier |
 | | conséquence tenue **par construction** : si un chiffre n'est pas dans le dossier, aucune phrase ne peut le sortir. `test_moteur` le vérifie en passant un dossier VIDE à chaque section et en exigeant qu'aucun nombre n'en sorte |
@@ -761,6 +783,16 @@ jeu de paramètres qui ne l'a pas produit.
   les séries d'essai, « des ACTIONS en chute libre » donnait le titre
   « ACTIONS ». Les mots des questions générales sont dans `MOTS_VIDES`,
   et le test passe une fonction `existe` qui dit oui à tout.
+- **Le script du compagnon est sur toutes les pages, ses mots aussi.**
+  La clé de situation `haussiere`, écrite dans le majordome, a fait
+  tomber le contrôle « aucun HAUSSIER » de la page STRATÉGIE — qui ne
+  parle pas de recherche. Le contrôle avait raison sur le fond : le mot
+  est un mot de direction. La situation s'appelle `tendance` et se
+  définit par ses faits.
+- **Une clé de dossier se vérifie avant d'être prise.** Les faits du
+  marché, posés d'abord sous `marche`, écrasaient la place du titre
+  (`us` / `europe`) que le dossier range sous ce nom et dont dépend
+  l'indice de référence. Ils sont sous `indices`.
 - **Une grille dimensionne ses enfants par ses lignes EXPLICITES.**
   Ajouter un panneau à une grille qui n'en déclarait qu'une envoie le
   nouveau dans une ligne implicite calée sur son contenu. Sur la page

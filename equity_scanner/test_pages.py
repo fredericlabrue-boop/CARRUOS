@@ -1373,6 +1373,35 @@ def main() -> int:
     jmj = _mj_mod.JS
     _v(0 < jmj.find("recherche\\b") < jmj.find("var ma=q.match"),
        "le majordome ouvre la recherche avant de chercher un titre")
+    # LA SITUATION : des criteres choisis par le proprietaire, mesures.
+    opts = re.findall(r'<select id="qsit">(.*?)</select>', hq, re.S)
+    _v(tuple(re.findall(r'value="([^"]+)"', opts[0]) if opts else ())
+       == tuple(_rc.SITUATIONS),
+       "les situations proposees sont celles du module")
+    _v(bool(opts) and opts[0].count("data-desc=") == len(_rc.SITUATIONS),
+       "chaque situation porte sa definition, affichee au choix")
+    _v(all(f'id="{c}"' in hq for c in ("qx", "qy", "qz1", "qz2", "qsitx")),
+       "les seuils X, Y, Z1, Z2 sont reglables")
+    _v(all(f"'{c}'" in jq.split("var CHAMPS_R=")[1].split(";")[0]
+           for c in ("qsit", "qx", "qy", "qz1", "qz2")),
+       "la situation et ses seuils reviennent d'une ouverture a l'autre")
+    _v("function blocMarche" in jq and "n’autorise <b>aucune</b> entrée" in jq
+       and "j.rappel_marche" in jq,
+       "le marche : des faits et la regle de la specification")
+    _v("function celluleSit" in jq and "comme une période quelconque" in jq
+       and "s.attendus" in jq,
+       "chaque titre : dans cette situation contre une periode quelconque, "
+       "et les ecarts nets attendus par hasard")
+    rendu_sit = re.sub(r"^\s*//.*$", "", jq.split("function celluleSit")[1]
+                       .split("function rendR")[0], flags=re.M)
+    _v(not re.search(r"crise|tout va bien|te correspond|conseill|haussi",
+                     rendu_sit, re.I),
+       "aucun mot de « crise », de « tout va bien » ni de conseil dans "
+       "le rendu")
+    _v("selectedIndex<0" in jq,
+       "une situation inconnue dans l'adresse ne vide pas le choix")
+    _v("'&situation='" in jmj and "Des mesures, pas un conseil" in jmj,
+       "le majordome passe la situation decrite a la recherche")
 
     print("\n  UNE PAGE D'UN SEUL BLOC DEFILE")
     # `.app` est une grille de 100vh en `auto auto minmax(0,1fr)` et

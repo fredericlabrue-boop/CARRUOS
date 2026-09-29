@@ -45,6 +45,7 @@ CE QUE LE PROGRAMME REFUSE, ET POURQUOI
   chiffres qui n'existent pas.
 
     py -m equity_scanner.recherche nasdaq100 800 50 "1 semaine"
+    py -m equity_scanner.recherche us_europe 3000 100 "1 mois" rebond
 """
 
 from __future__ import annotations
@@ -90,11 +91,135 @@ UNIVERS = {
 # Pas plus de titres saisis a la main : chacun demande dix ans de cours.
 MAX_AJOUTS = 60
 
+# ---------------------------------------------------------------------
+# Les SITUATIONS : des criteres que le proprietaire choisit, et qui
+# decrivent un titre par ses clotures, sans regarder la suite.
+#
+# « Une action en crise avec un rebond confirme », « une action haussiere
+# qui n'est pas a son pic, au debut » : ce sont des descriptions. Le mot
+# « haussiere » n'est pas repris : c'est un mot de direction, et la page
+# decrit des faits — au-dessus d'une moyenne qui monte, sous un plus haut. Un
+# « rebond confirme » ne se sait qu'apres coup ; « remonte de 10 % depuis
+# son plus bas des trois derniers mois » se lit le jour meme. Chaque
+# situation est une conjonction de faits ecrits ici, avec les seuils que
+# le proprietaire regle — jamais une somme ponderee.
+# ---------------------------------------------------------------------
+SITUATIONS = {
+    "toutes": "toutes les situations",
+    "chute": "en chute : au moins X % sous son plus haut d'un an",
+    "rebond": "en chute, rebond amorcé : X % sous son plus haut d'un an, "
+              "et remonté d'au moins Y % depuis son plus bas de 3 mois",
+    "tendance": "en tendance, pas à son sommet : au-dessus de sa moyenne "
+                "200 séances, plus haute qu'il y a un mois, et entre Z1 et "
+                "Z2 % sous son plus haut d'un an",
+    "sommet": "à son plus haut : à moins de 2 % de son plus haut d'un an",
+}
+SITUATION_DEFAUT = {"x": 25.0, "y": 10.0, "z1": 5.0, "z2": 15.0}
+FENETRE_HAUT = 252        # le plus haut d'un an
+FENETRE_BAS = 63          # le plus bas de trois mois
+PENTE = 21                # « la moyenne monte » : plus haute qu'il y a 21 séances
+PRES_DU_SOMMET = 2.0      # « à son plus haut » : à moins de 2 %
+
+RAPPEL_SITUATION = (
+    "Vos critères décrivent une SITUATION, lue sur les clôtures jusqu'au "
+    "jour dit, sans regarder la suite. La colonne « dans cette situation » "
+    "dit ce que la durée a donné, sur ce titre, quand il y était ; à côté, "
+    "une période quelconque. Quand l'intervalle contient la période "
+    "quelconque, la situation n'a rien changé de mesurable. Et sur N "
+    "titres, environ 5 % d'écarts nets sont attendus par le seul hasard.")
+RAPPEL_MARCHE = (
+    "« Sommes-nous en crise ? » n'a pas de définition mesurable unique. "
+    "Voici les faits des deux indices, et la seule règle écrite d'avance : "
+    "celle de votre spécification, qui n'autorise aucune entrée quand "
+    "l'indice est sous sa moyenne 200 séances. Aucun titre n'est « à "
+    "prendre en temps de crise » : cela demanderait une hypothèse testée.")
+
+
+def lit_situation(cle: str, reglages: dict | None = None) -> tuple:
+    """(cle, seuils) nettoyes. Une cle inconnue retombe sur « toutes »."""
+    cle = cle if cle in SITUATIONS else "toutes"
+    p = dict(SITUATION_DEFAUT)
+    for k, v in (reglages or {}).items():
+        try:
+            if k in p and v not in (None, ""):
+                p[k] = abs(float(str(v).replace(",", ".")))
+        except (TypeError, ValueError):
+            continue
+    if p["z1"] > p["z2"]:
+        p["z1"], p["z2"] = p["z2"], p["z1"]
+    return cle, p
+
+
+def masque_situation(c: pd.Series, cle: str, p: dict) -> np.ndarray:
+    """Pour chaque seance, le titre etait-il dans la situation ? Chaque
+    grandeur n'utilise que les clotures jusqu'a ce jour-la."""
+    from .indicators import PERIODES
+    n = len(c)
+    if cle == "toutes" or n == 0:
+        return np.ones(n, dtype=bool)
+    haut = c.rolling(FENETRE_HAUT, min_periods=FENETRE_HAUT).max()
+    recul = (c / haut - 1.0) * 100.0
+    if cle == "chute":
+        m = recul <= -p["x"]
+    elif cle == "rebond":
+        bas = c.rolling(FENETRE_BAS, min_periods=FENETRE_BAS).min()
+        m = (recul <= -p["x"]) & ((c / bas - 1.0) * 100.0 >= p["y"])
+    elif cle == "tendance":
+        mm = c.rolling(PERIODES["sma_longue"],
+                       min_periods=PERIODES["sma_longue"]).mean()
+        m = ((c > mm) & (mm > mm.shift(PENTE))
+             & (recul <= -p["z1"]) & (recul >= -p["z2"]))
+    else:                                  # sommet
+        m = recul >= -PRES_DU_SOMMET
+    return m.fillna(False).to_numpy(dtype=bool)
+
+
+def _bornes_si(masque: np.ndarray, h: int) -> list[tuple[int, int]]:
+    """Les periodes qui COMMENCENT dans la situation, sans chevauchement :
+    la premiere, puis la suivante qui commence apres sa fin."""
+    out, libre = [], 0
+    for a in np.flatnonzero(masque):
+        if a >= libre and a + h < len(masque):
+            out.append((int(a), int(a + h)))
+            libre = a + h
+    return out
+
+
+def marche(d, nom: str) -> dict | None:
+    """Les faits d'un indice : ecart a sa moyenne 200 seances (la regle de
+    la specification), recul sous son plus haut d'un an, et la volatilite
+    de 20 seances rangee dans son propre historique."""
+    from .indicators import PERIODES
+    try:
+        c = pd.Series(d["close"], dtype=float).dropna()
+        c = c[c > 0]
+        L = PERIODES["sma_longue"]
+        if len(c) < max(L, FENETRE_HAUT) + 21:
+            return None
+        mm = c.rolling(L).mean()
+        haut = c.rolling(FENETRE_HAUT).max()
+        vol = c.pct_change().rolling(20).std() * math.sqrt(252) * 100
+        v = vol.dropna()
+        return {"nom": nom, "date": str(c.index[-1].date()),
+                "ecart_mm200": round(float(c.iloc[-1] / mm.iloc[-1] - 1)
+                                     * 100, 1),
+                "au_dessus": bool(c.iloc[-1] > mm.iloc[-1]),
+                "recul_haut_1an": round(float(c.iloc[-1] / haut.iloc[-1] - 1)
+                                        * 100, 1),
+                "volatilite_20j": round(float(v.iloc[-1]), 1),
+                "rang_volatilite": round(float((v < v.iloc[-1]).mean()
+                                               * 100), 0),
+                "depuis": str(v.index[0].date())}
+    except Exception:
+        return None
+
+
 # Un tri = un fait. Aucun tri sur une combinaison.
 TRIS = {
     "gain": "gain touché (part des périodes)",
     "perte": "perte touchée (part des périodes, la plus rare d'abord)",
     "dabord": "gain touché AVANT la perte (part des cas tranchés)",
+    "situation": "gain touché DANS cette situation (part des périodes)",
     "nom": "ticker",
 }
 TRI_DEFAUT = "gain"
@@ -231,7 +356,8 @@ def _wpc(k: int, n: int) -> list | None:
     return dt._wpc(k, n) if n >= MINI_PERIODES else None
 
 
-def mesure(close: pd.Series, h: int, sg: float, sp: float) -> dict:
+def mesure(close: pd.Series, h: int, sg: float, sp: float,
+           situation: tuple | None = None) -> dict:
     """Toutes les periodes de h seances, sans chevauchement : le gain
     touche, la perte touchee, lequel d'abord, et la fin.
 
@@ -240,11 +366,16 @@ def mesure(close: pd.Series, h: int, sg: float, sp: float) -> dict:
     univers sur les periodes d'une seance."""
     c = pd.Series(close, dtype=float).dropna()
     c = c[c > 0]
-    bornes = dt._bornes(len(c), int(h))
+    if situation is None:
+        bornes = dt._bornes(len(c), int(h))
+    else:
+        bornes = _bornes_si(masque_situation(c, *situation), int(h))
     n = len(bornes)
     out = {"seances": int(h), "periodes": n}
     if n == 0:
-        out["erreur"] = f"moins de {h} séances d'historique"
+        out["erreur"] = (f"moins de {h} séances d'historique"
+                         if situation is None else
+                         "jamais dans cette situation sur l'historique")
         return out
     px = c.to_numpy()
     a = np.array([x for x, _ in bornes])
@@ -334,6 +465,8 @@ def correlation(xs, ys) -> float | None:
 
 def cle_tri(tri: str):
     def v(x, k):
+        if tri == "situation":
+            return (x.get("mesure_situation") or {}).get(k)
         return (x.get("mesure") or {}).get(k)
     if tri == "nom":
         return lambda x: (0, x["ticker"])
@@ -366,13 +499,18 @@ def nettoie(tickers) -> list[str]:
 def cherche(univers: str, capital: float, gain: float, nombre, unite: str,
             frais_fixes: float = 0.0, tri: str = TRI_DEFAUT,
             charge_lot=None, charge=None, journal=None,
-            ajouts=None, detenus: dict | None = None) -> dict:
+            ajouts=None, detenus: dict | None = None,
+            situation: str = "toutes", reglages: dict | None = None) -> dict:
     """Le passage complet d'un univers. Rend des FAITS par titre, le
     compte de ce qui n'a pas pu etre mesure, et les rappels.
 
     `ajouts` : des tickers tapes a la main, ajoutes a l'univers.
     `detenus` : {ticker: quantite} des lignes detenues (registre, IBKR),
-    ajoutees aussi, et mesurees sur leur quantite reelle."""
+    ajoutees aussi, et mesurees sur leur quantite reelle.
+    `situation` et `reglages` : les criteres du proprietaire. Un titre de
+    l'univers qui n'y est pas AUJOURD'HUI sort du tableau (et entre au
+    compte « hors situation ») ; les siens y restent, avec leur etat."""
+    sit = lit_situation(situation, reglages)
     if univers not in UNIVERS:
         return {"ok": False, "erreur": "univers inconnu"}
     try:
@@ -414,6 +552,7 @@ def cherche(univers: str, capital: float, gain: float, nombre, unite: str,
                   "demandée : TLX.DE pour Francfort, MC.PA pour Paris")
         return {"ticker": t, "motif": m, "vous": t in vous}
     lignes, refus = [], [motif(t, m) for t, m in echecs]
+    hors = 0
     for tk in sorted(series):
         brut = series[tk]
         try:
@@ -445,9 +584,25 @@ def cherche(univers: str, capital: float, gain: float, nombre, unite: str,
                         and d != tk]
                 if meme:
                     ligne["homonyme"] = meme[0]
+            if sit[0] != "toutes":
+                cc = close[close > 0]
+                ligne["dans_situation"] = (bool(masque_situation(cc, *sit)[-1])
+                                           if len(cc) else False)
+                if not ligne["dans_situation"] and tk not in vous:
+                    hors += 1
+                    continue
             if s.get("achetable") and not s.get("frais_trop_lourds"):
                 ligne["mesure"] = mesure(close, h, s["seuil_gain"],
                                          s["seuil_perte"])
+                if sit[0] != "toutes":
+                    ms = mesure(close, h, s["seuil_gain"], s["seuil_perte"],
+                                situation=sit)
+                    base = ligne["mesure"].get("part_gain")
+                    w = ms.get("wilson_gain")
+                    if w and base is not None:
+                        ms["base_pct"] = round(base * 100, 1)
+                        ms["ecart_net"] = not (w[0] <= base * 100 <= w[1])
+                    ligne["mesure_situation"] = ms
             lignes.append(ligne)
         except Exception as exc:
             refus.append({"ticker": tk, "motif": f"{type(exc).__name__}",
@@ -473,6 +628,18 @@ def cherche(univers: str, capital: float, gain: float, nombre, unite: str,
         except Exception:
             continue
 
+    # Le marche : des faits, et la regle de la specification.
+    marches = []
+    for bk in (("SPY", "S&P 500"), ("^STOXX", "STOXX 600")):
+        try:
+            b = charge_lot([bk[0]])[0].get(bk[0])
+            m = marche(b, bk[1]) if b is not None else None
+            if m:
+                marches.append(m)
+        except Exception:
+            continue
+    ms_ = [x["mesure_situation"] for x in lignes if x.get("mesure_situation")]
+    avec_w = [x for x in ms_ if x.get("wilson_gain")]
     fr = (f", plus {frais_fixes:g} € par ordre" if frais_fixes else "")
     return {
         "ok": True, "univers": univers, "nom_univers": UNIVERS[univers],
@@ -481,6 +648,16 @@ def cherche(univers: str, capital: float, gain: float, nombre, unite: str,
         "mini": MINI_PERIODES,
         "tri": tri if tri in TRIS else TRI_DEFAUT,
         "lignes": lignes, "refus": refus, "reperes": reperes,
+        "situation": {"cle": sit[0], "libelle": SITUATIONS[sit[0]],
+                      "seuils": sit[1],
+                      "dans": sum(1 for x in lignes
+                                  if x.get("dans_situation")),
+                      "hors": hors,
+                      "ecarts_nets": sum(1 for x in avec_w
+                                         if x.get("ecart_net")),
+                      "mesures": len(avec_w),
+                      "attendus": round(len(avec_w) * 0.05, 1)},
+        "marche": marches, "rappel_marche": RAPPEL_MARCHE,
         "taux": {k: round(v, 4) for k, v in fx.items()},
         "compte": {
             "univers": len(liste), "charges": len(series),
@@ -504,7 +681,8 @@ def cherche(univers: str, capital: float, gain: float, nombre, unite: str,
                     RAPPEL_AMPLITUDE.format(g=f"{gain:g} €"),
                     RAPPEL_SURVIVANT,
                     RAPPEL_FRAIS.format(c=f"{c * 100:.2f}".replace(".", ","),
-                                        f=fr)],
+                                        f=fr)]
+                   + ([RAPPEL_SITUATION] if sit[0] != "toutes" else []),
     }
 
 
@@ -515,20 +693,37 @@ def main(argv=None) -> None:
         return
     uni, cap, g = a[0], float(a[1]), float(a[2])
     nb, _, un = a[3].partition(" ")
+    sit = a[4] if len(a) > 4 else "toutes"
     r = cherche(uni, cap, g, nb, un or "semaines",
-                journal=lambda m: print(m))
+                journal=lambda m: print(m), situation=sit)
     if not r.get("ok"):
         print("  " + r.get("erreur", "échec"))
         return
     print(f"\n  {r['nom_univers']} — {cap:g} € pour +{g:g} € en "
           f"{r['libelle']}, sur {r['annees']} ans\n")
+    for m in r.get("marche") or []:
+        regle = ("autorise les entrées" if m["au_dessus"]
+                 else "n'autorise AUCUNE entrée")
+        print(f"  {m['nom']} : {m['ecart_mm200']:+.1f} % / moyenne 200 — "
+              f"la spécification {regle} ; {m['recul_haut_1an']:.1f} % sous "
+              f"le plus haut d'un an")
+    s = r.get("situation") or {}
+    if s.get("cle") not in (None, "toutes"):
+        print(f"\n  situation : {s['libelle']} — {s['dans']} titre(s) y "
+              f"sont, {s['hors']} non ; écarts nets {s['ecarts_nets']} sur "
+              f"{s['mesures']}, environ {s['attendus']} attendus par hasard")
+    print()
     for x in r["lignes"][:40]:
         m = x.get("mesure") or {}
         if not m.get("periodes"):
             continue
+        ms = x.get("mesure_situation") or {}
+        dans = (f"  dans la situation {ms['gain_touche']}/{ms['periodes']}"
+                if ms.get("periodes") else "")
         print(f"  {x['ticker']:<10} gain {m['gain_touche']:>4}/{m['periodes']:<4}"
               f" perte {m['perte_touchee']:>4}/{m['periodes']:<4}"
-              f" d'abord {m['gain_dabord']}/{m['gain_dabord'] + m['perte_dabord']}")
+              f" d'abord {m['gain_dabord']}/{m['gain_dabord'] + m['perte_dabord']}"
+              + dans)
     print(f"\n  corrélation gain touché / perte touchée : {r['correlation']}")
     for t in r["rappels"]:
         print("\n  " + t)

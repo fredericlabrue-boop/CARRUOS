@@ -1071,6 +1071,60 @@ titre.
 
 ---
 
+## 5 vicies. La SITUATION d'un titre, et le marché — RECHERCHE
+
+**« Je mets 3 000 €, je veux 100 €, sur une action en crise avec un
+rebond confirmé — ou haussière mais pas à son pic. Est-ce qu'on est en
+temps de crise ? »** Le programme ne dit pas « cette action vous
+correspond » : c'est un avis, et aucune hypothèse n'a passé sa Phase 0.
+Il fait deux choses qui se vérifient.
+
+**1. Vos critères, lus sur les clôtures.** Le réglage SITUATION de la
+page RECHERCHE garde les titres qui y sont **aujourd'hui** :
+
+- **en chute** : au moins X % sous son plus haut d'un an ;
+- **en chute, rebond amorcé** : X % sous son plus haut d'un an, et
+  remonté d'au moins Y % depuis son plus bas de 3 mois ;
+- **en tendance, pas à son sommet** : au-dessus de sa moyenne 200
+  séances, elle-même plus haute qu'il y a un mois, et entre Z1 et Z2 %
+  sous son plus haut d'un an ;
+- **à son plus haut** : à moins de **2** % de son plus haut d'un an.
+
+Par défaut X = **25**, Y = **10**, Z1 = **5**, Z2 = **15** — vous les
+changez. Le plus haut d'un an se lit sur **252** séances, le plus bas de
+3 mois sur **63**, la pente de la moyenne sur **21**. « Rebond
+confirmé » ne se sait qu'après coup ; « remonté de 10 % depuis son plus
+bas » se lit le jour même. Un jour n'est jugé que sur les clôtures
+jusqu'à lui : `test_moteur` coupe la série et vérifie que rien ne
+change.
+
+Pour chaque titre gardé, une colonne de plus : ce que votre durée a
+donné **quand le titre était dans cette situation** — périodes qui
+commencent dans la situation, sans chevauchement — à côté de ce que
+donne une période quelconque sur le même titre. Quand l'intervalle de
+Wilson contient ce taux de base : « comme une période quelconque ».
+Au-dessus du tableau, le compte des écarts nets **et** le nombre
+qu'on en attend par le seul hasard (5 % des titres mesurés). Vos
+lignes détenues restent toujours, avec « pas dans la situation
+aujourd'hui » quand c'est le cas.
+
+**2. Le marché, en faits.** « Sommes-nous en crise ? » n'a pas de
+définition mesurable unique. La page RECHERCHE et le majordome donnent,
+pour le S&P 500 et le STOXX 600 : l'écart à la moyenne 200 séances, le
+recul sous le plus haut d'un an, la volatilité de 20 séances rangée dans
+son propre historique — et la seule règle écrite d'avance : **votre
+spécification n'autorise aucune entrée quand l'indice est sous sa
+moyenne 200 séances.** Aucun titre n'est « à prendre en temps de
+crise » : il faudrait une hypothèse, écrite et testée avant.
+
+Au majordome : « je mets 3000 € pour gagner 100 € sur une action en
+crise avec rebond » ouvre RECHERCHE avec la situation *rebond amorcé* ;
+« haussière mais pas à son pic » donne *en tendance, pas à son sommet* ;
+« est-ce qu'on est en temps de crise ? » rend les faits des deux
+indices.
+
+---
+
 ## 6. Ce que le programme refuse d'afficher
 
 Rappel, parce que c'est la colonne vertébrale du projet :

@@ -292,7 +292,13 @@ py -m equity_scanner.data --figer sp500        composition datée
 py -m equity_scanner.detention TSLA 2 mois     ce que cette durée a donné
 py -m equity_scanner.faillites                 faillites US (SEC, 18 mois)
 py -m equity_scanner.recherche nasdaq100 800 50 "1 semaine"
+py -m equity_scanner.recherche us_europe 3000 100 "1 mois" rebond
+py -m equity_scanner.rebond TLX.DE 25          après une chute de 25 %
 ```
+
+La situation (5ᵉ argument) : `chute`, `rebond`, `tendance` ou `sommet`
+— des critères lus sur les clôtures, mesurés contre une période
+quelconque du même titre (voir le mémo, section 5 vicies).
 
 `--fils N` règle le nombre de téléchargements simultanés (8 par défaut,
 16 au maximum : au-delà, Yahoo limite le débit).

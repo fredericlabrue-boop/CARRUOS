@@ -2019,6 +2019,14 @@ CSS_RECH = """
  padding:1px 6px;border-radius:5px;border:1px solid var(--acc);
  color:var(--acc);margin-left:6px;white-space:nowrap}
 .rch .pastille.aj{border-color:var(--bord);color:var(--txt-mi)}
+.rch .sit{display:grid;gap:11px;align-items:end;margin:0 0 6px;
+ grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr))}
+.rch .sit>div{min-width:0}
+.rch .sit>[hidden]{display:none}
+.rch .corr.faits b{font:inherit;font-weight:500;color:var(--txt-fort)}
+.rch .corr.faits b.t{font:500 10px ui-monospace,monospace;letter-spacing:.2em;
+ color:var(--txt-faible)}
+.rch .corr.faits i{color:var(--txt-mi)}
 .rch h3.sec{font:500 10px ui-monospace,monospace;letter-spacing:.2em;
  color:var(--txt-faible);margin:16px 0 6px;padding-top:10px;
  border-top:1px solid var(--bord)}
@@ -3743,9 +3751,10 @@ function frac(k, n, w){
 }
 
 function cleTri(t){
- function v(x,k){ return (x.mesure||{})[k]; }
+ function v(x,k){ return ((t==='situation' ? x.mesure_situation : x.mesure)||{})[k]; }
  if(t==='nom') return function(a,b){ return a.ticker<b.ticker?-1:(a.ticker>b.ticker?1:0); };
- var k={gain:'part_gain', perte:'part_perte', dabord:'part_dabord'}[t]||'part_gain';
+ var k={gain:'part_gain', perte:'part_perte', dabord:'part_dabord',
+        situation:'part_gain'}[t]||'part_gain';
  var s=(t==='perte')?1:-1;
  return function(a,b){
   var x=v(a,k), y=v(b,k);
@@ -3756,7 +3765,25 @@ function cleTri(t){
  };
 }
 
-function ligneR(x, repere){
+// Ce que la duree a donne QUAND le titre etait dans la situation choisie,
+// a cote d'une periode quelconque. « Comme une periode quelconque » quand
+// l'intervalle contient celle-ci : la situation n'a rien change.
+function celluleSit(x){
+ var ms=x.mesure_situation, h='';
+ if(x.dans_situation===false)
+  h+='<i>pas dans la situation aujourd’hui</i><br>';
+ if(!ms) return h || '—';
+ if(!ms.periodes) return h + '<i>' + eq(ms.erreur||'jamais dans cette situation') + '</i>';
+ h += frac(ms.gain_touche, ms.periodes, ms.wilson_gain);
+ if(ms.base_pct!=null)
+  h += '<br><i>période quelconque : ' + pq(ms.base_pct) + ' % — '
+    + (ms.ecart_net ? '<b>écart net</b>' : 'comme une période quelconque') + '</i>';
+ else if(!ms.wilson_gain)
+  h += '<br><i>trop peu de périodes pour une proportion</i>';
+ return h;
+}
+
+function ligneR(x, repere, avecSit){
  var m=x.mesure||{}, per=m.periodes;
  var tk = repere ? '<b>' + eq(x.nom) + '</b> <i>' + eq(x.ticker) + '</i>'
   : '<span class="tk" data-tk="' + eq(x.ticker) + '">' + eq(x.ticker) + '</span>'
@@ -3786,7 +3813,39 @@ function ligneR(x, repere){
   + '<td class="g">' + (per ? frac(m.gain_touche, per, m.wilson_gain) : '—') + '</td>'
   + '<td class="p">' + (per ? frac(m.perte_touchee, per, m.wilson_perte) : '—') + '</td>'
   + '<td>' + dab + '</td>'
-  + '<td>' + (per ? m.fini_au_gain + ' / ' + per : '—') + '</td></tr>';
+  + '<td>' + (per ? m.fini_au_gain + ' / ' + per : '—') + '</td>'
+  + (avecSit ? '<td class="g">' + (repere ? '' : celluleSit(x)) + '</td>' : '')
+  + '</tr>';
+}
+
+// Le marche : des faits, et la regle de la specification. Jamais « crise »
+// ni « tout va bien » : ces mots n'ont pas de definition mesurable.
+function blocMarche(j){
+ var L=j.marche||[]; if(!L.length) return '';
+ return '<div class="corr faits"><b class="t">LE MARCHÉ AUJOURD’HUI</b>'
+  + L.map(function(m){
+   return '<br><b>' + eq(m.nom) + '</b> : ' + (m.ecart_mm200>0?'+':'') + pq(m.ecart_mm200)
+    + ' % par rapport à sa moyenne 200 séances — votre spécification '
+    + (m.au_dessus ? 'autorise les entrées' : 'n’autorise <b>aucune</b> entrée')
+    + ' ; ' + pq(m.recul_haut_1an) + ' % sous son plus haut d’un an ; volatilité '
+    + '20 séances ' + pq(m.volatilite_20j) + ' %, plus haute que '
+    + pq(m.rang_volatilite,0) + ' % des séances depuis ' + eq(m.depuis) + '.';
+  }).join('') + '<br><i>' + eq(j.rappel_marche||'') + '</i></div>';
+}
+
+function blocSituation(j){
+ var s=j.situation||{}; if(!s.cle || s.cle==='toutes') return '';
+ // Seuls les seuils que CETTE situation lit : afficher les autres ferait
+ // croire qu'ils ont compte.
+ var lus=(PARAMS_SIT[s.cle]||[]).map(function(k){
+  return k.toUpperCase() + ' ' + pq(s.seuils[k], 1).replace(/,0$/, '') + ' %'; });
+ return '<div class="corr faits"><b class="t">VOS CRITÈRES</b><br>' + eq(s.libelle)
+  + (lus.length ? ' <i>(' + lus.join(', ') + ')</i>' : '') + '<br>'
+  + '<b>' + s.dans + '</b> titre(s) y sont aujourd’hui, <b>' + s.hors
+  + '</b> n’y sont pas et sortent du tableau. '
+  + (s.mesures ? 'Écarts nets par rapport à une période quelconque : <b>'
+     + s.ecarts_nets + '</b> sur ' + s.mesures + ' titres mesurés — environ '
+     + pq(s.attendus,1) + ' attendus par le seul hasard.' : '') + '</div>';
 }
 
 function rendR(){
@@ -3794,7 +3853,9 @@ function rendR(){
  if(!j.ok){ $q('qres').innerHTML='<p class="rap fort">' + eq(j.erreur) + '</p>'; return; }
  var k=j.compte;
  var c=function(n, lib){ return '<div><b>' + n + '</b>' + lib + '</div>'; };
- var h='<div class="cpt">' + c(k.univers, 'titres dans l’univers')
+ var avecSit=!!(j.situation && j.situation.cle && j.situation.cle!=='toutes');
+ var h=blocMarche(j) + blocSituation(j)
+  + '<div class="cpt">' + c(k.univers, 'titres dans l’univers')
   + c(k.mesures, 'mesurés') + c(k.trop_peu, 'moins de ' + j.mini + ' périodes : aucune proportion')
   + c(k.non_achetables, 'plus chers que la somme') + c(k.sans_change, 'sans taux de change')
   + c(k.frais_trop_lourds, 'frais plus lourds que le gain')
@@ -3815,9 +3876,11 @@ function rendR(){
   return '<div class="enveloppe"><table class="tab"><thead><tr><th>TITRE</th><th>COURS</th>'
   + '<th>ACHAT</th><th>IL FAUT (NET DE FRAIS)</th><th>+' + pq(j.gain,0) + ' € TOUCHÉ</th>'
   + '<th>−' + pq(j.gain,0) + ' € TOUCHÉ</th><th>D’ABORD : GAIN / PERTE / AUCUN</th>'
-  + '<th>FINI À +' + pq(j.gain,0) + ' €</th></tr></thead><tbody>'
-  + (reperes ? (j.reperes||[]).map(function(x){ return ligneR(x, true); }).join('') : '')
-  + lig.map(function(x){ return ligneR(x, false); }).join('') + '</tbody></table></div>';
+  + '<th>FINI À +' + pq(j.gain,0) + ' €</th>'
+  + (avecSit ? '<th>+' + pq(j.gain,0) + ' € DANS CETTE SITUATION, PAR LE PASSÉ</th>' : '')
+  + '</tr></thead><tbody>'
+  + (reperes ? (j.reperes||[]).map(function(x){ return ligneR(x, true, avecSit); }).join('') : '')
+  + lig.map(function(x){ return ligneR(x, false, avecSit); }).join('') + '</tbody></table></div>';
  }
  // Vos titres d'abord, dans leur propre tableau : ils se perdraient dans
  // six cents lignes. Le meme tri, les memes colonnes, rien de plus.
@@ -3861,7 +3924,9 @@ async function suitR(){
 async function lanceR(){
  var corps={univers:$q('quni').value, capital:$q('qcap').value, gain:$q('qgain').value,
   nombre:$q('qnb').value, unite:$q('qun').value, frais:$q('qfrais').value,
-  tri:$q('qtri').value, titres:$q('qtit').value, mes_lignes:$q('qmes').checked};
+  tri:$q('qtri').value, titres:$q('qtit').value, mes_lignes:$q('qmes').checked,
+  situation:$q('qsit').value, x:$q('qx').value, y:$q('qy').value,
+  z1:$q('qz1').value, z2:$q('qz2').value};
  retiens();
  $q('qres').innerHTML='';
  try{
@@ -3891,7 +3956,20 @@ document.addEventListener('click', function(ev){
 // Les reglages de la derniere recherche reviennent a l'ouverture : une
 // commodite de CE poste, rien de plus. Une adresse qui porte ses propres
 // reglages (le majordome l'ecrit) passe devant.
-var CHAMPS_R=['qcap','qgain','qnb','qun','qfrais','quni','qtit','qtri'];
+var CHAMPS_R=['qcap','qgain','qnb','qun','qfrais','quni','qtit','qtri',
+ 'qsit','qx','qy','qz1','qz2'];
+// Les seuils qui comptent pour la situation choisie ; les autres se cachent.
+var PARAMS_SIT={toutes:[], chute:['x'], rebond:['x','y'], tendance:['z1','z2'],
+ sommet:[]};
+function majSit(){
+ var s=$q('qsit').value, p=PARAMS_SIT[s]||[];
+ document.querySelectorAll('.rch .sit [data-p]').forEach(function(d){
+  d.hidden = p.indexOf(d.getAttribute('data-p'))<0; });
+ var o=$q('qsit').selectedOptions[0];
+ $q('qsitx').textContent = (s==='toutes') ? ''
+  : 'Situation : ' + (o ? o.getAttribute('data-desc') : '') + '. Une description '
+    + 'lue sur les clôtures, pas une prévision.';
+}
 function retiens(){
  try{
   var o={}; CHAMPS_R.forEach(function(i){ o[i]=$q(i).value; });
@@ -3908,8 +3986,12 @@ function reprends(){
  try{
   var a=new URLSearchParams(location.search);
   [['capital','qcap'],['gain','qgain'],['nombre','qnb'],['unite','qun'],
-   ['titres','qtit'],['univers','quni']].forEach(function(c){
-   var v=a.get(c[0]); if(v) $q(c[1]).value=v; });
+   ['titres','qtit'],['univers','quni'],['situation','qsit'],['x','qx'],
+   ['y','qy'],['z1','qz1'],['z2','qz2']].forEach(function(c){
+   var v=a.get(c[0]); if(!v) return;
+   var e=$q(c[1]), avant=e.value; e.value=v;
+   // Une valeur que la liste n'a pas laisserait le choix VIDE.
+   if(e.tagName==='SELECT' && e.selectedIndex<0) e.value=avant; });
   return a.get('lance')==='1';
  }catch(e){ return false; }
 }
@@ -3928,7 +4010,9 @@ async function lignesR(){
 ['qcap','qgain'].forEach(function(i){ $q(i).addEventListener('input', calcule); });
 $q('qtri').addEventListener('change', rendR);
 $q('qlance').addEventListener('click', lanceR);
+$q('qsit').addEventListener('change', majSit);
 var LANCE_R=reprends();
+majSit();
 calcule();
 lignesR();
 if(LANCE_R) lanceR(); else suitR();
@@ -5354,6 +5438,11 @@ def _dossier(q: dict) -> dict:
     except Exception as exc:
         traceback.print_exc()
         return {"ok": False, "erreur": f"{type(exc).__name__}: {exc}"}
+    if not tk and inten == "marche":
+        # « Est-ce qu'on est en temps de crise ? » : les faits des indices.
+        rep = ds.reponse_marche()
+        rep["voix"] = ds.phrase(rep)
+        return rep
     if not tk and ds.general(inten):
         rep = ds.general(inten)
         rep["voix"] = ds.phrase(rep)
@@ -5539,6 +5628,19 @@ def _page_recherche() -> str:
     vite += ('<button type="button" class="non" data-duree="1 heures" '
              'title="Pas de données intraday : la page dit pourquoi">'
              '1 heure</button>')
+    libs = {"toutes": "Toutes", "chute": "En chute",
+            "rebond": "En chute, rebond amorcé",
+            "tendance": "En tendance, pas à son sommet",
+            "sommet": "À son plus haut"}
+    sits = "".join(f'<option value="{k}" data-desc="{html.escape(v)}">'
+                   f"{html.escape(libs.get(k, k))}</option>"
+                   for k, v in rc.SITUATIONS.items())
+    d = rc.SITUATION_DEFAUT
+
+    def champ(cle, lib):
+        return (f'<div data-p="{cle}"><label>{lib}</label>'
+                f'<input id="q{cle}" value="{d[cle]:g}" inputmode="decimal">'
+                "</div>")
     return (
         '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -5560,7 +5662,11 @@ def _page_recherche() -> str:
           'de cette durée ont donné ce gain — et combien ont coûté la '
           'même somme. Vos propres titres s’ajoutent : ceux que vous '
           'tapez, et vos lignes détenues, mesurées sur leur vraie '
-          'quantité. Ce qui a eu lieu, pas ce qui va avoir lieu.</p>'
+          'quantité. Une <b>situation</b> — en chute, rebond amorcé, '
+          'en tendance pas à son sommet — ne garde que les titres qui y '
+          'sont aujourd’hui, et dit ce que cette situation a donné sur '
+          'chacun par le passé. Ce qui a eu lieu, pas ce qui va avoir '
+          'lieu.</p>'
           '<div class="par">'
           '<div><label>SOMME (€)</label><input id="qcap" value="800" '
           'inputmode="decimal"></div>'
@@ -5585,6 +5691,15 @@ def _page_recherche() -> str:
           'ajouter mes lignes détenues (registre et IBKR)</label>'
           '</div>'
           '<p class="calc" id="qdet"></p>'
+          '<div class="sit">'
+          '<div><label for="qsit">SITUATION DU TITRE AUJOURD’HUI</label>'
+          f'<select id="qsit">{sits}</select></div>'
+          + champ("x", "X — % SOUS LE PLUS HAUT D’UN AN")
+          + champ("y", "Y — % AU-DESSUS DU PLUS BAS DE 3 MOIS")
+          + champ("z1", "Z1 — % SOUS LE PLUS HAUT, AU MOINS")
+          + champ("z2", "Z2 — % SOUS LE PLUS HAUT, AU PLUS")
+          + '</div>'
+          '<p class="calc" id="qsitx"></p>'
           f'<div class="vite">{vite}</div>'
           '<p class="calc" id="qcalc"></p>'
           '<div class="tri"><label for="qtri">TRI</label>'
@@ -5651,7 +5766,10 @@ def _recherche_lance(corps: dict) -> dict:
                            corps.get("unite"), corps.get("frais") or 0,
                            corps.get("tri") or rc.TRI_DEFAUT, journal=note,
                            ajouts=corps.get("titres") or "",
-                           detenus=detenus)
+                           detenus=detenus,
+                           situation=corps.get("situation") or "toutes",
+                           reglages={k: corps.get(k)
+                                     for k in ("x", "y", "z1", "z2")})
         except Exception as exc:
             traceback.print_exc()
             r = {"ok": False, "erreur": f"{type(exc).__name__}: {exc}"}

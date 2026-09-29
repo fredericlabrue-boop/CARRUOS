@@ -2384,6 +2384,7 @@ def test_dossier() -> None:
         for cle in ds.SECTIONS:
             rep = ds.repond({"detention": "je garde 2 mois ?",
                              "rebond": "il a baissé de 25 %, rebond ?",
+                             "marche": "sommes-nous en crise ?",
                              "actualite": "un nouveau modèle ?",
                              "sortie": "je sors quand", "entree": "je rentre",
                              "risque": "combien je perds",
@@ -2453,6 +2454,7 @@ def test_dossier() -> None:
             ds.repond("que penses-tu", vide)
             ds.repond({"detention": "je garde 2 mois ?",
                        "rebond": "il a baissé de 25 %, rebond ?",
+                             "marche": "sommes-nous en crise ?",
                        "actualite": "un nouveau modèle ?",
                        "sortie": "je sors quand", "entree": "je rentre",
                        "risque": "combien je perds", "bougies": "une figure ?",
@@ -2508,6 +2510,7 @@ def test_brain2() -> None:
         "pas de gain espere": "Un gain espéré en euros",
         "pas de meilleur horizon": "Un « meilleur horizon »",
         "sources web": "attribue chaque chiffre trouvé à sa source",
+        "pas de crise tranchee": "« Crise » n'a pas de définition",
     }
     manque = [k for k, v in lignes_rouges.items() if v not in cv.CONSIGNE]
     ok("la consigne du modele garde les lignes rouges du projet",
@@ -3627,6 +3630,17 @@ def test_memo() -> None:
          "**{}, {}, {} et {}**".format(*(l for l, _h in _rb_.HORIZONS))),
         ("episodes minimum", f"sous **{_rb_.MINI_EPISODES}** épisodes"),
         ("seuil par defaut", f"sinon\n  **{_rb_.SEUIL_DEFAUT}** %"),
+        # --- recherche.py : la situation
+        ("seuils de situation par defaut",
+         "Par défaut X = **{:g}**, Y = **{:g}**, Z1 = **{:g}**, Z2 = "
+         "**{:g}**".format(*(_rc_.SITUATION_DEFAUT[k]
+                             for k in ("x", "y", "z1", "z2")))),
+        ("fenetres de situation",
+         f"sur **{_rc_.FENETRE_HAUT}** séances, le plus bas de\n3 mois sur "
+         f"**{_rc_.FENETRE_BAS}**, la pente de la moyenne sur "
+         f"**{_rc_.PENTE}**"),
+        ("pres du sommet",
+         f"à moins de **{_rc_.PRES_DU_SOMMET:g}** % de son plus haut"),
     ]
     absents = [(nom, val) for nom, val in ATTENDU if val not in m]
     ok(f"les {len(ATTENDU)} seuils cites dans le memo sont ceux qui "
@@ -4015,7 +4029,79 @@ def test_recherche() -> None:
        not (cles(r) & {"score", "potentiel", "rang", "banger", "avis",
                        "conseil", "prevision", "note"}))
     ok("chaque tri porte sur un seul fait",
-       set(rc.TRIS) == {"gain", "perte", "dabord", "nom"})
+       set(rc.TRIS) == {"gain", "perte", "dabord", "situation", "nom"})
+
+    # LES SITUATIONS : des criteres du proprietaire, lus sans regarder la
+    # suite, et ce qu'ils ont ete suivis de contre une periode quelconque.
+    ok("une situation inconnue retombe sur « toutes » ; Z1 et Z2 se "
+       "remettent dans l'ordre ; « 12,5 » se lit",
+       rc.lit_situation("n'importe")[0] == "toutes"
+       and rc.lit_situation("tendance", {"z1": "20", "z2": "5"})[1]["z1"] == 5
+       and rc.lit_situation("chute", {"x": "12,5"})[1]["x"] == 12.5)
+    ixs = pd.bdate_range("2020-01-01", periods=600)
+    chute = pd.Series(np.concatenate([np.linspace(50, 100, 400),
+                                      np.linspace(100, 70, 150),
+                                      np.linspace(70, 72, 50)]), index=ixs)
+    ok("30 % sous le plus haut d'un an : « en chute » à X = 25, pas à X = 35",
+       rc.masque_situation(chute, "chute", {"x": 25})[-1]
+       and not rc.masque_situation(chute, "chute", {"x": 35})[-1])
+    rb_ = pd.Series(np.concatenate([np.linspace(50, 100, 400),
+                                    np.linspace(100, 60, 140),
+                                    np.linspace(60, 70, 60)]), index=ixs)
+    ok("remonté de 16 % depuis le plus bas de 3 mois : « rebond amorcé » "
+       "à Y = 10, pas à Y = 20",
+       rc.masque_situation(rb_, "rebond", {"x": 25, "y": 10})[-1]
+       and not rc.masque_situation(rb_, "rebond", {"x": 25, "y": 20})[-1])
+    ok("une hausse régulière au plus haut : « à son plus haut », pas "
+       "« en tendance, pas à son sommet »",
+       rc.masque_situation(monte, "sommet", {})[-1]
+       and not rc.masque_situation(monte, "tendance",
+                                   rc.SITUATION_DEFAUT)[-1])
+    ga = np.random.default_rng(9)
+    ale = pd.Series(100 * np.exp(np.cumsum(ga.normal(0, .02, 900))),
+                    index=pd.bdate_range("2019-01-01", periods=900))
+    sans_futur = all(
+        rc.masque_situation(ale.iloc[:t], cle, rc.SITUATION_DEFAUT)[-1]
+        == rc.masque_situation(ale, cle, rc.SITUATION_DEFAUT)[t - 1]
+        for cle in ("chute", "rebond", "tendance", "sommet")
+        for t in (300, 450, 612, 777, 899))
+    ok("la situation d'un jour ne lit AUCUNE clôture postérieure",
+       sans_futur)
+    bs = rc._bornes_si(np.array([True] * 30), 5)
+    ok("les périodes d'une situation ne se chevauchent pas",
+       all(b[0] >= a[1] for a, b in zip(bs, bs[1:])) and len(bs) == 5)
+
+    rc._liste = lambda u: sorted(k for k in lot if k not in ("SPY",))
+    try:
+        rs = rc.cherche("us", 800, 50, 1, "semaine", charge_lot=charge_lot,
+                        charge=charge, situation="chute", reglages={"x": 10},
+                        ajouts="T00")
+    finally:
+        rc._liste = ancien
+    sit = rs["situation"]
+    ok("seuls les titres dans la situation AUJOURD'HUI restent, les autres "
+       "sont comptés", sit["cle"] == "chute" and sit["hors"] > 0
+       and all(x.get("dans_situation") or x["origine"] != "univers"
+               for x in rs["lignes"]))
+    ok("vos titres restent, avec leur état", any(
+        x["ticker"] == "T00" and "dans_situation" in x
+        for x in rs["lignes"]))
+    msit = [x["mesure_situation"] for x in rs["lignes"]
+            if x.get("mesure_situation")]
+    ok("chaque titre mesuré porte « dans cette situation » contre une "
+       "période quelconque", msit and all(
+           ("base_pct" in m and "ecart_net" in m) or not m.get("wilson_gain")
+           for m in msit))
+    ok("le compte des écarts nets et de ceux attendus par hasard",
+       sit["attendus"] == round(sit["mesures"] * 0.05, 1))
+    ok("le rappel de la situation accompagne le résultat",
+       rc.RAPPEL_SITUATION in rs["rappels"])
+    mk = rs["marche"]
+    ok("le marché : des faits, et la règle de la spécification",
+       mk and mk[0]["nom"] == "S&P 500"
+       and mk[0]["au_dessus"] == (mk[0]["ecart_mm200"] > 0)
+       and 0 <= mk[0]["rang_volatilite"] <= 100
+       and "aucune entrée" in rs["rappel_marche"])
 
     # Vos titres : tapes, et detenus.
     ok("une saisie libre se nettoie : capitales, sans doublon",
@@ -4147,6 +4233,7 @@ def test_rebond() -> None:
     from . import cerveau as cv
     from . import dossier as ds
     from . import rebond as rb
+    from . import recherche as _rc_rb
 
     # 100 -> 70 (-30 %), s'enfonce a 60, remonte a 110 (nouveau sommet),
     # retombe a 80 (-27 %), remonte a 120.
@@ -4229,6 +4316,55 @@ def test_rebond() -> None:
     ok("les articles : titre, source, date — sans le ton du fournisseur",
        arts[0].startswith("· Tesla unveils Model Q — Reuters")
        and not any("positif" in x or "négatif" in x for x in arts))
+
+    # « Est-ce qu'on est en temps de crise ? » : les faits des indices et
+    # la regle de regime, jamais « crise » ni un titre « a prendre ».
+    ok("« en temps de crise », « tout va bien », « le marché » : l'état "
+       "du marché",
+       all(ds.intention(q) == "marche" for q in (
+           "Est-ce qu'on est en temps de crise ?",
+           "Quelle action il faudrait prendre en temps de crise ?",
+           "Quand tout va bien, quelle action prendre ?",
+           "le marché va-t-il baisser ?")))
+    ok("« TLX est en crise, rebond ? » reste une question sur le titre",
+       ds.intention("TLX est en crise, il va rebondir ?") == "rebond"
+       and ds.intention("est-ce que le cerveau marche ?") != "marche")
+    ok("« quelle action prendre en temps de crise » ne nomme aucun titre",
+       ds.comprend("Quelle action il faudrait prendre en temps de crise ?",
+                   lambda t: True, None)[1] is None)
+    _mont = serie(n=900, seed=3, derive=0.003, vol=0.008)
+    _desc = serie(n=900, seed=4, derive=-0.003, vol=0.008)
+    rm = ds.reponse_marche(charge=lambda t: _mont if t == "SPY" else _desc)
+    txt_m = " ".join(rm["lignes"])
+    ok("les deux indices, chacun avec la règle de la spécification",
+       len(rm["indices"]) == 2 and "autorise les entrées" in txt_m
+       and "n'autorise AUCUNE entrée" in txt_m)
+    ok("le rappel : « crise » n'a pas de définition mesurable, et la "
+       "situation se cherche dans RECHERCHE",
+       _rc_rb.RAPPEL_MARCHE in rm["lignes"]
+       and ds.RAPPEL_SITUATION in rm["lignes"])
+    ok("aucune phrase ne tranche : ni « c'est la crise », ni « tout va "
+       "bien », ni un titre à prendre",
+       not _re_rb.search(r"c.est la crise|nous sommes en crise|tout va bien"
+                         r"|achetez|prenez|potentiel", txt_m, _re_rb.I))
+    rv = ds.reponse_marche(charge=lambda t: None)
+    ok("sans indices chargés, la réponse le dit et ne sort aucun chiffre "
+       "hors des rappels",
+       rv["indices"] == [] and "pas pu être chargés" in rv["lignes"][0]
+       and not _re_rb.search(r"\d", rv["lignes"][0]))
+    from . import data as _dl_m
+    _vrai_m = _dl_m.load_yf
+    _dl_m.load_yf = lambda tk, years=3, **_k: (_mont if tk == "SPY"
+                                               else _desc)
+    try:
+        gm = cv.repond("est-ce qu'on est en temps de crise ?",
+                       existe=lambda t: False, avec_modele=False)
+    finally:
+        _dl_m.load_yf = _vrai_m
+    ok("le majordome sans titre : les faits du marché, pas une réponse "
+       "écrite d'avance",
+       gm["faits"] and gm["faits"]["intention"] == "marche"
+       and len(gm["faits"].get("indices") or []) == 2)
 
 
 def dt_bornes(n, h):

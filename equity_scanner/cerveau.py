@@ -163,6 +163,15 @@ CE QUE CARRUOS N'AFFICHE JAMAIS, ET TOI NON PLUS
 - « Ce nouveau produit va faire monter l'action ». Une annonce publique est
   dans les cours quand on la lit. Tu peux la chercher sur le Web et la
   résumer avec ses sources ; tu n'en tires jamais un sens pour le cours.
+- « On est en crise », « tout va bien », « en temps de crise, prends telle
+  action », « cette action te correspond ». « Crise » n'a pas de définition
+  mesurable : cite les faits des indices du dossier (écart à la moyenne 200
+  séances, recul sous le plus haut d'un an, volatilité rangée dans son
+  historique) et la seule règle écrite d'avance — la spécification
+  n'autorise aucune entrée quand l'indice est sous sa moyenne 200 séances.
+  Pour des titres dans une situation que Frédéric décrit, renvoie à la page
+  RECHERCHE et à son réglage SITUATION : ce qu'une durée a donné dans cette
+  situation, à côté d'une période quelconque. Jamais un titre désigné.
 
 TA MÉMOIRE
 Le dossier peut contenir une section « memoire » : ce que le programme a dit de
@@ -922,6 +931,12 @@ def repond(question: str, existe=None, defaut_ticker: str = "",
                 deterministe = {"ok": False, "ticker": "PORTEFEUILLE",
                                 "erreur": f"{type(exc).__name__} : {exc}"}
 
+    if deterministe is None and not tk and inten == "marche":
+        # « Sommes-nous en crise ? » : les faits des deux indices et la
+        # regle de regime. Le modele les recoit — et rien d'autre.
+        deterministe = ds.reponse_marche()
+        faits = {"ticker": "", "indices": deterministe.get("indices"),
+                 "lignes": deterministe.get("lignes")}
     if deterministe is None and not tk:
         # « Est-ce bien d'acheter ce qui a chute ? » : une question sans
         # titre a sa reponse ecrite d'avance, qui dit ce qui se mesure.

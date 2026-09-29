@@ -60,6 +60,17 @@ INTENTIONS = [
                   r"annees?)\b.{0,30}\b(?:gard|conserv|deten|ten)\w*"
                   r"|lundi.{0,30}vendredi"
                   r"|(?:une|1) semaine.{0,40}(?:un|1) (?:mois|an)"),
+    # « Est-ce qu'on est en temps de crise ? » : les faits des deux indices
+    # et la regle de regime de la specification — jamais « crise » ni
+    # « tout va bien », qui n'ont pas de definition mesurable. Avant
+    # « rebond » : « le marche a chute » parle du marche, pas d'un titre.
+    # « TLX est en crise » ne tombe pas ici : il faut des mots de MARCHE.
+    ("marche", r"\b(?:temps|periodes?|moments?) de crise"
+               r"|\b(?:on est|on serait|sommes.nous|c.est la|est.ce la)"
+               r" (?:en )?crise\b|\bkrach\w*|\brecession\w*"
+               r"|\btout va bien\b|\b(?:le|les|du|des) marches?\b"
+               r"|\bmarches? (?:baissier|haussier)\w*"
+               r"|\b(?:bear|bull) market"),
     # « Il a baisse de 25 %, rebond ? » : ce que les chutes passees de CE
     # titre ont ete suivies de. Avant « acheter » et « sortir », que la
     # question contient souvent aussi.
@@ -131,6 +142,9 @@ MOTS_VIDES = {
     "potentiel", "potentiels", "nouveau", "nouvelle", "modele", "modeles",
     "voiture", "produit", "parce", "ils", "elles", "vont", "leur", "leurs",
     "qu", "estce", "ont", "avoir", "etre", "deja", "encore", "aussi",
+    # « Quelle action prendre en temps de crise ? » ne nomme aucun titre.
+    "crise", "crises", "temps", "periode", "moment", "marche", "marches",
+    "prendre", "faudrait", "quand", "va", "vont", "indice", "indices",
 }
 
 RAPPEL = (
@@ -687,6 +701,72 @@ def _rebond(d: dict) -> list[str]:
     return rb.lignes(d.get("chute"), d.get("rebond"))
 
 
+# « Sommes-nous en crise ? » : les faits des deux indices, et la regle de
+# regime de la specification. Le mot « crise » n'y est jamais un etat :
+# il n'a pas de definition mesurable, et « quelle action en temps de
+# crise » demanderait une hypothese testee.
+INDICES_MARCHE = (("SPY", "S&P 500"), ("^STOXX", "STOXX 600"))
+RAPPEL_SITUATION = (
+    "Pour chercher des titres dans une situation que vous décrivez — en "
+    "chute, en rebond, en tendance sans être au sommet — la page "
+    "RECHERCHE a un réglage SITUATION : elle mesure ce que votre durée a "
+    "donné quand le titre était dans cette situation, à côté d'une "
+    "période quelconque.")
+
+
+def mesure_marche(d: dict, charge=None) -> None:
+    """Les faits des deux indices, poses DANS le dossier sous `indices`
+    (`marche` y dit deja la place du titre)."""
+    from . import recherche as rc
+    if charge is None:
+        from . import cache as ch
+
+        def charge(t):
+            return ch.charge(t, annees=10)
+    out = []
+    for tk, nom in INDICES_MARCHE:
+        try:
+            m = rc.marche(charge(tk), nom)
+        except Exception:
+            m = None
+        if m:
+            out.append(m)
+    d["indices"] = out
+
+
+def _marche(d: dict) -> list[str]:
+    """Des faits sur les indices, et la regle ecrite d'avance. Jamais
+    « c'est la crise » ni « tout va bien »."""
+    from . import recherche as rc
+    out = []
+    for m in d.get("indices") or []:
+        regle = ("votre spécification autorise les entrées"
+                 if m.get("au_dessus")
+                 else "votre spécification n'autorise AUCUNE entrée")
+        signe = "+" if (m.get("ecart_mm200") or 0) > 0 else ""
+        out.append(f"{m.get('nom')} au {m.get('date')} : {signe}"
+                   f"{_n(m.get('ecart_mm200'), 1)} % par rapport à sa "
+                   f"moyenne 200 séances — {regle}.")
+        out.append(f"  {_n(m.get('recul_haut_1an'), 1)} % sous son plus "
+                   f"haut d'un an ; volatilité 20 séances "
+                   f"{_n(m.get('volatilite_20j'), 1)} %, plus haute que "
+                   f"{_n(m.get('rang_volatilite'), 0)} % des séances depuis "
+                   f"{m.get('depuis')}.")
+    if not out:
+        out = ["Les indices n'ont pas pu être chargés : aucun fait à "
+               "donner sur le marché aujourd'hui."]
+    return out + ["", rc.RAPPEL_MARCHE, RAPPEL_SITUATION]
+
+
+def reponse_marche(charge=None) -> dict:
+    """« Est-ce qu'on est en temps de crise ? », posee sans titre."""
+    d = {}
+    mesure_marche(d, charge)
+    return {"ok": True, "ticker": "", "intention": "marche",
+            "titre": "LE MARCHÉ AUJOURD'HUI", "lignes": _marche(d),
+            "indices": d["indices"], "rappel": RAPPEL}
+
+
 # L'actualite : des TITRES d'articles, avec leur source et leur date. Le
 # ton du fournisseur n'entre pas ici — rien ne s'en sert, et le dossier du
 # majordome moins que tout autre chose.
@@ -751,6 +831,7 @@ def general(intention_cle: str) -> dict | None:
 
 
 SECTIONS = {
+    "marche": ("LE MARCHÉ AUJOURD'HUI", _marche),
     "rebond": ("APRÈS UNE CHUTE : CE QUI A SUIVI, SUR CE TITRE", _rebond),
     "actualite": ("L'ACTUALITÉ DU TITRE", _actualite),
     "detention": ("CE QUE CETTE DURÉE A DONNÉ SUR CE TITRE", _detention),
@@ -779,6 +860,8 @@ def repond(question: str, d: dict, av_key: str | None = None) -> dict:
         mesure_demandee(question, d)
     elif cle == "rebond":
         mesure_chute(question, d)
+    elif cle == "marche" and "indices" not in d:
+        mesure_marche(d)
     elif cle == "actualite":
         actualite(d, av_key)
     titre, fabrique = SECTIONS.get(cle, SECTIONS["avis"])
