@@ -4367,6 +4367,360 @@ def test_rebond() -> None:
        and len(gm["faits"].get("indices") or []) == 2)
 
 
+# ---------------------------------------------------------------------
+# Les deux defauts de donnees du passage H2 du 29/09/2026, et le garde-fou
+# ---------------------------------------------------------------------
+# Le code de pead.py tel qu'il a tourne pour ce passage, cite au registre
+# sous « Code du moteur ». Il est archive a l'octet pres avant toute
+# retouche du moteur : un passage inscrit doit pouvoir se rejouer.
+MOTEUR_H2_REGISTRE = ("4f038443979fcf6fef8dfe70b24d626668d70aa5c50515488d2eb1f"
+                      "989afc361")
+
+
+def _essaie(nom: str, fn) -> None:
+    """Un test qui leve n'est pas un test qui passe : l'exception devient
+    un ECHEC nomme, et les suivants tournent quand meme."""
+    try:
+        fn()
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
+        ok(f"{nom} (a leve {type(exc).__name__}: {exc})", False)
+
+
+def _pages_wiki(n_sp=503, n_nq=101, communs=85, liste_ok=True,
+                table_nq=None):
+    """Les pages Wikipedia, synthetiques, rangees par adresse.
+
+    La page « Nasdaq-100 » est celle d'aujourd'hui : plus aucune table de
+    composants (elle est partie sur « List of NASDAQ-100 companies »).
+    C'est ce qui rendait « Nasdaq 100 indisponible (ValueError) ».
+    """
+    sp = [f"S{i:03d}" for i in range(n_sp)]
+    nq = sp[:communs] + [f"N{i:03d}" for i in range(n_nq - communs)]
+    if table_nq is not None:
+        nq = nq[:table_nq]
+
+    def table(col, v):
+        lignes = "".join(f"<tr><td>{x}</td><td>Societe {x}</td></tr>"
+                         for x in v)
+        return (f"<table><tr><th>{col}</th><th>Company</th></tr>"
+                f"{lignes}</table>")
+
+    pages = {
+        "List_of_S%26P_500_companies": table("Symbol", sp),
+        # la page d'aujourd'hui : des tables, aucune de composants
+        "/Nasdaq-100": ("<table><tr><th>Year</th><th>Closing level</th></tr>"
+                        "<tr><td>2025</td><td>21000</td></tr></table>"),
+    }
+    if liste_ok:
+        pages["List_of_NASDAQ-100_companies"] = table("Ticker", nq)
+
+    def html(url, timeout=25):
+        for cle, contenu in pages.items():
+            if url.endswith(cle):
+                return contenu
+        raise OSError(f"page injoignable : {url}")
+    return html, sp, nq
+
+
+def test_univers_composantes() -> None:
+    import shutil
+    from . import data as dl
+    from . import pead
+
+    print("\n— Univers « us » : chaque composante chargee, ou l'arret —")
+    sauve = dl._html
+    try:
+        derniers = Path(".bruce_cache") / "univers"
+        shutil.rmtree(derniers, ignore_errors=True)
+
+        # 1. la page telle qu'elle est aujourd'hui
+        dl._html, sp, nq = _pages_wiki()
+        tk = []
+        _essaie("l'univers us se charge",
+                lambda: tk.extend(dl.UNIVERS["us"][1]()))
+        ok("univers us : le Nasdaq 100 est charge depuis sa liste (la page "
+           "« Nasdaq-100 » n'a plus de table)", set(nq) <= set(tk))
+        ok("univers us : S&P 500 + Nasdaq 100 dedoublonnes (503 + 101 - 85)",
+           len(tk) == 503 + 101 - 85)
+
+        detail = {}
+
+        def _detail():
+            t, comps = dl.univers_detaille("us", journal=lambda *_: None)
+            detail.update({c["cle"]: c for c in comps}, _tous=t)
+        _essaie("le detail par composante se lit", _detail)
+        ok("le detail donne le nombre REEL de titres par composante",
+           detail.get("sp500", {}).get("tickers") is not None
+           and len(detail["sp500"]["tickers"]) == 503
+           and len(detail["nasdaq100"]["tickers"]) == 101
+           and detail["nasdaq100"].get("source") == "direct")
+
+        # 2. la liste Nasdaq tombe : repli sur la derniere chargee, datee
+        dl._html, _, _ = _pages_wiki(liste_ok=False)
+
+        def _repli():
+            t, comps = dl.univers_detaille("us", journal=lambda *_: None)
+            detail.clear()
+            detail.update({c["cle"]: c for c in comps}, _tous=t)
+        _essaie("le repli se lit", _repli)
+        nq_ = detail.get("nasdaq100", {})
+        ok("composante en echec : repli sur la derniere liste chargee, "
+           "avec sa date et son motif",
+           nq_.get("source") == "repli" and len(nq_.get("tickers", [])) == 101
+           and nq_.get("date") == str(__import__("datetime").date.today())
+           and nq_.get("motif"))
+
+        # 3. une table tronquee n'est pas une liste : meme traitement
+        dl._html, _, _ = _pages_wiki(table_nq=40)
+        _essaie("table tronquee", _repli)
+        ok("une table de 40 lignes pour le Nasdaq 100 est refusee, repli "
+           "sur la derniere liste complete",
+           detail.get("nasdaq100", {}).get("source") == "repli"
+           and len(detail["nasdaq100"]["tickers"]) == 101)
+
+        # 4. aucun repli possible : arret, avec un message clair
+        shutil.rmtree(derniers, ignore_errors=True)
+        dl._html, _, _ = _pages_wiki(liste_ok=False)
+        leve = {}
+        try:
+            dl.UNIVERS["us"][1]()
+        except Exception as exc:
+            leve["exc"] = exc
+        exc = leve.get("exc")
+        ok("sans repli possible : ARRET (UniversIndisponible), jamais un "
+           "univers ampute", exc is not None
+           and type(exc).__name__ == "UniversIndisponible")
+        ok("le message d'arret nomme la composante et dit qu'aucune liste "
+           "n'a jamais ete chargee", exc is not None
+           and "Nasdaq 100" in str(exc) and "aucune liste" in str(exc))
+
+        # 5. la preparation de H2/H3 s'arrete elle aussi, sans rien relever
+        sortie = []
+        sauve_col = pead.collecte_annonces
+
+        def _interdit(*a, **k):
+            raise AssertionError("la collecte est partie sur un univers "
+                                 "ampute")
+        pead.collecte_annonces = _interdit
+        try:
+            r = pead.prepare(journal=lambda *a: sortie.append(" ".join(
+                str(x) for x in a)))
+        except Exception as exc2:
+            r = {"exception": exc2}
+        finally:
+            pead.collecte_annonces = sauve_col
+        txt = "\n".join(sortie)
+        ok("la preparation s'ARRETE sans relever une seule date quand une "
+           "composante manque", r == {} and "Nasdaq 100" in txt)
+
+        # 6. figer ne date pas d'aujourd'hui une liste de repli
+        dl._html, _, _ = _pages_wiki()
+        _essaie("chargement avant figer", lambda: dl.univers_detaille(
+            "us", journal=lambda *_: None))            # un repli existe
+        dl._html, _, _ = _pages_wiki(liste_ok=False)
+        refuse = {}
+        try:
+            dl.figer_univers("us")
+        except Exception as exc3:
+            refuse["exc"] = exc3
+        ok("--figer refuse une composante de repli : elle porterait la date "
+           "du jour sans en etre la composition",
+           type(refuse.get("exc")).__name__ == "UniversIndisponible")
+
+        # 7. le rapport : le nombre reel par composante, et le repli date
+        don = _univers_pead(3, n_titres=4, n=400)
+        res = {"debut": pead.IN_DEBUT, "fin": pead.IN_FIN,
+               "info": {"evenements": 0, "candidats": 0, "ouverts": 0,
+                        "conditions": {k: 0 for k in pead.CONDITIONS},
+                        "moments": {k: 0 for k in pead.MOMENTS}},
+               "m": {"n": 0, "wilson": (0.0, 0.0), "duree": 0.0},
+               "z": {"z": None, "motif": "essai"},
+               "criteres": [("profit factor", False, "", ""),
+                            ("espérance après coûts", False, "", ""),
+                            ("z contre les annonces neutres", False, "", "")],
+               "couts": [], "survit": False, "comparatif": None,
+               "verdict": "NO-GO"}
+        sans = "\n".join(pead.rapport(res, don, "ESSAI", []))
+        ok("sans detail des composantes, le rapport n'affirme PAS « S&P 500 "
+           "+ Nasdaq 100 »", "S&P 500 + Nasdaq 100" not in sans)
+        don["instantane"]["composantes"] = [
+            {"cle": "sp500", "nom": "S&P 500", "n": 503, "source": "direct",
+             "date": "2026-09-29", "motif": ""},
+            {"cle": "nasdaq100", "nom": "Nasdaq 100", "n": 101,
+             "source": "repli", "date": "2026-07-01",
+             "motif": "ValueError: colonne Ticker introuvable"}]
+        avec = "\n".join(pead.rapport(res, don, "ESSAI", []))
+        ok("le rapport affiche chaque composante avec son nombre reel",
+           any("S&P 500" in l and "503" in l for l in avec.splitlines())
+           and any("Nasdaq 100" in l and "101" in l
+                   for l in avec.splitlines()))
+        ok("et un repli avec la date de la liste utilisee",
+           any("Nasdaq 100" in l and "2026-07-01" in l and "REPLI" in l
+               for l in avec.splitlines()))
+    finally:
+        dl._html = sauve
+
+
+def _annees_attendues(debut: str, seances: int = 260) -> float:
+    """Profondeur minimale, calculee ici independamment du module."""
+    import datetime as _d
+    depart = (_d.date.fromisoformat(debut)
+              - _d.timedelta(days=seances * 365.25 / 252))
+    return (_d.date.today() - depart).days / 365.25
+
+
+def test_profondeur_cours() -> None:
+    from . import cache as ch
+    from . import pead, short
+
+    print("\n— Profondeur des cours : depuis le debut de la conception —")
+    vues = []
+    s_ch, s_lot, s_da = ch.charge, ch.charge_lot, pead.dates_annonces
+
+    def charge(tk, annees=3, *a, **k):
+        vues.append(("un", tk, annees))
+        return serie(n=600)
+
+    def charge_lot(tks, annees=3, *a, **k):
+        vues.append(("lot", tuple(tks), annees))
+        return {t: serie(n=600, seed=i + 5) for i, t in enumerate(tks)}, []
+    ch.charge, ch.charge_lot = charge, charge_lot
+    pead.dates_annonces = lambda tk, journal=None: []
+    try:
+        inst = {"tickers": ["AAA", "BBB"], "annonces": {"AAA": ["2020-02-03"],
+                                                        "BBB": []},
+                "collecte": "2026-09-29T00:00:00", "sans_dates": ["BBB"]}
+        _essaie("pead.charge_donnees",
+                lambda: pead.charge_donnees(inst, journal=lambda *_: None))
+        mini = _annees_attendues(pead.IN_DEBUT)
+        a_pead = [a for k, t, a in vues]
+        ok(f"H2 : les cours couvrent {pead.IN_DEBUT} moins le prechauffage "
+           f"(au moins {mini:.1f} ans, pas 8)",
+           a_pead and all(a >= mini for a in a_pead))
+        vues.clear()
+        _essaie("short.lance", lambda: short.lance(
+            ["AAA", "BBB"], journal=lambda *_: None))
+        mini_s = _annees_attendues(short.IN_DEBUT)
+        a_short = [a for k, t, a in vues]
+        ok(f"H3 : les cours couvrent {short.IN_DEBUT} moins le prechauffage "
+           f"(au moins {mini_s:.1f} ans, pas 6)",
+           a_short and all(a >= mini_s for a in a_short))
+    finally:
+        ch.charge, ch.charge_lot, pead.dates_annonces = s_ch, s_lot, s_da
+
+    # La periode REELLEMENT couverte : premiere et derniere publication
+    # exploitables. L'univers d'essai commence en 2019 ; la repetition
+    # demande 2010-2021 et doit le dire.
+    don = _univers_pead(5, n_titres=12, n=900)
+    lignes = []
+    _essaie("repetition sur 2010-2021", lambda: lignes.extend(pead.rapport(
+        pead.evalue(don, pead.IN_DEBUT, pead.IN_FIN, lambda *_: None),
+        don, "ESSAI", [])))
+    couverte = [l for l in lignes if "réellement couverte" in l]
+    premieres = sorted(str(ev["date"].date())
+                       for tk, d in don["series"].items()
+                       for ev in pead.evenements(d, don["bench_brut"],
+                                                 don["dates"][tk])
+                       if pead.IN_DEBUT <= str(ev["date"].date())
+                       <= pead.IN_FIN)
+    ok("le rapport affiche la periode REELLEMENT couverte, premiere et "
+       "derniere publication exploitables",
+       couverte and premieres and premieres[0] in couverte[0]
+       and premieres[-1] in couverte[0])
+    ok("et signale les annees demandees sans aucune publication",
+       any("aucune publication exploitable" in l for l in lignes))
+
+
+def test_garde_fou_repetition() -> None:
+    import builtins
+    from . import pead
+    from . import registre as rg
+
+    print("\n— Garde-fou : apres une repetition NO-GO, OUI ne suffit plus —")
+
+    # Le texte de la repetition : indicatif, jamais « l'hypothese est morte »
+    import tempfile as _tf
+    sauve = (pead.collecte_annonces, pead.charge_donnees, pead.DOSSIER)
+    sortie = []
+    don = _univers_pead(3, n_titres=12, n=900)
+    pead.collecte_annonces = lambda *a, **k: don["instantane"]
+    pead.charge_donnees = lambda inst, journal=print: don
+    pead.DOSSIER = Path(_tf.mkdtemp())
+    r = {}
+    try:
+        _essaie("preparation", lambda: r.update(pead.prepare(
+            journal=lambda *a: sortie.append(" ".join(str(x) for x in a)),
+            tickers=list(don["series"]))))
+    finally:
+        pead.collecte_annonces, pead.charge_donnees, pead.DOSSIER = sauve
+    txt = "\n".join(sortie)
+    ok("la repetition NO-GO ne declare plus l'hypothese morte",
+       "NO-GO" in txt and "est morte" not in txt)
+    ok("elle dit que seul le passage unique juge",
+       "seul le passage unique juge" in txt.lower())
+    ok("la preparation rend le verdict de la repetition",
+       (r.get("repetition") or {}).get("verdict") == "NO-GO")
+
+    # Le lancement
+    def lancement(verdict, reponse, argv=("pead",), tty=True):
+        appels = []
+        d = {**don, "repetition": {"verdict": verdict,
+                                   "echecs": ["z contre les annonces neutres",
+                                              "drawdown maximal"]}}
+        s = (sys.argv, pead.prepare, pead.incomplet, pead.valide,
+             rg.deja_regardee, builtins.input, sys.stdin)
+        sys.argv = list(argv)
+        pead.prepare = lambda *a, **k: d
+        pead.incomplet = lambda d_: []
+        pead.valide = lambda *a, **k: appels.append(1) or {}
+        rg.deja_regardee = lambda *a, **k: None
+        builtins.input = lambda *a, **k: reponse
+
+        class _Tty:
+            def isatty(self):
+                return tty
+        sys.stdin = _Tty()
+        vu = []
+        try:
+            import contextlib
+            import io
+            with contextlib.redirect_stdout(io.StringIO()) as f:
+                pead.main()
+            vu.append(f.getvalue())
+        except Exception as exc:
+            vu.append(f"EXCEPTION {exc!r}")
+        finally:
+            (sys.argv, pead.prepare, pead.incomplet, pead.valide,
+             rg.deja_regardee, builtins.input, sys.stdin) = s
+        return bool(appels), vu[0] if vu else ""
+
+    parti, ecran = lancement("NO-GO", "OUI")
+    ok("repetition NO-GO : un simple OUI ne lance PAS le passage unique",
+       not parti)
+    ok("l'ecran dit que la repetition a echoue et ce qu'il faut taper",
+       "répétition" in ecran.lower() and "NO-GO" in ecran
+       and "LANCER QUAND MEME" in ecran)
+    ok("repetition NO-GO : LANCER QUAND MEME le lance",
+       lancement("NO-GO", "LANCER QUAND MEME")[0])
+    ok("repetition NO-GO : --valider sans question ne le lance pas non plus",
+       not lancement("NO-GO", "", argv=("pead", "--valider"))[0])
+    ok("repetition GO : OUI suffit toujours", lancement("GO", "OUI")[0])
+
+
+def test_archive_pead() -> None:
+    import hashlib
+    print("\n— Le moteur du passage H2 est archive a l'octet pres —")
+    f = (Path(__file__).resolve().parent.parent / "archives"
+         / f"pead-{MOTEUR_H2_REGISTRE[:16]}.py")
+    ok("archives/pead-4f038443979fcf6f.py existe",
+       f.exists())
+    ok("son empreinte est celle que le registre cite pour le passage H2",
+       f.exists() and hashlib.sha256(f.read_bytes()).hexdigest()
+       == MOTEUR_H2_REGISTRE)
+
+
 def dt_bornes(n, h):
     from . import detention as _d
     return _d._bornes(n, h)
@@ -4392,6 +4746,10 @@ def main() -> int:
     test_resolve_et_app()
     test_veto_resultats()
     test_univers_figes()
+    test_archive_pead()
+    test_univers_composantes()
+    test_profondeur_cours()
+    test_garde_fou_repetition()
     test_marqueurs()
     test_projection_capitalisation()
     test_seance()

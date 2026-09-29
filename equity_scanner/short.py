@@ -308,7 +308,8 @@ def mesures(trades, series: dict | None = None) -> dict:
             "lignes_au_dessus": pt.get("lignes_au_dessus", [])}
 
 
-def lance(tickers, csv=None, journal=print, univers: str = "") -> dict:
+def lance(tickers, csv=None, journal=print, univers: str = "",
+          composantes: list[dict] | None = None) -> dict:
     from . import audit as ad
     from . import cache as ch
     from . import qualite as ql
@@ -319,6 +320,10 @@ def lance(tickers, csv=None, journal=print, univers: str = "") -> dict:
     tickers = list(tickers)
 
     journal(f"\n  DERIVE POST-ANNONCE NEGATIVE — {len(tickers)} titres")
+    for c in composantes or []:
+        journal(f"    {c['nom']:<12}{len(c['tickers']):>5} titres  "
+                + (f"charges le {c['date']}" if c["source"] == "direct"
+                   else f"REPLI sur la liste du {c['date']}"))
     journal(f"  VENTE A DECOUVERT — hors echantillon "
             f"{OOS_DEBUT[:4]}-{OOS_FIN[:4]}, un seul passage")
     journal(f"  regles GELEES : CAR3 <= {CAR3_MAX:.1%}, RVOL >= "
@@ -330,9 +335,13 @@ def lance(tickers, csv=None, journal=print, univers: str = "") -> dict:
     journal("  Le resultat ci-dessous est optimiste d'environ 0,3 a 0,4")
     journal("  point par trade. Retranchez-le avant de conclure.\n")
 
-    journal("  Chargement des cours et des dates d'annonces...")
-    bench_brut = ch.charge("SPY", annees=6)
-    brutes, echecs = ch.charge_lot(tickers, annees=6, journal=journal)
+    # Depuis le debut de la periode de conception, prechauffage compris —
+    # et non 6 ans fixes, qui ne couvraient ni 2010-2023 ni son prechauffage.
+    # Ce n'est pas une constante de la specification (audit.parametres_short).
+    annees = dl.annees_de_cours(IN_DEBUT)
+    journal(f"  Chargement de {annees} ans de cours et des dates d'annonces...")
+    bench_brut = ch.charge("SPY", annees=annees)
+    brutes, echecs = ch.charge_lot(tickers, annees=annees, journal=journal)
     sans = len(echecs)
     with ThreadPoolExecutor(max_workers=ch.FILS) as pool:
         annonces = dict(zip(brutes, pool.map(
@@ -478,7 +487,17 @@ def main() -> None:
     tables = {k: f for k, (_, f) in dl.UNIVERS.items()}
     if o.univers not in tables:
         a.error(f"univers inconnu. Choix : {', '.join(tables)}")
-    lance(tables[o.univers](), csv=o.csv, univers=o.univers)
+    comps = None
+    try:
+        if o.univers in dl.COMPOSEES:
+            tickers, comps = dl.univers_detaille(o.univers,
+                                                 journal=lambda *_: None)
+        else:
+            tickers = tables[o.univers]()
+    except dl.UniversIndisponible as exc:
+        print(f"\n  RIEN N'EST LANCE. {exc}\n")
+        raise SystemExit(1)
+    lance(tickers, csv=o.csv, univers=o.univers, composantes=comps)
 
 
 if __name__ == "__main__":

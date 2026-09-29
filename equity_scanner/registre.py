@@ -39,6 +39,37 @@ ENTETE = (
     "|---|---|---|---|---|---|---|\n")
 
 
+# ---------------------------------------------------------------------
+# Le lancement d'un passage unique
+#
+# Apres une repetition generale NO-GO, un simple OUI ne suffit plus : il
+# faut taper LANCER QUAND MEME. Le verdict de la repetition reste
+# indicatif — seul le passage unique juge — mais lancer malgre lui
+# consomme la periode de validation pour une hypothese que ses propres
+# donnees de conception n'ont pas soutenue. Cela doit etre un geste
+# delibere, pas un reflexe. Un verdict ABSENT compte comme un NO-GO : la
+# regle ne peut que durcir le lancement, jamais l'assouplir.
+# ---------------------------------------------------------------------
+PHRASE_SIMPLE = "OUI"
+PHRASE_FORCEE = "LANCER QUAND MEME"
+
+
+def phrase_de_lancement(verdict_repetition: str | None) -> str:
+    """La phrase exacte a taper pour lancer le passage unique."""
+    if verdict_repetition and verdict_repetition != "NO-GO":
+        return PHRASE_SIMPLE
+    return PHRASE_FORCEE
+
+
+def lancement_accepte(reponse: str | None,
+                      verdict_repetition: str | None) -> bool:
+    """La reponse tapee lance-t-elle le passage ? Exactement la phrase
+    (l'accent de MÊME est admis), rien d'approchant."""
+    phrase = phrase_de_lancement(verdict_repetition)
+    r = (reponse or "").strip()
+    return r in {phrase, phrase.replace("MEME", "MÊME")}
+
+
 def _maintenant() -> str:
     return dt.datetime.now().replace(microsecond=0).isoformat(sep=" ")
 

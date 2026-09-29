@@ -401,13 +401,15 @@ jeu de paramètres qui ne l'a pas produit.
 
 - Stratégie 1, « repli en tendance » : **NO-GO** en Phase 0 sur S&P 500
   et 120 titres US. Hypothèse morte, elle ne se retouche pas.
-- Stratégie 2, dérive post-annonce (`pead.py`) : spécifiée, moteur **relu
-  contre son texte et corrigé avant le passage**, passage unique **préparé
-  et verrouillé**, pas encore lancé — il doit tourner sur la machine du
-  propriétaire, Yahoo n'étant pas joignable d'ailleurs. Les corrections sont
-  écrites dans `derive-post-annonce-v1-lecture.md`, datée du 23 septembre
-  2026 et **hachée** comme la spécification : aucune constante n'a bougé,
-  l'empreinte `d32cd9bf…` est la même.
+- Stratégie 2, dérive post-annonce (`pead.py`) : **NO-GO** au passage
+  unique du 29 septembre 2026 sur 2024-2026 (z +1,13, profit factor 1,13,
+  drawdown 32,6 %), inscrit au registre. Hypothèse morte. Le moteur qui a
+  tourné (`4f038443…`) est archivé à l'octet près dans `archives/`, et
+  `test_moteur` vérifie son empreinte. Ce passage a révélé deux défauts de
+  **données**, corrigés depuis pour les hypothèses suivantes : le Nasdaq 100
+  manquait à l'univers « us » (503 titres sous l'étiquette « S&P 500 +
+  Nasdaq 100 »), et 8 ans de cours ne couvraient de la répétition
+  2010-2021 que 2019-2021.
 - Stratégie 3, dérive post-annonce **négative** — vente à découvert
   (`short.py`) : spécifiée (`strategie-short-v1.md`), moteur codé,
   **test pas encore lancé**. Son moteur lit encore la **date du
@@ -446,6 +448,8 @@ jeu de paramètres qui ne l'a pas produit.
 | | deux temps : `prepare()` (répétable) relève et **fige** les dates dans un instantané, compte sans rendement sur 2024–2026 et fait une répétition générale sur la période de conception ; `valide()` est le **passage unique** — inscrit au registre avant le calcul, fermé avant l'affichage, refusé la seconde fois |
 | | il **ne part pas** sur des données incomplètes (univers tronqué, dates manquantes, heures absentes) : une période de validation brûlée ne se rend pas |
 | | le témoin de chaque annonce neutre est simulé **une fois**, puis tiré ; les titres sont parcourus dans l'ordre **alphabétique** — l'ordre d'arrivée des téléchargements parallèles faisait bouger le z au deuxième chiffre |
+| | le rapport donne le nombre **réel** de titres par composante, et la période **réellement couverte** (première et dernière publication exploitables), avec les années demandées sans aucune publication |
+| | la répétition générale rend un verdict **indicatif** — seul le passage unique juge. Après une répétition NO-GO, le passage ne part plus sur OUI : il faut taper `LANCER QUAND MEME` (`registre.phrase_de_lancement`), et `--valider` ne suffit pas |
 | `brain2.py` | **BRAIN 2.0** : le titre et le portefeuille ensemble, sous le contrat du majordome — faits d'abord, prose ensuite |
 | | les faits du portefeuille sont **comptés ici** (poids, latent, écart au stop inscrit, stops franchis, lignes sans stop, cours différés, conditions de sortie ligne par ligne) : laissés au modèle, ils seraient invérifiables |
 | | le plafond de 25 % ne se vérifie que si **toutes les lignes sont dans une même devise**. Deux lignes en dollars et deux en euros dépassent chacune 25 % « de leur devise » sans rien dire du portefeuille : la première version les signalait toutes |
@@ -495,6 +499,8 @@ jeu de paramètres qui ne l'a pas produit.
 | | `app.retrouve_cle()` va la chercher dans une installation **voisine** si les deux manquent. Portée volontairement étroite : un seul niveau au-dessus du programme plus quelques dossiers usuels, deux niveaux de profondeur, plafond de 400 dossiers, un seul nom de fichier lu. Elle ne tourne **jamais** si `~/.carruos/` existe déjà — sinon effacer volontairement la clé la ferait ressusciter au lancement suivant |
 | | **aucune clé ne doit entrer dans le dépôt.** `.bruce_cache/` est ignoré et `test_pages` refuse tout jeton de 16 majuscules dans un fichier suivi par git |
 | `data.py` | chargement yfinance, 8 univers, compositions figées |
+| | les univers composés (`us`, `us_total`) se chargent **composante par composante** (`univers_detaille`) : chaque liste a ses adresses et un minimum de lignes, la dernière liste réussie est gardée datée, un échec se replie sur elle **en affichant sa date**, et sans elle c'est l'arrêt (`UniversIndisponible`). Jamais un univers amputé sous l'étiquette de l'univers complet. `--figer` refuse un repli, qui porterait la date du jour sans en être la composition |
+| | `annees_de_cours(debut)` : la profondeur des cours se calcule depuis le début de la période de conception, 260 séances de préchauffage comprises, et non plus en années fixes |
 | `cache.py` | cache disque et téléchargements parallèles |
 | `qualite.py` | refus de signal sur données douteuses |
 | `audit.py` | journal des signaux, empreinte des paramètres |
