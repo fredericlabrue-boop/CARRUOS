@@ -187,7 +187,13 @@ ALIAS = {
     "HSBA": "HSBA.L", "HSBC": "HSBA.L", "BP": "BP.L", "GSK": "GSK.L",
     "RIO": "RIO.L", "NOVOB": "NOVO-B.CO", "NOVO": "NOVO-B.CO",
     "ERICB": "ERIC-B.ST", "ERICSSON": "ERIC-B.ST", "VOLVB": "VOLV-B.ST",
-    "NOKIA": "NOKIA.HE", "EQNR": "EQNR.OL",
+    "NOKIA": "NOKIA.HE", "EQNR": "EQNR.OL", "TALANX": "TLX.DE",
+    # Etats-Unis : les noms qu'on dit plutot que les tickers
+    "TESLA": "TSLA", "APPLE": "AAPL", "NVIDIA": "NVDA",
+    "MICROSOFT": "MSFT", "AMAZON": "AMZN", "ALPHABET": "GOOGL",
+    "GOOGLE": "GOOGL", "NETFLIX": "NFLX", "COINBASE": "COIN",
+    "ROBINHOOD": "HOOD", "PALANTIR": "PLTR", "BROADCOM": "AVGO",
+    "INTEL": "INTC", "ORACLE": "ORCL", "SALESFORCE": "CRM",
 }
 
 

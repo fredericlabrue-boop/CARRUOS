@@ -616,6 +616,7 @@ async function exec(txt){
  dit('Je n\'ai pas compris. Essayez : je sors quand sur TLX, combien je '
   +'peux perdre sur Coin, que penses-tu de Nvidia, ouvre Sanofi, '
   +'scan Cac 40, je mets 800 € pour gagner 50 € en une semaine, '
+  +'TLX a baissé de 25 %, rebond ?, Tesla nouveau modèle, '
   +'état du marché, la veille sur mes lignes, ou mes positions.');
 }
 

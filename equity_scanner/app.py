@@ -4309,9 +4309,13 @@ def _cerveau(c: dict) -> dict:
         except Exception:
             return False
 
+    try:
+        detenus = [l["ticker"] for l in _lignes_detenues()]
+    except Exception:
+        detenus = []
     return cv.repond(question, existe=existe,
                      defaut_ticker=(c.get("ticker") or "").strip(),
-                     historique=hist)
+                     historique=hist, detenus=detenus, av_key=cle_av())
 
 
 def _cerveau_config(c: dict) -> dict:
@@ -5344,10 +5348,16 @@ def _dossier(q: dict) -> dict:
             return False
 
     try:
-        inten, tk = ds.comprend(question, existe, defaut)
+        inten, tk = ds.comprend(question, existe, defaut,
+                                detenus=[l["ticker"]
+                                         for l in _lignes_detenues()])
     except Exception as exc:
         traceback.print_exc()
         return {"ok": False, "erreur": f"{type(exc).__name__}: {exc}"}
+    if not tk and ds.general(inten):
+        rep = ds.general(inten)
+        rep["voix"] = ds.phrase(rep)
+        return rep
     if not tk:
         return {"ok": False, "intention": inten,
                 "erreur": "Je n'ai pas reconnu de titre dans la question. "
@@ -5361,7 +5371,7 @@ def _dossier(q: dict) -> dict:
         d = ds.constitue(tk, av_key=cle_av(),
                          sleeve=float(REGLAGES.get("sleeve") or 8000),
                          position=pos)
-        rep = ds.repond(question, d)
+        rep = ds.repond(question, d, av_key=cle_av())
         rep["voix"] = ds.phrase(rep)
         rep["cours"] = d.get("cours")
         rep["devise"] = d.get("devise", "")

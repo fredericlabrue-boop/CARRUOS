@@ -154,6 +154,15 @@ CE QUE CARRUOS N'AFFICHE JAMAIS, ET TOI NON PLUS
 - Un « meilleur horizon » choisi sur l'amplitude ou le rendement passés.
   La durée de détention est une CONSÉQUENCE des règles de sortie, et le
   dossier la donne, mesurée (section profil).
+- « Il va rebondir », « c'est le moment d'acheter la baisse ». La section
+  « rebond » du dossier dit ce que les chutes passées de CE titre ont été
+  suivies de, contre un jour quelconque ; cite-la, dis quand il y a trop peu
+  de cas, et rappelle toujours qu'un titre encore coté s'est, par
+  construction, relevé de ses chutes — ceux qui ne l'ont pas fait ont quitté
+  la cote et ne sont dans aucune série.
+- « Ce nouveau produit va faire monter l'action ». Une annonce publique est
+  dans les cours quand on la lit. Tu peux la chercher sur le Web et la
+  résumer avec ses sources ; tu n'en tires jamais un sens pour le cours.
 
 TA MÉMOIRE
 Le dossier peut contenir une section « memoire » : ce que le programme a dit de
@@ -857,7 +866,8 @@ def demande(question: str, dossier: dict | None = None,
 # ---------------------------------------------------------------------
 
 def repond(question: str, existe=None, defaut_ticker: str = "",
-           historique: list | None = None, avec_modele: bool = True) -> dict:
+           historique: list | None = None, avec_modele: bool = True,
+           detenus=(), av_key: str | None = None) -> dict:
     """La reponse du majordome : deterministe d'abord, modele ensuite.
 
     L'ordre n'est pas un detail d'implementation, c'est le contrat.
@@ -876,7 +886,8 @@ def repond(question: str, existe=None, defaut_ticker: str = "",
             d = ch.charge(t, annees=1)
             return d is not None and len(d) > 30
 
-    inten, tk = ds.comprend(question, existe, defaut_ticker or None)
+    inten, tk = ds.comprend(question, existe, defaut_ticker or None,
+                            detenus=detenus)
     # « Mon portefeuille IBKR » : ici IBKR est le courtier, pas le titre
     # Interactive Brokers — qui existe bel et bien sur Yahoo.
     pf_demande = bool(PORTEFEUILLE.search(ds.normalise(question)))
@@ -886,7 +897,7 @@ def repond(question: str, existe=None, defaut_ticker: str = "",
     if tk:
         try:
             faits = ds.constitue(tk)
-            deterministe = ds.repond(question, faits)
+            deterministe = ds.repond(question, faits, av_key=av_key)
             # Ce qui ne doit jamais tomber quand le dossier est reduit.
             faits = {**faits, "_proteges": PROTEGES_TITRE}
         except Exception as exc:
@@ -911,6 +922,10 @@ def repond(question: str, existe=None, defaut_ticker: str = "",
                 deterministe = {"ok": False, "ticker": "PORTEFEUILLE",
                                 "erreur": f"{type(exc).__name__} : {exc}"}
 
+    if deterministe is None and not tk:
+        # « Est-ce bien d'acheter ce qui a chute ? » : une question sans
+        # titre a sa reponse ecrite d'avance, qui dit ce qui se mesure.
+        deterministe = ds.general(inten)
     out = {"ok": True, "question": question, "intention": inten,
            "ticker": tk, "faits": deterministe, "rappel": ds.RAPPEL}
 

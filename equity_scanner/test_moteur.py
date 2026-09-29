@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import os
 import sys
+import re as _re_rb
 import tempfile
 from pathlib import Path
 
@@ -2382,6 +2383,8 @@ def test_dossier() -> None:
         inventes = {}
         for cle in ds.SECTIONS:
             rep = ds.repond({"detention": "je garde 2 mois ?",
+                             "rebond": "il a baissé de 25 %, rebond ?",
+                             "actualite": "un nouveau modèle ?",
                              "sortie": "je sors quand", "entree": "je rentre",
                              "risque": "combien je perds",
                              "bougies": "une figure ?", "horizon": "ca bouge",
@@ -2449,6 +2452,8 @@ def test_dossier() -> None:
         try:
             ds.repond("que penses-tu", vide)
             ds.repond({"detention": "je garde 2 mois ?",
+                       "rebond": "il a baissé de 25 %, rebond ?",
+                       "actualite": "un nouveau modèle ?",
                        "sortie": "je sors quand", "entree": "je rentre",
                        "risque": "combien je perds", "bougies": "une figure ?",
                        "horizon": "ca bouge", "donnees": "fiable ?",
@@ -2853,6 +2858,7 @@ def test_memo() -> None:
     from . import chart as _ch_
     from . import detention as _dt_
     from . import faillites as _fl_
+    from . import rebond as _rb_
     from . import recherche as _rc_
 
     def _nb_(x):
@@ -3616,6 +3622,11 @@ def test_memo() -> None:
          f"rien\n  sous {_rc_.MINI_PERIODES} périodes"),
         # --- chart.py : la bande des bougies
         ("horizon de la bande", f"à **{_ch_.HORIZON_BANDE}** barres"),
+        # --- rebond.py
+        ("horizons du rebond",
+         "**{}, {}, {} et {}**".format(*(l for l, _h in _rb_.HORIZONS))),
+        ("episodes minimum", f"sous **{_rb_.MINI_EPISODES}** épisodes"),
+        ("seuil par defaut", f"sinon\n  **{_rb_.SEUIL_DEFAUT}** %"),
     ]
     absents = [(nom, val) for nom, val in ATTENDU if val not in m]
     ok(f"les {len(ATTENDU)} seuils cites dans le memo sont ceux qui "
@@ -4128,6 +4139,98 @@ def test_etat_positions() -> None:
        "PREMIÈRE" in ps_.RAPPEL_ETAT)
 
 
+def test_rebond() -> None:
+    """« Il a baissé de 25 %, rebond ? » : ce que les chutes passées de CE
+    titre ont été suivies de, contre un jour quelconque. Jamais « il va
+    rebondir »."""
+    print("\n— Rebond : ce qui a suivi les chutes passées —")
+    from . import cerveau as cv
+    from . import dossier as ds
+    from . import rebond as rb
+
+    # 100 -> 70 (-30 %), s'enfonce a 60, remonte a 110 (nouveau sommet),
+    # retombe a 80 (-27 %), remonte a 120.
+    morceaux = [np.linspace(100, 100, 40), np.linspace(100, 70, 30),
+                np.linspace(70, 60, 20), np.linspace(60, 110, 60),
+                np.linspace(110, 80, 30), np.linspace(80, 120, 300)]
+    px = np.concatenate(morceaux)
+    c = pd.Series(px, index=pd.bdate_range("2015-01-05", periods=len(px)))
+    m = rb.apres_chute(c, 25)
+    ok("une chute qui s'enfonce ne compte qu'une fois ; il faut un "
+       "nouveau sommet pour un nouvel épisode", m["episodes"] == 2)
+    h1 = m["horizons"][0]
+    ok("sous huit épisodes, aucune proportion : « trop peu de cas »",
+       h1["n"] == 2 and "wilson" not in h1
+       and "trop peu" in " ".join(rb.lignes(rb.etat(c), m)))
+    e = rb.etat(c)
+    ok("l'état du jour : le recul sous le dernier sommet, un fait",
+       e["recul_pct"] == 0.0 and e["sommet"] == 120.0)
+    ok("le seuil : celui que la question nomme, sinon le recul du jour "
+       "arrondi, sinon 20 %",
+       rb.seuil_de("il a baisse de 25 %", e) == 25
+       and rb.seuil_de("rebond ?", {"recul_pct": -33.4}) == 30
+       and rb.seuil_de("rebond ?", {"recul_pct": -3.0}) == rb.SEUIL_DEFAUT)
+
+    # Une dent de scie : beaucoup d'episodes, donc des proportions.
+    dent = np.tile(np.concatenate([np.linspace(100, 70, 20),
+                                   np.linspace(70, 101 + 0, 40)]), 30)
+    dent = dent * np.linspace(1, 1.3, len(dent))
+    cd_ = pd.Series(dent, index=pd.bdate_range("2005-01-03",
+                                               periods=len(dent)))
+    md = rb.apres_chute(cd_, 25)
+    l1 = md["horizons"][0]
+    ok("au-delà de huit épisodes : la part, son Wilson, et le taux de base",
+       md["episodes"] >= rb.MINI_EPISODES and l1.get("wilson")
+       and l1.get("base_pct") is not None and "indiscernable" in l1)
+    txt = " ".join(rb.lignes(rb.etat(cd_), md))
+    ok("le rappel du survivant et « pas un avis » accompagnent la mesure",
+       rb.RAPPEL_SURVIVANT in txt and "pas un avis" in txt)
+    ok("aucune phrase ne dit ce qui VA se passer",
+       not _re_rb.search(r"va (?:rebondir|remonter|monter)|achetez|"
+                         r"bonne affaire|potentiel", txt, _re_rb.I))
+
+    # L'aiguillage du majordome.
+    ok("« il a baissé de 25 %, rebond ? » va au rebond",
+       ds.intention("j'ai acheté du TLX, il a baissé de 25 %, est-ce qu'il "
+                    "va y avoir un rebond ?") == "rebond")
+    ok("« sortir un nouveau modèle » n'est plus une question de SORTIE",
+       ds.intention("c'est bien d'acheter Tesla parce qu'ils vont sortir "
+                    "un nouveau modèle ?") == "actualite")
+    ok("« je sors quand » reste une question de sortie",
+       ds.intention("je sors quand sur TLX.DE") == "sortie")
+    ex = {"TLX", "TLX.DE", "TSLA"}.__contains__
+    ok("« TLX » quand on détient TLX.DE : c'est la ligne détenue",
+       ds.comprend("j'ai acheté du TLX", ex, None,
+                   detenus=["TLX.DE"])[1] == "TLX.DE"
+       and ds.comprend("j'ai acheté du TLX", ex, None)[1] == "TLX")
+    ok("« Tesla » en toutes lettres : TSLA, par la table écrite",
+       ds.comprend("Tesla, nouveau modèle ?", ex, None)[1] == "TSLA")
+    ok("« des actions en chute libre » ne nomme aucun titre, même sur des "
+       "données qui acceptent tout",
+       ds.comprend("est-ce bien d'acheter des actions en chute libre qui "
+                   "ont des potentiels rebonds ?", lambda t: True,
+                   None)[1] is None)
+    g = cv.repond("est-ce bien d'acheter des actions en chute libre ?",
+                  existe=lambda t: False, avec_modele=False)
+    ok("sans titre, la question générale a sa réponse écrite : ce qui se "
+       "mesure, et le rappel du survivant",
+       g["faits"] and g["faits"]["intention"] == "rebond"
+       and rb.RAPPEL_SURVIVANT in " ".join(g["faits"]["lignes"]))
+    sans = ds._actualite({"actus": {"sans_cle": True}})
+    ok("l'actualité sans clé le dit, et rappelle qu'une annonce est déjà "
+       "dans les cours", "clé" in sans[0] and ds.RAPPEL_ACTU in sans)
+    arts = ds._actualite({"actus": {"articles": [
+        {"titre": "Tesla unveils Model Q", "source": "Reuters",
+         "quand": "2026-09-28", "erreur": False}]}})
+    ok("la consigne du modèle interdit « il va rebondir » et le sens tiré "
+       "d'une annonce", "Il va rebondir" in cv.CONSIGNE
+       and "relevé de ses chutes" in cv.CONSIGNE
+       and "tu n'en tires jamais un sens" in cv.CONSIGNE)
+    ok("les articles : titre, source, date — sans le ton du fournisseur",
+       arts[0].startswith("· Tesla unveils Model Q — Reuters")
+       and not any("positif" in x or "négatif" in x for x in arts))
+
+
 def dt_bornes(n, h):
     from . import detention as _d
     return _d._bornes(n, h)
@@ -4169,6 +4272,7 @@ def main() -> int:
     test_recherche()
     test_bande_bougies()
     test_etat_positions()
+    test_rebond()
     test_memo()
 
     print()

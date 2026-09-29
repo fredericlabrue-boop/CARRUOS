@@ -22,6 +22,7 @@ py -m equity_scanner.pead         # stratégie 2 : préparation, puis passage un
 py -m equity_scanner.detention TSLA 2 mois   # ce que cette durée a donné, contre l'indice
 py -m equity_scanner.faillites   # RESTRUCTURATIONS : les 8-K item 1.03 et ce qui a suivi
 py -m equity_scanner.recherche nasdaq100 800 50 "1 semaine"   # somme, gain visé, durée
+py -m equity_scanner.rebond TLX.DE 25   # après une chute de 25 % : ce qui a suivi, sur ce titre
 ```
 
 `MEMO-LECTURE.md` à la racine rassemble **tous les seuils** du
@@ -349,6 +350,16 @@ jeu de paramètres qui ne l'a pas produit.
   5 barres — grise dans le bruit, verte ou rouge pour un écart net — et
   le survol donne la phrase complète contre le taux de base, avec le
   compte des écarts nets attendus par hasard. Jamais « annonce ».
+- **« Il va rebondir », « c'est bien d'acheter la baisse », « ce nouveau
+  modèle va faire monter l'action ».** Le propriétaire l'a demandé le 29
+  septembre 2026 : une IA qui lui dise « oui, rebond », « oui, achète ».
+  C'est exactement l'avis que ce projet refuse, et la consigne du modèle
+  le refuse aussi. Ce qui se mesure est rendu : `rebond.py`, chaque
+  épisode passé où **ce** titre est tombé d'autant sous son sommet, et
+  ce qui a suivi à 1, 3, 6 et 12 mois contre un jour quelconque, avec le
+  rappel qu'un titre encore coté s'est **par construction** relevé de
+  ses chutes. Pour une annonce, les articles qui nomment le titre, et le
+  rappel qu'elle est dans les cours quand on la lit.
 - Une ligne de prédiction de prix. Le cône de dispersion existe : dérive
   fixée à zéro, il donne l'amplitude, jamais le sens.
 - Un take-profit **actif**. Les spécifications 2 et 3 disent « aucun
@@ -439,7 +450,10 @@ jeu de paramètres qui ne l'a pas produit.
 | | les chemins de toutes les périodes sont une **matrice** (périodes × durée) : une boucle par période coûtait des secondes par univers sur les périodes d'une séance ; `test_moteur` la confronte à une boucle écrite à la main |
 | | une recherche à la fois, dans un fil ; la page suit sa progression. L'heure est refusée **avant** tout téléchargement |
 | | `ajouts` (tapés) et `detenus` ({ticker: quantité}, `app._lignes_detenues` : registre puis IBKR, IBKR l'emporte) rejoignent l'univers ; l'univers `mes_titres` n'a qu'eux. Les réglages reviennent d'une ouverture à l'autre (`localStorage`, par poste) ; une adresse `/recherche?capital=…&lance=1` les impose — c'est ce qu'écrit le majordome |
+| `rebond.py` | « rebond ? » : les épisodes de chute ≥ seuil sous le dernier sommet (un par cycle — il faut un **nouveau sommet** pour en ouvrir un autre), et ce qui a suivi à 1, 3, 6, 12 mois contre le taux de base du titre ; Wilson, rien sous 8 épisodes, le biais du survivant écrit à chaque affichage |
 | `dossier.py` | la **porte en français** du majordome : une question, une intention, une section de faits |
+| | intentions `rebond` (seuil tiré de la question, mesure posée DANS le dossier comme `detention`) et `actualite` (titres d'articles, source, date — **jamais** le ton du fournisseur) ; une question sans titre a sa réponse écrite d'avance (`general`) |
+| | le ticker se tranche par trois dictionnaires, dans l'ordre : les lignes **détenues** (« TLX » quand on détient TLX.DE), la table des noms de `resolve.py` (« Tesla »), puis la cote |
 | | aucune phrase n'est *générée*. `constitue()` rassemble ce que les autres modules ont déjà calculé, `intention()` reconnaît ce qui est demandé par une table de motifs écrite d'avance, et les réponses sont des gabarits remplis avec les chiffres du dossier |
 | | conséquence tenue **par construction** : si un chiffre n'est pas dans le dossier, aucune phrase ne peut le sortir. `test_moteur` le vérifie en passant un dossier VIDE à chaque section et en exigeant qu'aucun nombre n'en sorte |
 | | quel mot est un ticker se tranche **côté serveur, en interrogeant les données** : « QUE PENSE TU DE TLX » ne donne aucun autre indice |
@@ -738,6 +752,15 @@ jeu de paramètres qui ne l'a pas produit.
   avait perdu CONSERVER / SURVEILLER / SORTIE ; `positions.controle()`
   les produisait toujours, et l'accueil les affichait sous « VERDICT ».
   Chercher le mot dans tout le code, pas dans le module qu'on corrige.
+- **Un mot de la question peut en déclencher une autre.** « Tesla va
+  sortir un nouveau modèle » tombait sur l'intention SORTIE, à cause de
+  « sortir » : le majordome répondait VOUS SORTEZ QUAND à une question
+  sur une annonce. L'ordre de la table compte — l'intention précise avant
+  la générale — et `test_moteur` épingle les deux phrases.
+- **Des données qui acceptent tout font de chaque mot un ticker.** Sur
+  les séries d'essai, « des ACTIONS en chute libre » donnait le titre
+  « ACTIONS ». Les mots des questions générales sont dans `MOTS_VIDES`,
+  et le test passe une fonction `existe` qui dit oui à tout.
 - **Une grille dimensionne ses enfants par ses lignes EXPLICITES.**
   Ajouter un panneau à une grille qui n'en déclarait qu'une envoie le
   nouveau dans une ligne implicite calée sur son contenu. Sur la page

@@ -60,6 +60,20 @@ INTENTIONS = [
                   r"annees?)\b.{0,30}\b(?:gard|conserv|deten|ten)\w*"
                   r"|lundi.{0,30}vendredi"
                   r"|(?:une|1) semaine.{0,40}(?:un|1) (?:mois|an)"),
+    # « Il a baisse de 25 %, rebond ? » : ce que les chutes passees de CE
+    # titre ont ete suivies de. Avant « acheter » et « sortir », que la
+    # question contient souvent aussi.
+    ("rebond", r"\brebon\w*|\bremont(?:e|er|era|ent)\b|se relev\w*"
+               r"|se repren\w*|\bchut\w*|\bplong\w*|\bdegringol\w*"
+               r"|\b(?:a|ont|avait|est) (?:baisse|perdu|recule)"
+               r"|\bbaisse de \d|\brecul\w* de \d|\bperdu \d"),
+    # « Tesla va sortir un nouveau modele » : l'actualite du titre. Avant
+    # « sortie » — « sortir un nouveau modele » y tombait, et le majordome
+    # repondait VOUS SORTEZ QUAND a une question sur une annonce.
+    ("actualite", r"\bnouveau (?:modele|produit|vehicule|telephone|service)"
+                  r"|\blancement|\bannonc\w*|\bactualit\w*|\bnews\b"
+                  r"|\bnouvelles\b|\bcommunique\w*|\brumeur\w*"
+                  r"|\bsortir (?:un|une|le|la|son|sa|leur)\b"),
     # « Combien de temps on garde » demande une DUREE ; « je garde ? »
     # demande s'il faut sortir. Le premier doit passer avant le second.
     ("profil", r"combien de temps|duree de detention|on garde combien"),
@@ -110,6 +124,13 @@ MOTS_VIDES = {
     "action", "titre", "bourse", "cours", "prix", "the", "my",
     "sous", "til", "ca", "cela", "y", "en", "ne", "pas", "plus", "tout",
     "toute", "faut", "veux", "vais", "suis", "sais", "sur", "dans",
+    # Les pluriels et les mots des questions generales : « acheter des
+    # ACTIONS en chute LIBRE » ne nomme aucun titre, et sur des donnees
+    # qui acceptent tout, « ACTIONS » passait pour un ticker.
+    "actions", "titres", "entreprises", "societes", "valeurs", "libre",
+    "potentiel", "potentiels", "nouveau", "nouvelle", "modele", "modeles",
+    "voiture", "produit", "parce", "ils", "elles", "vont", "leur", "leurs",
+    "qu", "estce", "ont", "avoir", "etre", "deja", "encore", "aussi",
 }
 
 RAPPEL = (
@@ -159,6 +180,17 @@ def jetons_tickers(question: str) -> list[str]:
 # --------------------------------------------------------------------
 # Le dossier : rien n'est calcule ici, tout vient des autres modules
 # --------------------------------------------------------------------
+
+def _chute(brut):
+    """Ou en est le titre sous son dernier sommet : un fait, calcule par
+    `rebond.py`. La mesure des chutes passees attend que la question la
+    demande (`mesure_chute`)."""
+    try:
+        from . import rebond as rb
+        return rb.etat(brut)
+    except Exception:
+        return None
+
 
 def _memoire(tk, serie, bench):
     """Ce que le programme a deja dit de ce titre, et ce qui a suivi."""
@@ -327,6 +359,7 @@ def constitue(ticker: str, marche: str | None = None,
         "horaires": horaires,
         "profil": prof,
         "detention": deten,
+        "chute": _chute(brut),
         "memoire": _memoire(tk, serie, bench),
         "position": position or None,
         "rappel": RAPPEL,
@@ -631,7 +664,95 @@ def _detention(d: dict) -> list[str]:
     return out
 
 
+def mesure_chute(question: str, d: dict) -> None:
+    """La chute que la question NOMME (« baisse de 25 % »), sinon celle du
+    titre aujourd'hui : chaque episode passe, et ce qui a suivi. Posee
+    DANS le dossier, comme les autres faits."""
+    from . import cache as ch
+    from . import rebond as rb
+    try:
+        brut = (_SERIES.get(d["ticker"]) or (None,))[0]
+        if brut is None:
+            brut = ch.charge(d["ticker"], annees=10)
+        s = rb.seuil_de(normalise(question), d.get("chute"))
+        d["rebond"] = rb.apres_chute(brut, s)
+    except Exception as exc:
+        d["rebond"] = {"erreur": type(exc).__name__}
+
+
+def _rebond(d: dict) -> list[str]:
+    """« Rebond ? » : ce que les chutes passees de ce titre ont ete
+    suivies de, contre un jour quelconque. Jamais « il va rebondir »."""
+    from . import rebond as rb
+    return rb.lignes(d.get("chute"), d.get("rebond"))
+
+
+# L'actualite : des TITRES d'articles, avec leur source et leur date. Le
+# ton du fournisseur n'entre pas ici — rien ne s'en sert, et le dossier du
+# majordome moins que tout autre chose.
+RAPPEL_ACTU = (
+    "Une annonce publique est connue de tous les acheteurs et vendeurs au "
+    "même moment : elle est dans les cours quand on la lit. Ces titres "
+    "sont du contexte avant un ordre, pas un signal, et le programme ne "
+    "les chiffre pas.")
+
+
+def actualite(d: dict, av_key: str | None) -> None:
+    if not av_key:
+        d["actus"] = {"sans_cle": True}
+        return
+    try:
+        from . import news as nw
+        brut = nw.news(av_key, d["ticker"], limit=5)
+        d["actus"] = {"articles": [
+            {"titre": a.get("titre", ""), "source": a.get("source", ""),
+             "quand": a.get("quand", ""), "erreur": bool(a.get("erreur"))}
+            for a in brut]}
+    except Exception as exc:
+        d["actus"] = {"erreur": type(exc).__name__}
+
+
+def _actualite(d: dict) -> list[str]:
+    a = d.get("actus") or {}
+    if a.get("sans_cle"):
+        out = ["Aucune clé Alpha Vantage : pas d'actualités pour ce titre. "
+               "La clé se colle sur l'accueil."]
+    elif a.get("erreur"):
+        out = [f"Actualités indisponibles ({a['erreur']})."]
+    else:
+        out = []
+        for x in a.get("articles") or []:
+            src = f" — {x['source']}" if x.get("source") else ""
+            qd = f", {x['quand']}" if x.get("quand") else ""
+            out.append(f"· {x.get('titre', '')}{src}{qd}")
+        out = out or ["Aucun article récent sur ce titre."]
+    return out + ["", RAPPEL_ACTU]
+
+
+# Les questions GENERALES, posees sans titre : « est-ce bien d'acheter ce
+# qui a chute ? ». Elles ont une reponse ecrite d'avance, qui dit ce qui se
+# mesure et comment le demander — jamais « oui » ni « non ».
+def general(intention_cle: str) -> dict | None:
+    from . import rebond as rb
+    textes = {
+        "rebond": ("ACHETER CE QUI A CHUTÉ ?", [rb.RAPPEL_GENERAL,
+                                                "", rb.RAPPEL_SURVIVANT]),
+        "actualite": ("UNE ANNONCE, UN NOUVEAU MODÈLE", [
+            "Nommez le titre : « Tesla, nouveau modèle ? ». Le majordome "
+            "rend les derniers articles qui le nomment, et, si le cerveau "
+            "est branché, cherche sur le Web avec ses sources.",
+            "", RAPPEL_ACTU]),
+    }
+    if intention_cle not in textes:
+        return None
+    t, L = textes[intention_cle]
+    return {"ok": True, "ticker": "", "intention": intention_cle,
+            "titre": t, "lignes": L, "rappel": RAPPEL}
+
+
 SECTIONS = {
+    "rebond": ("APRÈS UNE CHUTE : CE QUI A SUIVI, SUR CE TITRE", _rebond),
+    "actualite": ("L'ACTUALITÉ DU TITRE", _actualite),
     "detention": ("CE QUE CETTE DURÉE A DONNÉ SUR CE TITRE", _detention),
     "sortie": ("VOUS SORTEZ QUAND ?", _sortie),
     "entree": ("CE QUE DIT LA SPÉCIFICATION POUR ENTRER", _entree),
@@ -648,7 +769,7 @@ SECTIONS = {
 }
 
 
-def repond(question: str, d: dict) -> dict:
+def repond(question: str, d: dict, av_key: str | None = None) -> dict:
     """La section du dossier qui repond a la question posee."""
     if not d.get("ok"):
         return {"ok": False, "ticker": d.get("ticker"),
@@ -656,26 +777,47 @@ def repond(question: str, d: dict) -> dict:
     cle = intention(question)
     if cle == "detention":
         mesure_demandee(question, d)
+    elif cle == "rebond":
+        mesure_chute(question, d)
+    elif cle == "actualite":
+        actualite(d, av_key)
     titre, fabrique = SECTIONS.get(cle, SECTIONS["avis"])
     return {"ok": True, "ticker": d["ticker"], "intention": cle,
             "titre": titre, "lignes": [x for x in fabrique(d)],
             "rappel": d.get("rappel", RAPPEL)}
 
 
-def comprend(question: str, existe, defaut: str | None = None) -> tuple:
+def comprend(question: str, existe, defaut: str | None = None,
+             detenus=()) -> tuple:
     """(intention, ticker). Le ticker est tranche PAR LES DONNEES.
 
     `existe(tk)` doit rendre vrai si le ticker se charge. `defaut` sert
     quand la question n'en nomme aucun — typiquement le titre deja
     ouvert a l'ecran.
+
+    Deux dictionnaires passent avant la cote : les lignes que le
+    proprietaire DETIENT (« j'ai achete du TLX » quand il detient TLX.DE :
+    c'est Talanx, pas Telix a New York), puis la table des noms de
+    `resolve.py` (« Tesla » -> TSLA). Ni l'un ni l'autre ne devine : ce
+    sont des correspondances ecrites.
     """
+    from .resolve import par_alias
     inten = intention(question)
+    racines = {}
+    for t in detenus or ():
+        t = (t or "").upper()
+        if t:
+            racines.setdefault(t.split(".")[0], t)
+            racines[t] = t
     for j in jetons_tickers(question):
-        try:
-            if existe(j):
-                return inten, j
-        except Exception:
-            continue
+        for c in (racines.get(j), par_alias(j), j):
+            if not c:
+                continue
+            try:
+                if existe(c):
+                    return inten, c
+            except Exception:
+                continue
     return inten, defaut
 
 

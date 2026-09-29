@@ -1031,6 +1031,44 @@ combien de mesures, et combien le seul hasard en donnerait.
 marteau inversé et l'étoile filante, qui ont la même forme et ne
 diffèrent que par ce qui précède.
 
+## 5 novodecies. « Rebond ? » et « un nouveau modèle ? » — le majordome
+
+**« J'ai acheté du TLX, il a baissé de 25 %, il va rebondir ? »** Le
+majordome ne dit ni oui ni non : personne ne voit l'avenir, et le modèle
+de langage ne voit même pas les cours. Il rend ce qui se mesure
+(`rebond.py`) :
+
+- où en est le titre aujourd'hui sous son dernier sommet ;
+- chaque **épisode** passé où il est tombé d'autant — le seuil que la
+  question nomme, sinon le recul du jour arrondi aux 5 points, sinon
+  **20** % ; une chute qui s'enfonce ne compte qu'une fois, il faut un
+  nouveau sommet pour qu'un autre épisode commence ;
+- à **1 mois, 3 mois, 6 mois et 1 an**, combien de fois le titre était
+  plus haut, s'il avait retrouvé son ancien sommet, la médiane, le pire —
+  à côté de ce que fait le titre un jour quelconque. Rien en proportion
+  sous **8** épisodes : une chute de 25 % arrive quelques fois en dix
+  ans, et la réponse honnête est souvent « trop peu de cas ».
+
+Et toujours : un titre encore coté s'est, par construction, relevé de
+ses chutes passées — ceux qui ne l'ont pas fait ont quitté la cote. Le
+tableau flatte donc le rebond.
+
+« TLX » dans la question, quand vous détenez TLX.DE, désigne votre
+ligne ; « Tesla », « Apple », « Nvidia » écrits en toutes lettres
+désignent leur ticker, par une table écrite.
+
+**« Tesla va sortir un nouveau modèle, c'est bien d'acheter ? »** Le
+majordome rend les derniers articles qui nomment le titre — titre,
+source, date — et le rappel qu'une annonce publique est dans les cours
+quand on la lit. Le cerveau branché peut chercher sur le Web et résumer
+avec ses sources ; il n'en tire jamais un sens pour le cours. Cette
+question tombait jusqu'ici sur « VOUS SORTEZ QUAND ? », à cause de
+« sortir un nouveau modèle ».
+
+**« Est-ce bien d'acheter ce qui a chuté ? »**, sans titre : la réponse
+écrite d'avance dit ce qui se mesure, et comment le demander sur un
+titre.
+
 ---
 
 ## 6. Ce que le programme refuse d'afficher
@@ -1062,6 +1100,8 @@ Rappel, parce que c'est la colonne vertébrale du projet :
   titre a donné, gain et perte côte à côte ;
 - ce qu'une bougie « annonce » — ce qu'elle a été suivie de, sur ce
   titre, contre son taux de base.
+- « il va rebondir » — ce que les chutes passées du titre ont été
+  suivies de, avec le biais du survivant écrit à côté.
 
 ---
 
