@@ -209,9 +209,9 @@ def html(reg: dict | None = None, ticker: str = "", champ: str = "") -> str:
         'RANGER</button>'
         '<button class="mj-p mj-x" id="mjx" type="button" '
         'title="Fermer la bulle (Echap)">&times;</button></div>'
-        '<div class="mj-r" id="mjr">Parlez-moi d\'un titre, de votre '
-        'portefeuille, d\'un projet. Je réponds à partir de faits, à voix '
-        'haute. Glissez-moi où vous voulez.</div>'
+        '<div class="mj-r" id="mjr">À votre service, Monsieur. Un titre, '
+        'votre portefeuille, un projet : je vous présente les faits, à voix '
+        'haute. Déplacez-moi où bon vous semble.</div>'
         '<div class="mj-l"><input id="mji" placeholder="votre question" '
         'autocomplete="off" spellcheck="false">'
         '<button class="mj-g" id="mjenv" type="button">ENVOYER</button>'
@@ -407,15 +407,20 @@ function ferme(){
 function range(){ ferme(); montre(false); }
 // L'onglet MAJORDOME : il sort le cerf et ouvre la bulle ; bulle
 // ouverte, il le range.
+// Le salut suit l'heure du poste : bonsoir a partir de 18 h.
+function salut(){
+ var h=new Date().getHours();
+ return (h>=18 || h<5) ? 'Bonsoir' : 'Bonjour';
+}
 function bascule(){
- if(!E.actif || !E.ouvert){ ouvre(); dit('À votre service.', false); return; }
+ if(!E.actif || !E.ouvert){ ouvre(); dit(salut()+', Monsieur. À votre service.', false); return; }
  range();
 }
 A.addEventListener('click', function(){
  if(apresGlisse) return;
  if(E.ouvert){ ferme(); return; }
  ouvre();
- dit('À votre service.', false);
+ dit(salut()+', Monsieur. À votre service.', false);
 });
 _mj('mjx').addEventListener('click', ferme);
 _mj('mjrange').addEventListener('click', range);
@@ -437,18 +442,18 @@ _mj('mjvr').addEventListener('change', function(){ voixMaj({vitesse:+this.value}
 _mj('mjvp').addEventListener('change', function(){ voixMaj({hauteur:+this.value}); });
 _mj('mjvm').addEventListener('click', function(){
  var o=voixReglage(); voixMaj({muet:!o.muet});
- if(o.muet) dit('Voix rétablie.', false);
+ if(o.muet) dit('Ma voix est rétablie, Monsieur.', false);
  else if(window.speechSynthesis) speechSynthesis.cancel();
 });
 _mj('mjv0').addEventListener('click', function(){
  voixRange({nom:'', vitesse:VOIX_DEF.vitesse, hauteur:VOIX_DEF.hauteur,
   muet:false});
- voixListe(); dit('Réglage par défaut.', false);
+ voixListe(); dit('Le réglage par défaut est rétabli, Monsieur.', false);
 });
 _mj('mjvt').addEventListener('click', function(){
  var o=voixReglage();
- if(o.muet){ R.textContent='La voix est coupée : cliquez RÉTABLIR LA VOIX.'; return; }
- dit('Bonjour monsieur. Voici ma voix. Je donne des faits, jamais un avis.', false);
+ if(o.muet){ R.textContent='Ma voix est coupée, Monsieur : RÉTABLIR LA VOIX me la rendra.'; return; }
+ dit(salut()+', Monsieur. Voici ma voix. Je vous présente les faits ; la décision vous appartient.', false);
 });
 _mj('mjiaoubli').addEventListener('click', iaOublie);
 window.addEventListener('resize', pose);
@@ -482,7 +487,7 @@ if(window.speechSynthesis){
 // n'en embarque aucune. Le reglage est range dans ce poste, partage par
 // toutes les fenetres de CARRUOS (meme origine), et relu a chaque phrase.
 var VOIX_CLE='carruos_maj_voix';
-var VOIX_DEF={nom:'', vitesse:0.95, hauteur:1.0, muet:false};
+var VOIX_DEF={nom:'', vitesse:0.92, hauteur:1.0, muet:false};
 function voixReglage(){
  var o={};
  try{ o=JSON.parse(localStorage.getItem(VOIX_CLE)||'{}')||{}; }catch(e){}
@@ -572,18 +577,18 @@ async function exec(txt){
  // Les motifs sont ecrits sans accents : « état du marché » et « etat du
  // marche » doivent aller au meme endroit.
  var q=brut.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
- if(!q){ dit('Je vous écoute.'); return; }
+ if(!q){ dit('Je vous écoute, Monsieur.'); return; }
  I.value='';
 
  if(/actualise|rafraich|met a jour/.test(q)){
   if(typeof window.toutRafraichir==='function'){
-   dit('Je rafraîchis les données.');
+   dit('Je rafraîchis les données, Monsieur. Un instant.');
    await window.toutRafraichir();
-   dit('Données à jour.');
+   dit('Les données sont à jour, Monsieur.');
   }else{
    try{ await fetch('/api/actus?force=1'); }catch(e){}
-   dit('Actualités rafraîchies. Pour le reste, rechargez la page, '
-    +'ou utilisez ACTUALISER sur l\'accueil.');
+   dit('Les actualités sont rafraîchies, Monsieur. Pour le reste, je vous '
+    +'suggère de recharger la page, ou d\'utiliser ACTUALISER sur l\'accueil.');
   }
   return;
  }
@@ -594,24 +599,25 @@ async function exec(txt){
   try{
    var j=await (await fetch('/api/positions')).json();
    var L=j.lignes||[], n=L.length;
-   if(!n) return dit('Aucune position enregistrée.');
+   if(!n) return dit('Aucune position n\'est enregistrée, Monsieur.');
    // Des COMPTES, pas un avis : combien ont une condition de sortie
    // de la specification active, combien sont sous leur stop inscrit.
    var s=L.filter(function(l){ return (l.n_sorties||0)>0; }).length;
    var st=L.filter(function(l){ return l.marge_stop!=null && l.marge_stop<=0; }).length;
-   dit(n+(n>1?' lignes ouvertes. ':' ligne ouverte. ')
+   dit('Monsieur, vous avez '+n+(n>1?' lignes ouvertes. ':' ligne ouverte. ')
     +(s ? s+(s>1?' ont':' a')+' au moins une condition de sortie active. '
         : 'Aucune condition de sortie active. ')
     +(st ? st+(st>1?' sont':' est')+' sous le stop inscrit.' : ''));
-  }catch(e){ dit('Je n\'arrive pas à lire vos positions.'); }
+  }catch(e){ dit('Je crains de ne pouvoir lire vos positions, Monsieur.'); }
   return;
  }
  if(/^(?:l')?etat du marche|^(?:le )?regime|^marche\s*\??$/.test(q)){
   try{
    var je=await (await fetch('/api/etat')).json();
-   dit(je.verdict ? je.verdict.toLowerCase().replace(/_/g,' ')
-    : 'État du marché indisponible.');
-  }catch(e){ dit('État du marché indisponible.'); }
+   dit(je.verdict ? 'État du marché, Monsieur : '
+      + je.verdict.toLowerCase().replace(/_/g,' ') + '.'
+    : 'L\'état du marché est indisponible pour l\'instant, Monsieur.');
+  }catch(e){ dit('L\'état du marché est indisponible pour l\'instant, Monsieur.'); }
   return;
  }
  if(/actualit|nouvelle|news|geopolit|veille|mes lignes/.test(q)){
@@ -640,22 +646,23 @@ async function exec(txt){
      +' Positif / négatif : l\'étiquette d\'Alpha Vantage, pas une '
      +'prévision du cours.</span>';
    R.innerHTML=h;
-   dit(n1.length ? ('Ces titres sont nommés aujourd\'hui : '+n1.join(', ')+'.')
-    : (n2.length ? ('Rien ne vous nomme. Même secteur déclaré : '+n2.join(', ')+'.')
-       : 'Aucune actualité du jour ne rencontre vos lignes.'), false);
-  }catch(e){ dit('Actualités indisponibles.'); }
+   dit(n1.length ? ('Monsieur, ces titres sont nommés aujourd\'hui : '+n1.join(', ')+'.')
+    : (n2.length ? ('Aucune dépêche ne nomme vos lignes, Monsieur. Même secteur déclaré : '
+                    +n2.join(', ')+'.')
+       : 'Aucune actualité du jour ne concerne vos lignes, Monsieur.'), false);
+  }catch(e){ dit('Les actualités sont indisponibles pour l\'instant, Monsieur.'); }
   return;
  }
  var ms=q.match(/scan(?:ne|ner)?\s+(.+)/);
  if(ms){
   var cle=Object.keys(UNIV).find(function(k){ return ms[1].indexOf(k)>=0; });
-  if(!cle) return dit('Quel univers ? Cac 40, Dax, Europe, Nasdaq, '
-   +'S et P 500, ou toute la cote américaine.');
+  if(!cle) return dit('Quel univers Monsieur souhaite-t-il ? Cac 40, Dax, '
+   +'Europe, Nasdaq, S et P 500, ou toute la cote américaine.');
   if(typeof window.scan==='function'){
-   dit('Je lance le scan. Cela peut prendre plusieurs minutes.');
+   dit('Bien, Monsieur. Je lance le scan ; cela prendra quelques minutes.');
    window.scan(UNIV[cle], 'us');
   }else{
-   dit('Le scan se lance depuis l\'accueil : je vous l\'ouvre.');
+   dit('Le scan se lance depuis l\'accueil, Monsieur : je vous y conduis.');
    accueil();
   }
   return;
@@ -667,8 +674,9 @@ async function exec(txt){
  if(mo){
   var tko=(mo[1]||'').toUpperCase();
   var ud='/decision' + (tko ? '?ticker=' + encodeURIComponent(tko) : '');
-  dit(tko ? 'J\'ouvre AVANT L\'ORDRE pour ' + tko + ' : la taille, le stop, les faits, '
-    + 'et vos réponses. Ce n\'est pas un signal.' : 'J\'ouvre AVANT L\'ORDRE.');
+  dit(tko ? 'Bien, Monsieur. Voici AVANT L\'ORDRE pour ' + tko + ' : la taille, le stop '
+    + 'et les faits. Ce n\'est pas un signal ; la décision vous appartient.'
+    : 'Bien, Monsieur. Voici AVANT L\'ORDRE.');
   if(typeof window.ouvreFenetre==='function') ouvreFenetre(ud, 'carruos-decision');
   else location.href=ud;
   return;
@@ -703,18 +711,18 @@ async function exec(txt){
     +'sans être à son plus haut', sommet:'à son plus haut', chute:'en chute'};
    if(sit) u+='&situation='+sit;
    var UN1={heures:'heure',jours:'jour',semaines:'semaine',mois:'mois',ans:'an'};
-   dit('Je lance la recherche : '+cap+' euros, '+gn+' euros visés, '+nb+' '
+   dit('Bien, Monsieur. Je lance la recherche : '+cap+' euros, '+gn+' euros visés, '+nb+' '
      +(nb==='1' ? UN1[un] : un)+(sit ? ', titres '+LIB_SIT[sit]+' aujourd\'hui' : '')
      +'. Ce que chaque titre a donné, gain et perte côte à côte'
      +(sit ? ', et dans cette situation contre une période quelconque' : '')
      +'. Des mesures, pas un conseil.');
-  }else dit('J\'ouvre la recherche.');
+  }else dit('Voici la recherche, Monsieur.');
   if(typeof window.ouvreFenetre==='function') ouvreFenetre(u, 'carruos-recherche');
   else location.href=u;
   return;
  }
  if(/faillite|restructuration/.test(q)){
-  dit('J\'ouvre les restructurations.');
+  dit('Voici les restructurations, Monsieur.');
   if(typeof window.ouvreFenetre==='function')
    ouvreFenetre('/restructurations', 'carruos-restructurations');
   return;
@@ -722,7 +730,7 @@ async function exec(txt){
  var ma=q.match(/^(?:analyse|regarde|ouvre|affiche)\s+(.+)/);
  if(ma && !/portefeuille|mes lignes/.test(q)){
   var t=ma[1].replace(/[.?!]/g,'').trim();
-  dit('J\'ouvre '+t+'.');
+  dit('Bien, Monsieur. J\'ouvre '+t+'.');
   try{
    var ja=await (await fetch('/api/analyse?ticker='+encodeURIComponent(t))).json();
    if(ja.ok && typeof window.ouvreFenetre==='function'){
@@ -730,8 +738,9 @@ async function exec(txt){
                  'carruos-'+ja.ticker);
     return;
    }
-   dit(ja.erreur || ('Je ne trouve pas '+t+'.'));
-  }catch(e){ dit('Je n\'ai pas pu ouvrir '+t+'.'); }
+   dit(ja.erreur || ('Je ne trouve pas '+t+', Monsieur. Avec sa place, peut-être : '
+     +'TLX.DE plutôt que TLX.'));
+  }catch(e){ dit('Je n\'ai pas pu ouvrir '+t+', Monsieur.'); }
   return;
  }
  // Tout le reste part au cerveau : il rend les FAITS calcules par le
@@ -740,7 +749,8 @@ async function exec(txt){
  // ticker : il a les donnees, le navigateur non.
  if(await cerveau(brut)) return;
 
- dit('Je n\'ai pas compris. Essayez : je sors quand sur TLX, combien je '
+ dit('Pardonnez-moi, Monsieur, je n\'ai pas saisi. Vous pourriez me dire : '
+  +'je sors quand sur TLX, combien je '
   +'peux perdre sur Coin, que penses-tu de Nvidia, ouvre Sanofi, '
   +'avant l\'ordre sur TLX.DE, '
   +'scan Cac 40, je mets 3000 € pour gagner 100 € en un mois sur une '
@@ -764,7 +774,7 @@ async function cerveau(q){
   dflt=(el && el.value ? el.value.trim() : '') || C.getAttribute('data-ticker') || '';
  }catch(e){}
  try{
-  dit('Je regarde.', false);
+  dit('Un instant, Monsieur.', false);
   var j=await (await fetch('/api/cerveau',{method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({q:q, ticker:dflt, historique:HIST})})).json();
@@ -825,8 +835,11 @@ async function cerveau(q){
   if(f && f.ok) h+='<br><span class="mj-e">'+esc(j.rappel)+'</span>';
   R.innerHTML=h;
   if(E.ouvert) bulle();
+  // Les titres du dossier sont en capitales : la voix les dit en phrase.
+  var tt=(f && f.ok && f.titre) ? String(f.titre).toLowerCase() : '';
   dit((m.ok && m.texte) ? m.texte.split(/[.!?]\s/)[0]
-                        : (f && f.ok ? f.titre : 'Voilà.'), false);
+      : (tt ? 'Voici, Monsieur. ' + tt.charAt(0).toUpperCase() + tt.slice(1)
+         : 'Voici, Monsieur.'), false);
   return true;
  }catch(e){ return false; }
 }
@@ -881,7 +894,7 @@ async function web(){
  try{
   var j=await (await fetch('/api/navigateur')).json();
   if(j.ok){
-   dit('Page ouverte dans le navigateur. Le micro y fonctionne.', false);
+   dit('J\'ai ouvert la page dans votre navigateur, Monsieur ; le micro y fonctionne.', false);
    R.innerHTML='CARRUOS est ouvert dans votre navigateur. Le micro y '
     +'fonctionne.<br><span class="mj-e">'+esc(j.url)+'</span>';
    return;
@@ -1002,11 +1015,11 @@ function stop(){
 }
 function ecoute(){
  ouvre();
- if(M.ecoute){ stop(); R.textContent='Écoute arrêtée.'; return; }
+ if(M.ecoute){ stop(); R.textContent='J\'ai cessé d\'écouter, Monsieur.'; return; }
  var Rc=window.SpeechRecognition || window.webkitSpeechRecognition;
  if(!Rc){
   microIndispo('Le micro n\'existe pas dans cette fenêtre.');
-  dit('Le micro n\'est pas disponible ici. Écrivez votre question.', false);
+  dit('Le micro n\'est pas disponible ici, Monsieur. Écrivez-moi votre question, je vous prie.', false);
   return;
  }
  R.textContent='Autorisation du micro…';
@@ -1015,7 +1028,7 @@ function ecoute(){
    R.innerHTML=esc(PERM_DIT[p.motif] || PERM_DIT['refus'])
     +'<br><span class="mj-e">Le bouton DIAGNOSTIC dit précisément ce '
     +'qui bloque.</span>';
-   dit('Le micro est refusé. Voyez le diagnostic.', false);
+   dit('Le micro m\'est refusé, Monsieur. Le diagnostic vous dira pourquoi.', false);
    try{ I.focus(); }catch(e){}
    return;
   }
@@ -1030,7 +1043,7 @@ function demarre(Rc){
  C.classList.add('ecoute');
  var b=_mj('mjmic');
  b.textContent='J\'ÉCOUTE…';
- R.textContent='Je vous écoute. Cliquez MICRO pour arrêter.';
+ R.textContent='Je vous écoute, Monsieur. MICRO pour arrêter.';
  r.onresult=function(e){
   M.recu=true;
   var txt=e.results[0][0].transcript;
@@ -1055,7 +1068,7 @@ function demarre(Rc){
   C.classList.remove('ecoute');
   if(!M.micKo) _mj('mjmic').textContent='MICRO';
   if(!M.recu && R.textContent.indexOf('écoute')>=0){
-   R.textContent='Rien n\'est arrivé. Écrivez ci-dessous.';
+   R.textContent='Je n\'ai rien entendu, Monsieur. Vous pouvez m\'écrire ci-dessous.';
    try{ I.focus(); }catch(e){}
   }
  };

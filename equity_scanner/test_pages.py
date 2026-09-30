@@ -1051,7 +1051,7 @@ def main() -> int:
     _v("/api/cerveau" in ja, "il interroge la route dediee")
     _v("if(await cerveau(brut)) return;" in ja.replace("  ", " ")
        and ja.index("if(await cerveau(brut)) return;")
-       < ja.index("Je n\\'ai pas compris"),
+       < ja.index("je n\\'ai pas saisi"),
        "il l'essaie AVANT de dire qu'il n'a pas compris")
     # La reconnaissance du ticker se fait cote SERVEUR : le navigateur
     # n'a pas les donnees pour trancher quel mot est un ticker.
@@ -1462,6 +1462,26 @@ def main() -> int:
     _v("try{" in jmj_.split("function voixReglage")[1][:60]
        and "try{" in jmj_.split("function voixRange")[1][:40],
        "le stockage du reglage ne peut rien casser")
+
+    print("\n  LE TON DU MAJORDOME")
+    # Un majordome de grande maison : il vouvoie, dit « Monsieur », salue
+    # selon l'heure. La politesse ne change rien au fond : un compliment
+    # sur une decision (« excellent choix ») est un verdict deguise.
+    _sal = jmj_.split("function salut(")[1].split("\n}")[0]
+    _v("'Bonsoir'" in _sal and "'Bonjour'" in _sal and "getHours()" in _sal,
+       "il salue selon l'heure du poste")
+    _v(jmj_.count("salut()+', Monsieur.") >= 2 and "Monsieur" in hmj,
+       "il appelle le proprietaire Monsieur, a l'ouverture et dans la bulle")
+    _bas = (jmj_ + hmj).lower()
+    _flatte = [m for m in ("excellent choix", "bon choix", "sage décision",
+                           "bonne décision", "vous avez raison",
+                           "monsieur a raison", "bien joué", "judicieux")
+               if m in _bas]
+    _v(not _flatte, "aucun compliment-verdict dans ses phrases "
+       + (str(_flatte) if _flatte else ""))
+    _v(not re.search(r"\b(tu|ton|ta|tes|toi)\b", re.sub(
+        r"//[^\n]*", " ", "\n".join(re.findall(r"dit\('([^']*)'", jmj_)))),
+       "il vouvoie : aucun tutoiement dans ce qu'il dit")
 
     print("\n  UNE PAGE D'UN SEUL BLOC DEFILE")
     # `.app` est une grille de 100vh en `auto auto minmax(0,1fr)` et

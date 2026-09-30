@@ -2540,6 +2540,8 @@ def test_brain2() -> None:
         "pas de meilleur horizon": "Un « meilleur horizon »",
         "sources web": "attribue chaque chiffre trouvé à sa source",
         "pas de crise tranchee": "« Crise » n'a pas de définition",
+        "la politesse n'autorise aucun avis": "la politesse n'autorise aucun avis",
+        "pas de compliment-verdict": "« Excellent choix, Monsieur »",
     }
     manque = [k for k, v in lignes_rouges.items() if v not in cv.CONSIGNE]
     ok("la consigne du modele garde les lignes rouges du projet",

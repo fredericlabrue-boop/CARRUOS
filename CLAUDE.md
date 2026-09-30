@@ -218,6 +218,17 @@ jeu de paramètres qui ne l'a pas produit.
   changerait le tableau, les questions à se poser — et **aucun**
   verdict. `test_moteur` vérifie que chaque ligne rouge y figure : une
   consigne se réécrit en une minute, et rien d'autre ne le verrait.
+- **Un compliment qui juge une décision.** Le propriétaire a demandé le
+  30 septembre 2026 un majordome « comme Jarvis ou Alfred, très
+  protocolaire, poli et élégant ». Le **ton** est accordé : il vouvoie,
+  dit « Monsieur », salue selon l'heure (bonjour, bonsoir), parle en
+  phrases courtes et soignées — dans ses phrases écrites d'avance
+  (`majordome.py`) comme dans la consigne du modèle. Le **fond** ne
+  bouge pas : « excellent choix, Monsieur », « sage décision »,
+  « Monsieur a eu raison » sont des verdicts déguisés en courtoisie.
+  `test_pages` refuse ces formules et tout tutoiement dans ce que dit le
+  majordome ; `test_moteur` exige que la consigne dise « la politesse
+  n'autorise aucun avis ». Aucune réplique de film n'est reprise.
 - **Aucune clé API dans le programme.** CARRUOS n'en embarque aucune et
   ne peut pas en fabriquer. Celle du cerveau est celle du propriétaire,
   prise chez le fournisseur, rangée dans `~/.carruos/ia.json` en 0600 —
@@ -474,6 +485,7 @@ jeu de paramètres qui ne l'a pas produit.
 | | son script est **isolé** dans une fonction anonyme (seul `window.CARRUOS_MAJ` sort) ; les commandes propres à l'accueil (`scan`, `toutRafraichir`) ne sont appelées que là où elles existent |
 | | le décor de fond est **isolé** (`contain:strict`) et ses tailles sont **plafonnées en pixels** : son coût est proportionnel à la surface, et une taille en `vh` double quand l'écran double |
 | | la **voix** est celle que le propriétaire choisit dans la bulle (VOIX : une des voix installées sur son PC, vitesse, hauteur, silence), rangée dans `localStorage` sous `carruos_maj_voix` et relue à chaque phrase — donc partagée par toutes les fenêtres, et par la voix de la page graphique. Sans choix, une voix française masculine, « Natural » d'abord, à hauteur **naturelle** : la hauteur forcée à 0,7 rendait la voix synthétique déplaisante. Le programme n'embarque aucune voix ; la bulle dit où en ajouter gratuitement dans Windows |
+| | le **ton** est celui d'un majordome de grande maison : vouvoiement, « Monsieur », salut selon l'heure (`salut()`), phrases courtes. Il présente les faits avec égards ; aucun compliment sur une décision, qui serait un verdict |
 | `indicators.py` | indicateurs — **PERIODES gelées** |
 | `rules.py` | les 13 blocs d'entrée et les 4 sorties |
 | `backtest.py` | moteur de simulation, exécution J+1, coûts, **plafond de poids** |

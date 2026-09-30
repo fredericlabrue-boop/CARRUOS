@@ -281,6 +281,13 @@ Deux chemins, tous deux pleinement fonctionnels :
 Le panneau se ferme par **la croix**, par **Échap**, ou en recliquant sur
 le disque du majordome.
 
+**Son ton** est celui d'un majordome de grande maison : il vous vouvoie,
+vous appelle « Monsieur » et salue selon l'heure. La politesse ne change
+rien au fond : il présente les faits, jamais un avis — pas même un
+« excellent choix ». Pour la voix elle-même, ouvrez **VOIX** dans la
+bulle : une voix masculine « Natural » (Henri, par exemple) à la vitesse
+0,9 donne le registre le plus posé.
+
 ---
 
 ## Pour les curieux : la ligne de commande
