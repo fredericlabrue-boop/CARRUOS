@@ -1565,6 +1565,40 @@ def main() -> int:
        and "TOUS.forEach(src=>src.timeScale()" in js6,
        "la bande suit le zoom et le defilement des trois autres")
 
+    print("\n  LES GRAPHIQUES SE LISENT")
+    # « La moitie est illisible et mal zoomee » (30/09/2026). Releve a
+    # 1 420 px : RSI, bougies et MACD avaient 35 px de trace, et deux ans
+    # de bougies tenaient dans 620 px — 1,5 px chacune.
+    css7 = re.sub(r"/\*.*?\*/", " ", "".join(
+        re.findall(r"<style>(.*?)</style>", g7, re.S)), flags=re.S)
+    c7 = css7.replace("\n", " ").replace(" ", "")
+    dr = js6[js6.index("function draw()"):js6.index("function draw()") + 4000]
+    _v("vueDefaut()" in dr and "fitContent" not in dr,
+       "a l'ouverture, les dernieres bougies a une largeur lisible — pas "
+       "tout l'historique ecrase dans la largeur")
+    vd7 = js6[js6.index("function vueDefaut"):js6.index("function compteVue")]
+    _v("PX_BOUGIE" in vd7 and "setVisibleLogicalRange" in vd7,
+       "la vue par defaut se calcule sur la largeur du trace")
+    _v("zt" in js6 and "fitContent" in js6[js6.index("'zt'"):
+                                           js6.index("'zt'") + 200],
+       "TOUT montre l'historique entier, a la demande")
+    _v(".pil-c.box.sup>.lb{position:absolute" in c7
+       and g7.count('class="box sup') == 3,
+       "RSI, bougies et MACD : le libelle est pose sur le trace, pas "
+       "au-dessus")
+    _v("maxValue:100" in js6[js6.index("rsi.applyOptions"):
+                             js6.index("rsi.applyOptions") + 300],
+       "l'echelle du RSI est fixe, de 0 a 100")
+    _v("cR.applyOptions({timeScale:{visible:false},layout:{attributionLogo:false}})"
+       in js6 and "cM.applyOptions({layout:{attributionLogo:false}})" in js6,
+       "le logo de la bibliotheque ne recouvre plus le RSI ni le MACD")
+    m15 = re.search(r"@media\(max-width:1500px\)\{(.*?\})\}", c7)
+    _v(bool(m15) and ".pil-h{display:none}" in m15.group(1),
+       "sous 1 500 px, la colonne du cerf cede sa place aux graphiques")
+    _v('id="zg"' in g7 and ".wrap.grand" in c7 and "'Escape'" in js6,
+       "AGRANDIR donne toute la fenetre aux graphiques, Echap la rend")
+    _v("locale:'fr-FR'" in js6, "les mois et les dates sont en francais")
+
     print("\n  BANDEAU DES MODULES")
     # Le defaut trouve : `.mods`, `.mod`, `.hdr2`, `.gg`, `.zone`, `.val`,
     # `.nw2`... n'etaient definis NULLE PART. Le bandeau du bas de la page

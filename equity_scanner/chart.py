@@ -719,9 +719,9 @@ body{background:var(--fond);color:var(--txt);
    Le plancher passe a zero — les `fr` gardent les proportions — et
    `overflow:hidden` garantit qu'aucun panneau ne peut plus mordre sur
    ce qui est en dessous, quoi qu'il arrive. */
-.pil-c{grid-column:2;grid-row:3;min-height:0;display:grid;gap:7px;
+.pil-c{grid-column:2;grid-row:3;min-height:0;display:grid;gap:6px;
  overflow:hidden;
- grid-template-rows:minmax(0,2.7fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)}
+ grid-template-rows:minmax(0,2.5fr) minmax(0,1fr) minmax(0,.85fr) minmax(0,1.15fr)}
 /* La bande des bougies. Le texte qui dit ce que la pastille survolee a
    ete suivie de est POSE SUR le graphique, en haut : sous lui, il prenait
    trois lignes a une bande de 80 px, et le graphique tombait a zero. Les
@@ -729,8 +729,9 @@ body{background:var(--fond);color:var(--txt);
    <div id> : la regle qui donne au graphique « tout le reste » ne doit
    pas le toucher. */
 .pil-c .box.bg{position:relative}
-.pil-c .bgtx{position:absolute;left:11px;right:62px;top:27px;margin:0;
- font-size:10.5px;line-height:1.4;color:var(--txt-mi);max-height:2.8em;
+.pil-c .bgtx{position:absolute;left:14px;right:70px;top:24px;margin:0;
+ font-size:10.5px;line-height:1.4;color:var(--txt-mi);max-height:1.4em;
+ white-space:nowrap;text-overflow:ellipsis;
  overflow:hidden;pointer-events:none;z-index:2;
  background:linear-gradient(rgba(13,18,25,.92),rgba(13,18,25,.55))}
 .pil-c .bgtx b{color:var(--txt-fort);font-weight:500}
@@ -738,9 +739,18 @@ body{background:var(--fond);color:var(--txt);
 /* La boite en colonne flex : le libelle prend ce qu'il lui faut, le
    graphique prend EXACTEMENT le reste. Plus rien a deviner — c'est la
    mise en page qui donne la hauteur, le script se contente de la lire. */
-.pil-c .box{display:flex;flex-direction:column;min-height:0;overflow:hidden}
-.pil-c .box>.lb{flex:none}
+.pil-c .box{display:flex;flex-direction:column;min-height:0;overflow:hidden;
+ padding:6px 8px}
+.pil-c .box>.lb{flex:none;padding:2px 6px 5px}
 .pil-c .box>div[id]{flex:1 1 auto;min-height:0;overflow:hidden}
+/* RSI, BOUGIES, MACD : leur libelle prenait une ligne de 26 px dans une
+   boite de 93 — a 1 420 px de large, le trace tombait a 35 px et la
+   courbe devenait un trait plat. Le libelle est POSE SUR le trace, en
+   haut, et le trace prend toute la boite. */
+.pil-c .box.sup{position:relative}
+.pil-c .box.sup>.lb{position:absolute;left:8px;right:70px;top:5px;z-index:2;
+ pointer-events:none;padding:1px 6px;background:rgba(13,18,25,.72);
+ border-radius:4px}
 .pil-h{grid-column:3;grid-row:3;min-height:0;display:flex;
  flex-direction:column;align-items:center;justify-content:center;
  gap:9px;padding:14px 12px;position:relative;overflow:hidden;
@@ -807,14 +817,26 @@ body{background:var(--fond);color:var(--txt);
 .pil-l::-webkit-scrollbar,.pil-r::-webkit-scrollbar{width:5px}
 .pil-l::-webkit-scrollbar-thumb,.pil-r::-webkit-scrollbar-thumb{
  background:#1c2635;border-radius:3px}
+/* Sous 1 500 px, la colonne du cerf (232 px) repetait ce que la colonne
+   de droite dit deja — le verdict, les blocs, le stop — et laissait aux
+   graphiques 620 px a 1 420 : deux ans de bougies a 1,5 px chacune. Elle
+   cede sa place ; le cerf reste en tete de la colonne de gauche. */
 @media(max-width:1500px){
- .wrap{grid-template-columns:218px minmax(0,1fr) 232px 284px}}
+ .wrap{grid-template-columns:212px minmax(0,1fr) 284px}
+ .pil-h{display:none}
+ .pil-r{grid-column:3}}
+/* AGRANDIR : les quatre graphiques prennent toute la fenetre. */
+.wrap.grand{grid-template-columns:minmax(0,1fr)}
+.wrap.grand>.pil-l,.wrap.grand>.pil-h,.wrap.grand>.pil-r,
+.wrap.grand>.bas{display:none}
+.wrap.grand>.pil-c{grid-column:1}
+.zb.on{background:#0e3b48;color:var(--txt-fort)}
 @media(max-width:1250px){html,body{overflow:auto}
  .wrap{height:auto;grid-template-columns:1fr;grid-template-rows:none}
  .pil-l,.pil-c,.pil-h,.pil-r{grid-column:1;grid-row:auto}
  .pil-h{min-height:300px}
  .pil-c{grid-template-rows:480px 140px 150px 140px}}
-.hd{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-bottom:18px}
+.hd{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-bottom:6px}
 .hd h1{font-size:30px;font-weight:600;color:#f8fafc;letter-spacing:.02em}
 .hd .px{font-size:19px;color:#cbd5e1;font-variant-numeric:tabular-nums}
 .hd .mt{font-size:12.5px;color:#576a83}
@@ -985,7 +1007,9 @@ const base={layout:{background:{color:'transparent'},textColor:'#64748b',fontSiz
             horzLine:{color:'#33465e',labelBackgroundColor:'#22d3ee'}},
  handleScroll:{mouseWheel:true,pressedMouseMove:true,horzTouchDrag:true},
  handleScale:{mouseWheel:true,pinch:true,axisPressedMouseMove:true,
-              axisDoubleClickReset:true}};
+              axisDoubleClickReset:true},
+ // Les mois et les dates en francais : « 04 Aug '26 » sous le curseur.
+ localization:{locale:'fr-FR',dateFormat:'dd MMM yyyy'}};
 // Les hauteurs viennent du conteneur, pas de valeurs figees : la page
 // doit tenir dans la fenetre quelle que soit sa taille.
 // Un faux graphique quand la bibliotheque manque : il avale les appels
@@ -1035,7 +1059,7 @@ const bgl=cB.addLineSeries({color:'rgba(0,0,0,0)',lineWidth:1,
 // L'echelle de droite reste, vide, pour que les dates tombent au meme
 // endroit que sur les trois autres graphiques.
 cB.applyOptions({rightPriceScale:{visible:true,ticksVisible:false,
- borderColor:'#1a2330',scaleMargins:{top:.62,bottom:.1}},
+ borderColor:'#1a2330',scaleMargins:{top:.8,bottom:.08}},
  timeScale:{visible:false},grid:{horzLines:{visible:false}},
  // Le logo de la bibliotheque reste sur les trois autres graphiques (sa
  // licence demande l'attribution sur la page) ; sur la bande, il masquait
@@ -1065,8 +1089,25 @@ const ema=L(cP,'#22d3ee',2),s50=L(cP,'#f59e0b',1),s200=L(cP,'#a78bfa',1),
  bbu=L(cP,'#3b4d66',1,2),bbl=L(cP,'#3b4d66',1,2),
  rsi=L(cR,'#e879f9',2),macd=L(cM,'#22d3ee',2),macs=L(cM,'#f59e0b',1);
 const mach=cM.addHistogramSeries({priceLineVisible:false,lastValueVisible:false});
+// L'echelle du RSI est FIXE, 0 a 100 : en echelle automatique, la zone
+// 40-55 changeait de place a chaque titre, et les trois etiquettes se
+// chevauchaient dans une bande basse. Les lignes restent, sans etiquette.
+rsi.applyOptions({priceFormat:{type:'price',precision:0,minMove:1},
+ autoscaleInfoProvider:function(){
+ return {priceRange:{minValue:0,maxValue:100}};}});
+cR.priceScale('right').applyOptions({scaleMargins:{top:.06,bottom:.06}});
+// Les marges par defaut de l'echelle (20 % en haut) laissaient un quart
+// du graphique des prix vide au-dessus des bougies ; le bas garde la
+// place du volume, pose sur les 13 % inferieurs.
+cP.priceScale('right').applyOptions({scaleMargins:{top:.06,bottom:.15}});
 [40,55,80].forEach(v=>rsi.createPriceLine({price:v,color:'#33465e',lineWidth:1,
- lineStyle:2,axisLabelVisible:true}));
+ lineStyle:2,axisLabelVisible:false}));
+// Les dates se lisent sous les prix et sous le MACD : l'axe du temps du
+// RSI prenait le quart de sa bande. Le logo de la bibliotheque reste sur
+// le graphique des prix (sa licence demande l'attribution sur la page) ;
+// sur le RSI et le MACD, il recouvrait le debut des courbes.
+cR.applyOptions({timeScale:{visible:false},layout:{attributionLogo:false}});
+cM.applyOptions({layout:{attributionLogo:false}});
 const G={ema20:[ema],sma50:[s50],sma200:[s200],bb:[bbu,bbl],rsi:[rsi],macd:[macd,macs,mach]};
 
 // Pose le mot du verdict au centre du cercle et REDUIT sa taille
@@ -1298,11 +1339,13 @@ function bgTexte(t){
  }
  const c=BG.comptage||{};
  el.title=BG.rappel||'';
- el.innerHTML=BG.points.length+' figure(s) sur la p\u00e9riode affich\u00e9e. '
-  +'Survolez une pastille : grise = dans le bruit sur ce titre, '
-  +'<span class="g">verte</span> ou <span class="p">rouge</span> = \u00e9cart net '
-  +'\u00e0 '+BG.horizon+' barres. '+(c.mesures?c.nets+' \u00e9cart(s) net(s) sur '
-  +c.mesures+' mesures, environ '+Math.round(c.attendus)+' attendu(s) par le seul hasard.':'');
+ // Une ligne : sur deux, la phrase recouvrait les pastilles. Le compte
+ // des ecarts nets attendus par hasard reste DANS la ligne, pas au survol.
+ el.innerHTML='Survolez une pastille \u00b7 grise = bruit, '
+  +'<span class="g">verte</span>/<span class="p">rouge</span> = \u00e9cart net \u00e0 '
+  +BG.horizon+' barres'+(c.mesures?' \u00b7 '+c.nets+' \u00e9cart(s) net(s) sur '
+  +c.mesures+' mesures, ~'+Math.round(c.attendus)+' attendu(s) par le seul hasard':'')
+  +' \u00b7 '+BG.points.length+' figure(s)';
 }
 [cB,cP,cR,cM].forEach(c=>c.subscribeCrosshairMove(function(pa){
  bgTexte(pa && pa.time ? (typeof pa.time==='string'?pa.time
@@ -1388,7 +1431,7 @@ function draw(){
  bgl.setData(d.ohlc.map(p=>({time:p.time,value:0})));
  bgl.setMarkers(pastilles(d.bougies));
  BG=d.bougies||null; bgTexte(null);
- TOUS.forEach(c=>c.timeScale().fitContent());
+ vueDefaut();
 
  const v=d.verdict;
  let h='<div class="vd v-'+v.type+'"><div class="t">'+v.titre+
@@ -1447,11 +1490,14 @@ function draw(){
   ch.textContent = CHANCE || '\\u2014';
   ch.style.color = CHANCE ? '#f59e0b' : '#475a72';
  }
- document.getElementById('px').textContent=d.stats.cours;
+ // Deux decimales, quatre sous 1 : « 4195.2589 » se lisait mal.
+ const pxf=function(v){ if(v==null||isNaN(v)) return '\u2014';
+  const k=Math.abs(v)<1?4:2;
+  return Number(v).toLocaleString('fr-FR',{minimumFractionDigits:k,maximumFractionDigits:k}); };
+ document.getElementById('px').textContent=pxf(d.stats.cours);
  document.getElementById('mt').textContent='RSI '+Math.round(d.stats.rsi)+
-   ' · ATR '+d.stats.atr;
- var ns=document.getElementById('nsig');
- if(ns)ns.textContent=d.markers.length+' signaux / '+d.stats.bougies+' bougies';
+   ' · ATR '+pxf(d.stats.atr);
+ compteVue();
 }
 
 document.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click',()=>{
@@ -1459,6 +1505,35 @@ document.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click',
  b.classList.add('on'); U=b.dataset.u;
  try{majLong();}catch(e){} draw();}));
 
+// LA VUE PAR DEFAUT. `fitContent` posait TOUT l'historique charge dans
+// la largeur du graphique : deux ans de bougies journalieres dans 620 px,
+// soit 1,5 px par bougie, et une echelle des prix etiree de 3 000 a
+// 10 000 par un sommet d'il y a un an. On montre les dernieres bougies, a
+// PX_BOUGIE pixels chacune ; la molette et le glisser remontent le temps,
+// TOUT montre l'historique entier.
+const PX_BOUGIE=7, MIN_BOUGIES=40;
+function largeurTrace(){
+ const el=document.getElementById('p1');
+ return Math.max(200,(el?el.clientWidth:600)-70);
+}
+function vueDefaut(){
+ const d=D[U]; if(!d||!d.ohlc) return;
+ const n=d.ohlc.length; if(!n) return;
+ const k=Math.min(n,Math.max(MIN_BOUGIES,Math.floor(largeurTrace()/PX_BOUGIE)));
+ // A droite, un peu de place pour le cone de dispersion.
+ const marge=Math.max(3,Math.round(k*0.08));
+ TOUS.forEach(c=>c.timeScale().setVisibleLogicalRange({from:n-k-0.5,to:n-1+marge}));
+ compteVue();
+}
+function compteVue(){
+ const d=D[U], ns=document.getElementById('nsig');
+ if(!d||!d.ohlc||!ns) return;
+ const r=cP.timeScale().getVisibleLogicalRange(), n=d.ohlc.length;
+ let vus=n;
+ if(r) vus=Math.max(0,Math.min(n-1,Math.floor(r.to))-Math.max(0,Math.ceil(r.from))+1);
+ ns.textContent=d.markers.length+' signaux \u00b7 '+vus+' bougies affich\u00e9es sur '+n;
+}
+cP.timeScale().subscribeVisibleLogicalRangeChange(function(){compteVue();});
 let lock=false;
 TOUS.forEach(src=>src.timeScale().subscribeVisibleLogicalRangeChange(r=>{
  if(lock||!r)return; lock=true;
@@ -1549,9 +1624,28 @@ if(b_vx){
 }
 if(window.speechSynthesis) speechSynthesis.onvoiceschanged=function(){};
 
-document.getElementById('z0').onclick=function(){
+document.getElementById('z0').onclick=function(){ vueDefaut(); };
+document.getElementById('zt').onclick=function(){
  TOUS.forEach(function(c){c.timeScale().fitContent();});
 };
+// AGRANDIR : les quatre graphiques prennent toute la fenetre ; Echap ou
+// le meme bouton les rendent. Le choix est retenu d'une ouverture a
+// l'autre, sur ce poste.
+function grand(oui){
+ const w=document.querySelector('.wrap'), b=document.getElementById('zg');
+ if(!w) return;
+ w.classList.toggle('grand',oui);
+ if(b){ b.textContent=oui?'R\u00c9DUIRE':'AGRANDIR'; b.classList.toggle('on',oui); }
+ try{ localStorage.setItem('carruos_graph_grand',oui?'1':'0'); }catch(e){}
+ setTimeout(function(){ redim(); vueDefaut(); },30);
+}
+document.getElementById('zg').onclick=function(){
+ grand(!document.querySelector('.wrap').classList.contains('grand'));
+};
+document.addEventListener('keydown',function(e){
+ if(e.key==='Escape' && document.querySelector('.wrap.grand')) grand(false);
+});
+try{ if(localStorage.getItem('carruos_graph_grand')==='1') grand(true); }catch(e){}
 // les graphiques restent alignes quand on zoome a la molette
 let sync=false;
 TOUS.map(function(c){return [c, TOUS.filter(function(x){return x!==c;})];})
@@ -1801,7 +1895,12 @@ def build_html(brut, ticker, bench_brut, sleeve=8000.0, ccy="",
         '<span class="osep"></span><span class="ot">ZOOM</span>'
         '<button class="zb" id="z-">&minus;</button>'
         '<button class="zb" id="z+">+</button>'
-        '<button class="zb" id="z0">AJUSTER</button>'
+        '<button class="zb" id="z0" title="Les dernières bougies, à une '
+        'largeur lisible">AJUSTER</button>'
+        '<button class="zb" id="zt" title="Tout l’historique chargé">'
+        'TOUT</button>'
+        '<button class="zb" id="zg" title="Les graphiques sur toute la '
+        'fenêtre — Échap pour revenir">AGRANDIR</button>'
         '<span class="osep"></span><span class="ot">VOIX</span>'
         '<button class="zb" id="vx">ACTIVER</button>'
         '<span class="oz" id="coneinfo"></span>'
@@ -1812,12 +1911,12 @@ def build_html(brut, ticker, bench_brut, sleeve=8000.0, ccy="",
         '<div class="pil-c">'
         '<div class="box"><div class="lb"><span>PRIX ET VOLUME</span>'
         '<span id="nsig"></span></div><div id="p1"></div></div>'
-        '<div class="box"><div class="lb"><span>RSI 14</span>'
+        '<div class="box sup"><div class="lb"><span>RSI 14</span>'
         '<span>zone 40-55</span></div><div id="p2"></div></div>'
-        '<div class="box bg"><div class="lb"><span>BOUGIES &middot; FIGURES'
+        '<div class="box sup bg"><div class="lb"><span>BOUGIES &middot; FIGURES'
         '</span><span>ce qui a suivi, sur ce titre</span></div>'
         '<div id="p4"></div><p class="bgtx" id="bgtx"></p></div>'
-        '<div class="box"><div class="lb"><span>MACD 12-26-9</span></div>'
+        '<div class="box sup"><div class="lb"><span>MACD 12-26-9</span></div>'
         '<div id="p3"></div></div></div>'
         # --- colonne hologramme : le cerf, le nom, le verdict ---
         '<div class="pil-h">'

@@ -476,6 +476,7 @@ jeu de paramètres qui ne l'a pas produit.
 | | une unité est identifiée par sa **clé**, jamais par sa règle de rééchantillonnage : 5 ANS et 1 SEMAINE partagent la taille de bougie, et la déduire de la règle donnait à la seconde les longueurs de la première |
 | | **quatre** graphiques alignés (`TOUS`) : prix, RSI, la **bande des bougies** (`_bougies`, figures des barres affichées et leur suivi par `chandeliers.suivi`), MACD. La bande n'a pas d'axe du temps et son texte est posé **sur** elle |
 | | la fenêtre affichée sous chaque onglet est **calculée sur les vraies dates** : une constante mentirait dès que l'historique du titre est plus court |
+| | **la vue par défaut** montre les dernières bougies à `PX_BOUGIE` pixels chacune (`vueDefaut`), jamais `fitContent` : deux ans de bougies dans 620 px en faisaient 1,5 px, et un sommet ancien étirait l'échelle des prix. AJUSTER y revient, TOUT montre l'historique entier, AGRANDIR donne la fenêtre entière aux quatre graphiques (Échap, retenu par poste). Sous 1 500 px, la colonne du cerf cède sa place ; RSI, bougies et MACD ont leur libellé **posé sur** le tracé ; RSI en échelle fixe 0-100 ; dates en français |
 | | `chart.source_trace()` choisit **côté serveur** où prendre la bibliothèque de tracé : la copie locale (`equity_scanner/statique/lightweight-charts.js`) si elle existe, sinon le CDN. **Une seule balise, bloquante.** Jamais de repli `onerror` : il ajouterait le script de façon asynchrone, le code de la page tournerait avant, et la bibliothèque serait toujours absente |
 | `hud.py` | éléments visuels : cerf, cadrans, rails, radar, **icône** |
 | | `hud.holo_calques()` dessine **l'hologramme de l'accueil en petit** — anneaux, lueur, cône, socle, cerf en trait net sur halo avec son aberration chromatique. `hud.icone()` le pose en **médaillon** sombre (onglet, fenêtres, `carruos.ico`) ; le majordome en fait son avatar, calque par calque. Une seule source — sinon le logo et l'avatar divergent. Les traits sont donnés **en pixels affichés** : un logo de 16 px n'aurait plus de cerf, un de 256 px en aurait un trop épais |
@@ -868,6 +869,14 @@ jeu de paramètres qui ne l'a pas produit.
   était le z contre les annonces **sans surprise** ; la couverture retire
   la hausse du marché au trade ET au témoin, et le z reste près de zéro.
   C'est écrit dans `pistes-2027-BROUILLON.md` pour ne pas être repris.
+- **Un graphique qui tient dans sa boîte peut rester illisible.** Tous
+  les tests de mise en page passaient — rien ne débordait — pendant qu'à
+  1 420 px le RSI, la bande des bougies et le MACD avaient **35 px** de
+  tracé chacun, le libellé en prenant 26, et que deux ans de bougies
+  tenaient dans 620 px. « La moitié est illisible et mal zoomée. » Une
+  mise en page se vérifie au rendu, à la taille de la fenêtre du
+  propriétaire, et en regardant ce qu'il reste au **tracé** — pas
+  seulement que rien ne dépasse.
 - **Une `var` est remontée, pas sa valeur.** Le premier réglage de la
   voix appelait `voixListe()` plus haut dans le script que la ligne qui
   affecte `VOIX_DEF` : la fonction existait déjà, ses réglages non. Le
