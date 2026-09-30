@@ -433,8 +433,8 @@ jeu de paramètres qui ne l'a pas produit.
   par trade contre −1,99 % pour le témoin (z +0,17), PF 0,64 — 0,75 sans
   aucun frais —, recul maximal 84,4 %. Le passage unique **n'est pas
   parti** : 409 titres exploitables sur 518, sous les 80 % de la note de
-  lecture ; rien de 2024-2026 n'a été regardé. Le propriétaire a choisi
-  l'**abandon** ; il l'inscrit lui-même sur sa machine (`--abandonner`,
+  lecture ; rien de 2024-2026 n'a été regardé. **ABANDONNÉE**, inscrite
+  au registre par le propriétaire le 30 septembre 2026 (`--abandonner`,
   choix 4 de `Tester-strategie-3.bat`), comme un échec, sans période
   consommée. Une hypothèse abandonnée ne repart plus. Le budget 2026 est épuisé :
   `pistes-2027-BROUILLON.md` rassemble ce que les trois échecs ont appris. Sa période de validation,

@@ -1229,7 +1229,7 @@ Rappel, parce que c'est la colonne vertébrale du projet :
 |---|---|
 | Stratégie 1 — repli en tendance | **NO-GO** en Phase 0 sur S&P 500 et 120 titres US. Hypothèse morte. |
 | Stratégie 2 — dérive post-annonce | **NO-GO** au passage unique du 29 septembre 2026 sur 2024–2026 (z +1,13, profit factor 1,13, drawdown 32,6 %). Hypothèse morte. |
-| Stratégie 3 — dérive post-annonce négative (vente à découvert) | documents validés le 30 septembre 2026 ; **répétition 2010-2023 NO-GO** (−1,95 % par trade, témoin −1,99 %, z +0,17, PF 0,64, recul max 84,4 %). Le passage unique n'est pas parti : 409 titres exploitables sur 518, sous les 80 % exigés — rien de 2024-2026 n'a été regardé. Abandon à inscrire au registre : `Tester-strategie-3.bat`, choix 4. |
+| Stratégie 3 — dérive post-annonce négative (vente à découvert) | documents validés le 30 septembre 2026 ; **répétition 2010-2023 NO-GO** (−1,95 % par trade, témoin −1,99 %, z +0,17, PF 0,64, recul max 84,4 %). Le passage unique n'est pas parti : 409 titres exploitables sur 518, sous les 80 % exigés — rien de 2024-2026 n'a été regardé. **ABANDONNÉE**, inscrite au registre le 30 septembre 2026. Hypothèse fermée. |
 
 **Tant qu'aucune hypothèse n'a passé sa Phase 0, toute sortie de
 CARRUOS est une liste de surveillance, pas une liste d'ordres.**
