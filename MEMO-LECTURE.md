@@ -847,7 +847,11 @@ stratégie 2. E1 est une surprise **négative** — CAR3 ≤ **−5 %** —, E5
 exige **50 M$** par jour, E6 le **titre** sous sa SMA200. Vente à
 l'ouverture de J+3, stop **au-dessus** de l'entrée (+ **2** × ATR),
 rachat après **45** séances, la veille de l'annonce suivante, ou dès une
-clôture au-dessus de la SMA200.
+clôture au-dessus de la SMA200. Le stop et la thèse morte se lisent à la
+clôture — dès celle du jour de la vente — et rachètent à l'**ouverture
+suivante**, au cours réel : le texte dit « le stop sort alors au cours
+réel d'ouverture ». Les stratégies 1 et 2 rachetaient à la clôture même,
+une convention optimiste qui n'est pas reprise.
 
 - Emprunt des titres **2 %** par an au prorata ; la ligne « difficile à
   emprunter », à **10 %** par an, **décide**.

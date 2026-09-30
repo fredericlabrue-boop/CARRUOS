@@ -165,6 +165,11 @@ Le cache des cours, la clé Alpha Vantage, les positions et le journal
 d'audit vivent dans `.bruce_cache`, à côté du programme. Supprimer ce
 dossier remet tout à zéro sans rien casser.
 
+Les compositions d'univers figées (menu **F**, une fois par trimestre)
+et les dernières listes S&P 500 / Nasdaq 100 chargées vivent dans
+`~/.carruos/univers` : elles doivent survivre aux mises à jour, puisque
+tout leur intérêt est de s'accumuler au fil des années.
+
 ---
 
 ## Comprendre la page d'accueil

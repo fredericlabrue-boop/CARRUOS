@@ -1,0 +1,10 @@
+# Fichiers dont l'empreinte SHA256 est verifiee (test_moteur, registre,
+# validation des documents) : jamais convertis en fins de ligne Windows.
+# Git pour Windows le fait par defaut, et chaque empreinte tomberait.
+archives/** -text
+protocole-validation-v1.md -text
+derive-post-annonce-v1.md -text
+derive-post-annonce-v1-lecture.md -text
+strategie-short-v1.md -text
+strategie-short-v1-lecture.md -text
+strategie-short-v1-amendement-1.md -text

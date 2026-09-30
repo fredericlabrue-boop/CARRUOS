@@ -301,9 +301,17 @@ def simule_court(d, i_ann, ticker, prochaine=None,
                  col: dict | None = None) -> TradeCourt | None:
     """Vente a l'ouverture de J+3, rachat a la premiere condition atteinte.
 
-    Le stop est AU-DESSUS de l'entree et se declenche sur cloture. Il ne
-    protege pas d'un ecart d'ouverture : une offre de rachat peut ouvrir
-    40 % plus haut, et le rachat se fait alors au cours reel.
+    S2 (stop) et S4 (these morte) se LISENT a la cloture et s'EXECUTENT a
+    l'ouverture de la seance suivante — le texte : « Le stop est sur
+    cloture […] Le stop sort alors au cours reel d'ouverture, pas au
+    niveau souhaite. » La meme separation qu'a l'entree (condition a la
+    cloture de J+2, vente a l'ouverture de J+3). Un ecart d'ouverture est
+    donc compte en entier. La premiere cloture surveillee est celle du
+    jour de la vente : « la premiere atteinte rachete ».
+
+    S1 (duree) et S3 (veille de l'annonce suivante) sont connues d'avance
+    et rachetent a la cloture de leur seance ; ce jour-la, elles passent
+    avant un stop qui ne s'executerait que le lendemain.
 
     `prochaine` est la DATE DU CALENDRIER de l'annonce suivante : on
     rachete a la cloture de la derniere seance strictement avant elle.
@@ -338,18 +346,25 @@ def simule_court(d, i_ann, ticker, prochaine=None,
     if fin <= i0:
         return None
 
-    def rachat(j, m):
+    ouv = col["open"]
+
+    def rachat(j, m, prix=None):
         """On RACHETE : les frais augmentent ce qu'on debourse."""
+        p = float(close[j]) if prix is None else prix
         return TradeCourt(ticker, d.index[i0], d.index[j], entree,
-                          float(close[j]) * (1 + bt.COUT_PAR_COTE
-                                             + bt.SLIPPAGE),
+                          p * (1 + bt.COUT_PAR_COTE + bt.SLIPPAGE),
                           stop, atr, j - i0, m, emprunt_an)
 
-    for j in range(i0 + 1, min(fin, n - 1) + 1):
-        if close[j] >= stop:                                    # S2
-            return rachat(j, "stop")
-        if np.isfinite(sma[j]) and close[j] > sma[j]:           # S4
-            return rachat(j, "these morte")
+    # Les clotures qui precedent la sortie prevue : un declenchement y
+    # rachete a l'ouverture suivante, qui existe encore dans les donnees.
+    for j in range(i0, min(fin, n - 1)):
+        s2 = close[j] >= stop                                   # S2
+        s4 = bool(np.isfinite(sma[j]) and close[j] > sma[j])   # S4
+        if s2 or s4:
+            k = j + 1
+            p = float(ouv[k]) if np.isfinite(ouv[k]) and ouv[k] > 0 \
+                else float(close[k])
+            return rachat(k, "stop" if s2 else "these morte", p)
     if fin > n - 1:
         return rachat(n - 1, "ouvert")
     return rachat(fin, motif)

@@ -473,6 +473,7 @@ jeu de paramètres qui ne l'a pas produit.
 | `short.py` | stratégie 3, vente à découvert — **constantes gelées** |
 | | deux temps, comme `pead.py` : `prepare()` (répétable ; comptes sans rendement sur 2024-2026 ; répétition 2010-2023 sur des données **coupées au 31/12/2023**, sinon un trade de décembre se rachèterait sur des cours de 2024) et `valide()`, le passage unique. L'ancienne `lance()`, qui calculait sur la période de validation sans rien inscrire, **n'existe plus** |
 | | `bloquants()` : une trace de l'ancienne voie (`short-us.csv`), une période déjà regardée par une **autre** hypothèse (`registre.autres_regards`) ou des documents non validés — ou dont le texte a changé depuis la validation — et rien ne part |
+| | S2 (stop) et S4 (thèse morte) se **lisent à la clôture et rachètent à l'ouverture suivante**, au cours réel : le texte dit « le stop sort alors au cours réel d'ouverture ». La première clôture surveillée est celle du jour de la vente ; S1 et S3, connues d'avance, rachètent à la clôture de leur séance. Les moteurs 1 et 2 rachetaient à la clôture même qui déclenchait — la note de lecture de H3 reprenait d'abord cette convention « pour comparer », contre le mot du texte ; corrigé avant validation (point 11) |
 | | un GO exige en plus une espérance positive à la ligne « difficile à emprunter », au moins 0,4 point par trade (le dividende non modélisé) et de battre « ne rien faire » net de PFU ; il ouvre six mois d'observation papier. Le témoin est une annonce **sans surprise notable**, ni bonne ni mauvaise. Le biais du survivant n'a pas de sens connu pour une vente, et le rapport ne dit pas « flatté » |
 | `comparatif.py` | système contre SMH buy & hold net de PFU |
 | `contexte.py` | faits mesurés d'un titre, sans score inventé |
@@ -564,8 +565,11 @@ jeu de paramètres qui ne l'a pas produit.
 ## Chantiers
 
 1. **Univers historiques** — *outillé, à alimenter.*
-   `data.figer_univers()` enregistre la composition du jour, datée ;
-   `univers_a_la_date()` relit la plus proche avant une date donnée.
+   `data.figer_univers()` enregistre la composition du jour, datée, dans
+   `~/.carruos/univers` — pas dans `.bruce_cache`, qui n'est pas livré et
+   qu'une mise à jour dans un nouveau dossier laissait derrière elle ;
+   l'ancien dossier reste lu. `univers_a_la_date()` relit la plus proche
+   avant une date donnée.
    On ne peut pas remonter le temps : il faut lancer
    `py -m equity_scanner.data --figer sp500` **chaque trimestre** pour
    construire l'historique qui manque. Tant qu'aucune composition
@@ -812,6 +816,14 @@ jeu de paramètres qui ne l'a pas produit.
   parle pas de recherche. Le contrôle avait raison sur le fond : le mot
   est un mot de direction. La situation s'appelle `tendance` et se
   définit par ses faits.
+- **Une convention reprise « pour comparer » peut contredire le texte.**
+  La note de lecture de H3 gardait le rachat du stop à la clôture qui le
+  déclenche, comme aux hypothèses 1 et 2, en la déclarant optimiste. Le
+  texte de H3 écrit « le stop sort alors au cours réel d'**ouverture** ».
+  Relue avant toute validation, la note suit le texte : lu à la clôture,
+  racheté à l'ouverture suivante — la même séparation qu'à l'entrée. Une
+  lecture se juge contre la spécification qu'elle lit, pas contre les
+  moteurs précédents.
 - **Une clé de dossier se vérifie avant d'être prise.** Les faits du
   marché, posés d'abord sous `marche`, écrasaient la place du titre
   (`us` / `europe`) que le dossier range sous ce nom et dont dépend

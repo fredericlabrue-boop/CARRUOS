@@ -64,9 +64,12 @@ DOCS_GELES = {
     # La lecture de la specification n°3 et l'amendement sur sa periode de
     # validation, ecrits le 30/09/2026 AVANT tout regard de l'hypothese n°3
     # sur 2024-2026. Le passage exige en plus la validation du proprietaire,
-    # liee a ces memes empreintes.
+    # liee a ces memes empreintes. La note a ete revue une fois, le meme
+    # jour, AVANT cette validation et avant tout regard (point 11 : le stop
+    # rachete a l'ouverture suivante, comme le texte l'ecrit) ; sa premiere
+    # version valait 0650ac1d….
     "strategie-short-v1-lecture.md":
-        "0650ac1d9fd072748c44e2cf784a17edf522c7bade7e5cb998b2c7aa1bc662d8",
+        "42b45aed4f8fa82276e8caef94453641909c64c0025151a7046ae22d9a0100ce",
     "strategie-short-v1-amendement-1.md":
         "90439e8dc983d54e6762c5c7a530d269c3a59361338c0c4c25c164d921549669",
 }
@@ -1829,6 +1832,24 @@ def test_univers_figes() -> None:
        "BIAIS DU SURVIVANT" in dl.avertissement("cac40", "2010-01-01"))
     ok("pas d'avertissement quand une composition d'epoque couvre la periode",
        dl.avertissement("cac40", "2021-01-01") == "")
+    # Hors du dossier du programme : `.bruce_cache` n'est pas livre, et une
+    # mise a jour dans un nouveau dossier perdait tout ce qui avait ete fige.
+    src_dl = Path(dl.__file__).read_text(encoding="utf-8")
+    ok("les compositions figees vivent dans ~/.carruos/, qui survit aux "
+       "mises a jour",
+       'DOSSIER_UNIVERS = Path.home() / ".carruos" / "univers"' in src_dl)
+    ancien = dl.ANCIEN_DOSSIER_UNIVERS
+    ancien.mkdir(parents=True, exist_ok=True)
+    (ancien / "cac40-2018-03-30.csv").write_text("ticker\nMC.PA\n",
+                                                  encoding="utf-8")
+    (ancien / "cac40-2020-06-30.csv").write_text("ticker\nXX.PA\n",
+                                                  encoding="utf-8")
+    tk3, jour3 = dl.univers_a_la_date("cac40", "2019-01-01")
+    tk4, _ = dl.univers_a_la_date("cac40", "2021-01-01")
+    ok("ce qui avait ete fige dans l'ancien dossier reste lu",
+       jour3 == "2018-03-30" and tk3 == ["MC.PA"])
+    ok("une meme date aux deux endroits : le nouveau dossier l'emporte",
+       len(tk4) == 3 and "XX.PA" not in tk4)
 
 
 def test_interet() -> None:
@@ -4440,7 +4461,7 @@ def test_univers_composantes() -> None:
     print("\n— Univers « us » : chaque composante chargee, ou l'arret —")
     sauve = dl._html
     try:
-        derniers = Path(".bruce_cache") / "univers"
+        derniers = dl.DOSSIER_UNIVERS
         shutil.rmtree(derniers, ignore_errors=True)
 
         # 1. la page telle qu'elle est aujourd'hui
@@ -4825,6 +4846,48 @@ def test_short_lecture() -> None:
     ok("H3 : S3 rachete a la cloture de la VEILLE de l'annonce suivante",
        t is not None and t.sortie_d == jours[329] and t.motif == "annonce")
 
+    # 2 bis. S2 et S4 : lus a la cloture, rachetes a l'OUVERTURE suivante
+    # (le texte : « le stop sort alors au cours reel d'ouverture »).
+    from . import backtest as bt_
+    frais = 1 + bt_.COUT_PAR_COTE + bt_.SLIPPAGE
+    ds_ = d.copy()
+    i0_ = 300 + sh.DELAI_EXEC                    # seance de la vente
+    ds_.iloc[i0_ + 4:, ds_.columns.get_loc("close")] *= 1.5   # stop franchi
+    ds_.iloc[i0_ + 5:, ds_.columns.get_loc("open")] *= 1.8    # ecart d'ouverture
+    t_s = None
+    try:
+        t_s = sh.simule_court(ds_, 300, "X")
+    except Exception as exc:
+        ok(f"simule_court stop (a leve {exc!r})", False)
+    ok("H3 : un stop franchi a la cloture rachete a l'OUVERTURE suivante",
+       t_s is not None and t_s.motif == "stop"
+       and t_s.sortie_d == jours[i0_ + 5])
+    ok("H3 : au cours reel de cette ouverture, ecart compris — pas au "
+       "niveau du stop ni a la cloture qui a declenche",
+       t_s is not None and abs(t_s.sortie - float(ds_["open"].iloc[i0_ + 5])
+                               * frais) < 1e-9)
+    ds0 = d.copy()
+    ds0.iloc[i0_:, ds0.columns.get_loc("close")] *= 1.5       # des la vente
+    t_0 = None
+    try:
+        t_0 = sh.simule_court(ds0, 300, "X")
+    except Exception as exc:
+        ok(f"simule_court jour de vente (a leve {exc!r})", False)
+    ok("H3 : la cloture du jour de la vente est deja surveillee",
+       t_0 is not None and t_0.motif in ("stop", "these morte")
+       and t_0.sortie_d == jours[i0_ + 1])
+    dv = d.copy()
+    dv.iloc[329:, dv.columns.get_loc("close")] *= 1.5          # la veille
+    t_v = None
+    try:
+        t_v = sh.simule_court(dv, 300, "X", prochaine=jours[330])
+    except Exception as exc:
+        ok(f"simule_court veille (a leve {exc!r})", False)
+    ok("H3 : le jour de S3, le rachat prevu a la cloture passe avant un "
+       "stop qui ne s'executerait que le lendemain",
+       t_v is not None and t_v.motif == "annonce"
+       and t_v.sortie_d == jours[329])
+
     # 3. une position ouverte a la fin des donnees n'est pas un trade
     dc, bc, jc = _titre_court(n=330, k=300)
     t2 = None
@@ -5145,6 +5208,12 @@ def dt_bornes(n, h):
 
 def main() -> int:
     os.chdir(tempfile.mkdtemp())      # aucune ecriture dans le dossier reel
+    # Les compositions figees vivent dans ~/.carruos/univers : les tests
+    # en figent de fausses, datees, qui passeraient ensuite pour de vraies
+    # compositions d'epoque. Tout reste dans le dossier temporaire.
+    from . import data as _dl_u
+    _dl_u.DOSSIER_UNIVERS = Path(".bruce_cache") / "univers"
+    _dl_u.ANCIEN_DOSSIER_UNIVERS = Path(".bruce_cache") / "univers-ancien"
     test_parametres_geles()
     test_indicateurs()
     test_regles()

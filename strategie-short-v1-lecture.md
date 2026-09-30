@@ -1,6 +1,7 @@
 # DÉRIVE POST-ANNONCE NÉGATIVE v1.0 — NOTE DE LECTURE
 ### Rédigée le 30 septembre 2026, **avant** tout regard de l'hypothèse n°3 sur sa période de validation
 ### Ne change aucune constante. L'empreinte des constantes reste `47d593c5…`.
+### Point 11 revu le même jour, **avant** la validation du propriétaire et avant tout regard : le rachat du stop suit le mot « ouverture » du texte.
 
 ---
 
@@ -138,12 +139,37 @@ Sinon : GO technique, NON économique, et rien ne se déploie.
 Un GO complet n'est pas un feu vert : l'étape 8 impose **six mois
 d'observation papier** avant tout ordre réel, et le rapport le dit.
 
-## 11. Conventions reprises du moteur de l'hypothèse n°2
+## 11. Le rachat sur S2 et S4 : lu à la clôture, exécuté à l'ouverture
 
-- Le stop sur clôture rachète **à cette clôture** — au cours réel, jamais
-  au niveau du stop : un écart d'ouverture de 40 % est compté en entier.
-  Convention optimiste de quelques fractions de point, la même qu'aux
-  hypothèses n°1 et n°2 pour que les résultats se comparent.
+Le texte : « Le stop est sur clôture, et il ne protège pas d'un écart
+d'ouverture. […] Le stop sort alors au **cours réel d'ouverture**, pas
+au niveau souhaité. »
+
+- **S2 (stop) et S4 (thèse morte) se lisent à la clôture et rachètent à
+  l'ouverture de la séance suivante**, au cours réel. C'est la séparation
+  que la spécification écrit déjà pour l'entrée — condition à la clôture
+  de J+2, vente à l'ouverture de J+3 — et la seule lecture où le mot
+  « ouverture » du texte a un sens. Un écart d'ouverture est compté en
+  entier.
+- Les moteurs des hypothèses n°1 et n°2 rachetaient **à la clôture même**
+  qui déclenchait : une convention optimiste, puisqu'on ne connaît une
+  clôture qu'une fois faite. Elle n'est pas reprise ici, parce que le
+  texte de l'hypothèse n°3 dit « ouverture ». Les résultats des deux
+  faces se comparent donc à cette différence près, et le rapport de
+  l'hypothèse n°2 est archivé tel qu'il a tourné.
+- **La première clôture surveillée est celle du jour de la vente**
+  (J+3) : « dans l'ordre, la première atteinte rachète la position ».
+  Les moteurs précédents ne regardaient qu'à partir du lendemain.
+- **S1 et S3 sont connues d'avance** — la 45ᵉ séance, la veille de
+  l'annonce suivante — et rachètent à la clôture de leur séance. Ce
+  jour-là, elles passent avant un stop qui ne s'exécuterait que le
+  lendemain.
+- Un déclenchement sur la dernière séance des données n'a pas
+  d'ouverture suivante : la position reste « ouverte » et n'est pas un
+  trade (point 4).
+
+## 12. Conventions reprises du moteur de l'hypothèse n°2
+
 - La moyenne de volume sur 20 séances **inclut** la séance de réaction.
 - Le plafond de 20 % par ligne est **mesuré** séance par séance et
   rapporté, pas corrigé : la spécification ne dit pas quel ordre passer
@@ -151,7 +177,7 @@ d'observation papier** avant tout ordre réel, et le rapport le dit.
 - Le taux de gagnants ne s'affiche qu'avec son nombre de trades et son
   intervalle de Wilson.
 
-## 12. Les données, figées avant le passage
+## 13. Les données, figées avant le passage
 
 - **Les cours** couvrent la période de conception depuis son début,
   2010, préchauffage de 260 séances compris. Le moteur n'en chargeait que
@@ -165,7 +191,7 @@ d'observation papier** avant tout ordre réel, et le rapport le dit.
   de **50 %** des publications. Ces seuils regardent la complétude des
   données, jamais un rendement.
 
-## 13. Deux temps, comme à l'hypothèse n°2
+## 14. Deux temps, comme à l'hypothèse n°2
 
 - **La préparation**, répétable : relevé des dates, chargement, **des
   comptes sans aucun rendement** sur 2024–2026 (combien de trades au

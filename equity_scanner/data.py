@@ -240,7 +240,7 @@ def sp500_tickers() -> list[str]:
 #   1. chaque composante a ses adresses, essayees tour a tour, et un
 #      nombre MINIMAL de lignes : une table tronquee n'est pas une liste ;
 #   2. chaque liste chargee avec succes est gardee, datee
-#      (`.bruce_cache/univers/dernieres/`) ;
+#      (`~/.carruos/univers/dernieres/`, qui survit aux mises a jour) ;
 #   3. en cas d'echec, repli sur cette derniere liste, AVEC SA DATE, que le
 #      rapport affiche. Sans elle : arret, `UniversIndisponible`.
 # Jamais un univers ampute sous une etiquette fausse.
@@ -278,13 +278,15 @@ def _dossier_dernieres() -> Path:
 
 
 def _derniere(cle: str) -> dict | None:
-    try:
-        v = json.loads((_dossier_dernieres() / f"{cle}.json")
-                       .read_text(encoding="utf-8"))
-        if v.get("tickers") and v.get("date"):
-            return v
-    except (OSError, ValueError, AttributeError):
-        pass
+    for dossier in (_dossier_dernieres(),
+                    ANCIEN_DOSSIER_UNIVERS / "dernieres"):
+        try:
+            v = json.loads((dossier / f"{cle}.json")
+                           .read_text(encoding="utf-8"))
+            if v.get("tickers") and v.get("date"):
+                return v
+        except (OSError, ValueError, AttributeError):
+            continue
     return None
 
 
@@ -502,12 +504,21 @@ def annees_de_cours(debut: str, seances: int = PRECHAUFFAGE_SEANCES,
 #      le resultat est flatte quand aucune composition d'epoque n'existe.
 #
 # Format du fichier : CSV a une colonne `ticker`, nomme
-# `<cle>-AAAA-MM-JJ.csv` dans .bruce_cache/univers/.
+# `<cle>-AAAA-MM-JJ.csv` dans ~/.carruos/univers/.
 # Un CSV recupere ailleurs (fournisseur, archive) se depose la et sera lu
 # de la meme facon.
+#
+# Pourquoi ~/.carruos/ et plus .bruce_cache/ : `.bruce_cache` vit a cote
+# du programme et n'est pas livre dans l'archive. Une mise a jour
+# installee dans un nouveau dossier repartait donc sans aucune
+# composition figee — alors que tout l'interet est de les accumuler,
+# trimestre apres trimestre, pendant des annees. C'est la meme lecon que
+# la cle Alpha Vantage. L'ancien dossier reste LU : ce qui y a ete fige
+# n'est pas perdu.
 # =====================================================================
 
-DOSSIER_UNIVERS = Path(".bruce_cache") / "univers"
+DOSSIER_UNIVERS = Path.home() / ".carruos" / "univers"
+ANCIEN_DOSSIER_UNIVERS = Path(".bruce_cache") / "univers"
 
 
 def figer_univers(cle: str, tickers: list[str] | None = None,
@@ -552,19 +563,21 @@ def _ecrit_composition(cle: str, tickers: list[str], jour: str) -> Path:
 
 def compositions(cle: str) -> list[tuple[str, Path]]:
     """Compositions figees disponibles pour cet univers, du plus ancien
-    au plus recent. Rend [(date, chemin)]."""
-    out = []
-    try:
-        for f in DOSSIER_UNIVERS.glob(f"{cle}-*.csv"):
-            jour = f.stem[len(cle) + 1:]
-            try:
-                dt.date.fromisoformat(jour)
-            except ValueError:
-                continue
-            out.append((jour, f))
-    except Exception:
-        return []
-    return sorted(out)
+    au plus recent. Rend [(date, chemin)]. Une date figee aux deux
+    endroits est lue dans ~/.carruos/, jamais deux fois."""
+    par_jour: dict[str, Path] = {}
+    for dossier in (ANCIEN_DOSSIER_UNIVERS, DOSSIER_UNIVERS):
+        try:
+            for f in dossier.glob(f"{cle}-*.csv"):
+                jour = f.stem[len(cle) + 1:]
+                try:
+                    dt.date.fromisoformat(jour)
+                except ValueError:
+                    continue
+                par_jour[jour] = f
+        except Exception:
+            continue
+    return sorted(par_jour.items())
 
 
 def univers_a_la_date(cle: str, date: str) -> tuple[list[str], str]:
