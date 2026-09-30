@@ -473,6 +473,7 @@ jeu de paramètres qui ne l'a pas produit.
 | | l'onglet MAJORDOME le sort, bulle ouverte, puis le range ; on le déplace par le cerf ou l'entête, **par `transform`**. Position enregistrée en **fraction** de la fenêtre, hors de la `version` du visuel : le déplacer ne repeint rien, mais les autres fenêtres le suivent |
 | | son script est **isolé** dans une fonction anonyme (seul `window.CARRUOS_MAJ` sort) ; les commandes propres à l'accueil (`scan`, `toutRafraichir`) ne sont appelées que là où elles existent |
 | | le décor de fond est **isolé** (`contain:strict`) et ses tailles sont **plafonnées en pixels** : son coût est proportionnel à la surface, et une taille en `vh` double quand l'écran double |
+| | la **voix** est celle que le propriétaire choisit dans la bulle (VOIX : une des voix installées sur son PC, vitesse, hauteur, silence), rangée dans `localStorage` sous `carruos_maj_voix` et relue à chaque phrase — donc partagée par toutes les fenêtres, et par la voix de la page graphique. Sans choix, une voix française masculine, « Natural » d'abord, à hauteur **naturelle** : la hauteur forcée à 0,7 rendait la voix synthétique déplaisante. Le programme n'embarque aucune voix ; la bulle dit où en ajouter gratuitement dans Windows |
 | `indicators.py` | indicateurs — **PERIODES gelées** |
 | `rules.py` | les 13 blocs d'entrée et les 4 sorties |
 | `backtest.py` | moteur de simulation, exécution J+1, coûts, **plafond de poids** |
@@ -855,6 +856,13 @@ jeu de paramètres qui ne l'a pas produit.
   était le z contre les annonces **sans surprise** ; la couverture retire
   la hausse du marché au trade ET au témoin, et le z reste près de zéro.
   C'est écrit dans `pistes-2027-BROUILLON.md` pour ne pas être repris.
+- **Une `var` est remontée, pas sa valeur.** Le premier réglage de la
+  voix appelait `voixListe()` plus haut dans le script que la ligne qui
+  affecte `VOIX_DEF` : la fonction existait déjà, ses réglages non. Le
+  script du majordome s'arrêtait — sur **toutes** les pages — et les trois
+  suites passaient, parce qu'elles lisent le texte des scripts sans les
+  exécuter. Vu au rendu, dans Chromium. L'appel est à la fin, et
+  `test_pages` vérifie l'ordre.
 - **Une clé de dossier se vérifie avant d'être prise.** Les faits du
   marché, posés d'abord sous `marche`, écrasaient la place du titre
   (`us` / `europe`) que le dossier range sous ce nom et dont dépend

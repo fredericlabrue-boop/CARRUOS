@@ -146,6 +146,12 @@ CSS = """
 .mj-ias a{color:var(--acc);overflow:hidden;text-overflow:ellipsis;
  white-space:nowrap}
 .mj-cle{margin-top:10px;padding-top:8px;border-top:1px solid var(--bord)}
+.mj-l select.mj-vx{flex:1;min-width:0;font-size:11px}
+.mj-vr label{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;
+ font:500 8px ui-monospace,Consolas,monospace;letter-spacing:.18em;
+ color:var(--txt-faible)}
+.mj-l .mj-vr input,.mj-vr input[type=range]{padding:0;border:0;
+ background:none;accent-color:var(--acc);width:100%}
 .mj-cle summary{cursor:pointer;list-style:none;
  font:500 8px ui-monospace,Consolas,monospace;letter-spacing:.2em;
  color:var(--txt-faible)}
@@ -219,6 +225,24 @@ def html(reg: dict | None = None, ticker: str = "", champ: str = "") -> str:
         'figure sur Hood ? &middot; on garde TLX combien de temps &middot; '
         'ouvre sanofi &middot; scan cac 40 &middot; état du marché '
         '&middot; mes positions &middot; la veille sur mes lignes</div>'
+        '<details class="mj-cle"><summary id="mjvs">VOIX</summary>'
+        '<div class="mj-l"><select id="mjvx" class="mj-vx" '
+        'aria-label="La voix du majordome"></select>'
+        '<button class="mj-g" id="mjvt" type="button">ESSAYER</button></div>'
+        '<div class="mj-l mj-vr">'
+        '<label>VITESSE<input id="mjvr" type="range" min="0.6" max="1.4" '
+        'step="0.05"></label>'
+        '<label>HAUTEUR<input id="mjvp" type="range" min="0.5" max="1.5" '
+        'step="0.05"></label></div>'
+        '<div class="mj-l">'
+        '<button class="mj-g" id="mjvm" type="button">COUPER LA VOIX</button>'
+        '<button class="mj-g" id="mjv0" type="button">PAR DÉFAUT</button>'
+        '</div>'
+        '<div class="mj-e" id="mjvi">Les voix sont celles de Windows. Pour '
+        'en ajouter, gratuitement : Paramètres Windows &rsaquo; Heure et '
+        'langue &rsaquo; Voix &rsaquo; Gérer les voix &rsaquo; Ajouter des '
+        'voix &rsaquo; Français (France), puis relancez CARRUOS.</div>'
+        '</details>'
         '<details class="mj-cle"><summary id="mjiae">CERVEAU &mdash;'
         '</summary>'
         '<div class="mj-l"><select id="mjiaf">'
@@ -406,6 +430,26 @@ _mj('mjmic').addEventListener('click', ecoute);
 _mj('mjdiag').addEventListener('click', diag);
 _mj('mjweb').addEventListener('click', web);
 _mj('mjiapose').addEventListener('click', iaPose);
+// Le reglage de la voix : chaque changement est range, et la liste
+// redessinee pour dire ce qui est choisi.
+_mj('mjvx').addEventListener('change', function(){ voixMaj({nom:this.value}); });
+_mj('mjvr').addEventListener('change', function(){ voixMaj({vitesse:+this.value}); });
+_mj('mjvp').addEventListener('change', function(){ voixMaj({hauteur:+this.value}); });
+_mj('mjvm').addEventListener('click', function(){
+ var o=voixReglage(); voixMaj({muet:!o.muet});
+ if(o.muet) dit('Voix rétablie.', false);
+ else if(window.speechSynthesis) speechSynthesis.cancel();
+});
+_mj('mjv0').addEventListener('click', function(){
+ voixRange({nom:'', vitesse:VOIX_DEF.vitesse, hauteur:VOIX_DEF.hauteur,
+  muet:false});
+ voixListe(); dit('Réglage par défaut.', false);
+});
+_mj('mjvt').addEventListener('click', function(){
+ var o=voixReglage();
+ if(o.muet){ R.textContent='La voix est coupée : cliquez RÉTABLIR LA VOIX.'; return; }
+ dit('Bonjour monsieur. Voici ma voix. Je donne des faits, jamais un avis.', false);
+});
 _mj('mjiaoubli').addEventListener('click', iaOublie);
 window.addEventListener('resize', pose);
 
@@ -430,34 +474,90 @@ if(window.speechSynthesis){
  try{
   speechSynthesis.getVoices();
   speechSynthesis.addEventListener('voiceschanged', function(){
-   speechSynthesis.getVoices(); });
+   speechSynthesis.getVoices();
+   if(typeof voixListe==='function') voixListe(); });
  }catch(e){}
+}
+// Le choix de la voix. Les voix sont celles du SYSTEME : le programme
+// n'en embarque aucune. Le reglage est range dans ce poste, partage par
+// toutes les fenetres de CARRUOS (meme origine), et relu a chaque phrase.
+var VOIX_CLE='carruos_maj_voix';
+var VOIX_DEF={nom:'', vitesse:0.95, hauteur:1.0, muet:false};
+function voixReglage(){
+ var o={};
+ try{ o=JSON.parse(localStorage.getItem(VOIX_CLE)||'{}')||{}; }catch(e){}
+ return {nom:o.nom||'', vitesse:+o.vitesse||VOIX_DEF.vitesse,
+  hauteur:+o.hauteur||VOIX_DEF.hauteur, muet:!!o.muet};
+}
+function voixRange(o){
+ try{ localStorage.setItem(VOIX_CLE, JSON.stringify(o)); }catch(e){}
+}
+function voixFr(){
+ return speechSynthesis.getVoices().filter(function(x){
+  return x.lang && x.lang.toLowerCase().indexOf('fr')===0; });
+}
+// Sans choix : les voix masculines francaises connues, les « Natural »
+// de Windows 11 d'abord, puis toute voix francaise.
+function voixAuto(){
+ var v=voixFr();
+ var ordre=[/Henri.*Natural/i,/Paul.*Natural/i,/Remy.*Natural/i,
+  /Claude.*Natural/i,/Natural/i,/Henri|Paul|Remy|Thierry|Guillaume|Claude/i,
+  /Male|Homme/i];
+ for(var i=0;i<ordre.length;i++){
+  var x=v.find(function(y){ return ordre[i].test(y.name); });
+  if(x) return x;
+ }
+ return v[0]||null;
+}
+function voixChoisie(){
+ var o=voixReglage();
+ if(o.nom){
+  var x=speechSynthesis.getVoices().find(function(v){ return v.name===o.nom; });
+  if(x) return x;
+ }
+ return voixAuto();
 }
 function dit(txt, ecrire){
  // Une legere ponctuation fait respirer la synthese.
  txt=String(txt).replace(/\. /g, '.  ');
  if(ecrire!==false) R.textContent=txt;
  if(!window.speechSynthesis) return;
+ var o=voixReglage();
+ if(o.muet) return;
  try{
   speechSynthesis.cancel();
   var u=new SpeechSynthesisUtterance(txt);
-  u.lang='fr-FR'; u.rate=0.88; u.pitch=0.7; u.volume=1.0;
-  // Voix masculines francaises connues, puis toute voix masculine, puis
-  // n'importe quelle voix francaise. Les voix « Natural » de Windows 11
-  // sont nettement meilleures que les anciennes.
-  var v=speechSynthesis.getVoices().filter(function(x){
-   return x.lang && x.lang.toLowerCase().indexOf('fr')===0; });
-  var ordre=[/Henri.*Natural/i,/Paul.*Natural/i,/Remy.*Natural/i,
-   /Claude.*Natural/i,/Natural/i,/Henri|Paul|Remy|Thierry|Guillaume|Claude/i,
-   /Male|Homme/i];
-  var choix=null;
-  for(var i=0;i<ordre.length && !choix;i++)
-   choix=v.find(function(x){ return ordre[i].test(x.name); });
-  if(choix||v[0]) u.voice=choix||v[0];
+  u.lang='fr-FR'; u.rate=o.vitesse; u.pitch=o.hauteur; u.volume=1.0;
+  var ch=voixChoisie();
+  if(ch){ u.voice=ch; if(ch.lang) u.lang=ch.lang; }
   u.onstart=function(){ C.classList.add('parle'); };
   u.onend=function(){ C.classList.remove('parle'); };
   speechSynthesis.speak(u);
  }catch(e){}
+}
+// La liste : les voix francaises d'abord, puis les autres. Une voix
+// « en ligne » demande Internet : elle est marquee.
+function voixListe(){
+ var S=_mj('mjvx'); if(!S || !window.speechSynthesis) return;
+ var o=voixReglage(), tout=speechSynthesis.getVoices();
+ var fr=voixFr(), autres=tout.filter(function(v){ return fr.indexOf(v)<0; });
+ var opt=function(v){
+  return '<option value="'+String(v.name).replace(/"/g,'&quot;')+'"'
+   +(v.name===o.nom?' selected':'')+'>'+v.name+' ('+v.lang+')'
+   +(v.localService===false?' — en ligne':'')+'</option>'; };
+ S.innerHTML='<option value="">automatique ('+(voixAuto()||{name:'aucune'}).name
+  +')</option>'+fr.map(opt).join('')
+  +(autres.length?'<optgroup label="autres langues">'+autres.map(opt).join('')
+    +'</optgroup>':'');
+ _mj('mjvr').value=o.vitesse; _mj('mjvp').value=o.hauteur;
+ _mj('mjvm').textContent=o.muet?'RÉTABLIR LA VOIX':'COUPER LA VOIX';
+ _mj('mjvs').textContent='VOIX — '+fr.length+' française'+(fr.length>1?'s':'')
+  +' sur ce PC'+(o.muet?' · COUPÉE':'');
+}
+function voixMaj(chg){
+ var o=voixReglage();
+ for(var k in chg) o[k]=chg[k];
+ voixRange(o); voixListe();
 }
 
 // --- Ce qu'on lui demande -----------------------------------------------
@@ -974,6 +1074,11 @@ function demarre(Rc){
  }, 9000);
 }
 
+// La liste des voix se remplit ICI, a la fin : plus haut, VOIX_DEF et
+// VOIX_CLE ne sont pas encore affectes (une `var` est remontee, pas sa
+// valeur) — le script s'arretait, et le majordome manquait a toutes les
+// pages.
+voixListe();
 window.CARRUOS_MAJ={bascule:bascule, ouvre:ouvre, ferme:ferme, range:range,
  exec:exec, dit:dit, sync:sync, etat:E};
 pose();

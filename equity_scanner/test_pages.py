@@ -1436,6 +1436,33 @@ def main() -> int:
     _v(0 < jmj_.find("/decision") < jmj_.find("var ma=q.match"),
        "le majordome ouvre AVANT L'ORDRE avant de chercher un titre")
 
+    print("\n  LA VOIX DU MAJORDOME")
+    hmj = _mj_mod.html({})
+    _v(all(f'id="{i}"' in hmj for i in ("mjvx", "mjvt", "mjvr", "mjvp",
+                                         "mjvm", "mjv0")),
+       "la bulle porte le choix de la voix, la vitesse, la hauteur, "
+       "l'essai, le silence et le retour par defaut")
+    _v("Ajouter des voix" in hmj and "gratuitement" in hmj,
+       "elle dit ou ajouter des voix Windows, gratuitement")
+    dit_ = jmj_.split("function dit(")[1].split("\n}")[0]
+    _v("voixReglage()" in dit_ and "o.muet" in dit_ and "o.vitesse" in dit_
+       and "o.hauteur" in dit_ and "voixChoisie()" in dit_,
+       "chaque phrase relit le reglage : voix, vitesse, hauteur, silence")
+    _v("u.pitch=0.7" not in jmj_,
+       "la hauteur n'est plus forcee vers le grave")
+    _v("'carruos_maj_voix'" in jmj_
+       and "'carruos_maj_voix'" in _scripts(pages["graphique"]),
+       "la page graphique parle avec la meme voix que le majordome")
+    _init = jmj_.rfind("\nvoixListe();")
+    _v(_init > jmj_.find("var VOIX_DEF=") > 0
+       and _init > jmj_.find("var VOIX_CLE=") > 0
+       and _init < jmj_.find("window.CARRUOS_MAJ="),
+       "la liste des voix se remplit APRES la definition de ses reglages : "
+       "avant, le script du majordome s'arretait sur toutes les pages")
+    _v("try{" in jmj_.split("function voixReglage")[1][:60]
+       and "try{" in jmj_.split("function voixRange")[1][:40],
+       "le stockage du reglage ne peut rien casser")
+
     print("\n  UNE PAGE D'UN SEUL BLOC DEFILE")
     # `.app` est une grille de 100vh en `auto auto minmax(0,1fr)` et
     # `body{overflow:hidden}`. Un bloc unique sous la barre tombe dans la

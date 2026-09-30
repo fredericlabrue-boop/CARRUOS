@@ -1523,11 +1523,16 @@ function parle(txt){
  try{
   speechSynthesis.cancel();
   const u=new SpeechSynthesisUtterance(txt);
-  u.lang='fr-FR'; u.rate=0.98; u.pitch=0.82; u.volume=0.9;
-  const v=speechSynthesis.getVoices()
-    .filter(x=>x.lang && x.lang.indexOf('fr')===0);
-  const grave=v.find(x=>/Paul|Thierry|Claude|Henri/i.test(x.name));
-  if(grave||v[0]) u.voice=grave||v[0];
+  // Le reglage de la voix est celui du majordome (VOIX, dans sa bulle) :
+  // une seule voix pour tout le programme.
+  let o={};
+  try{ o=JSON.parse(localStorage.getItem('carruos_maj_voix')||'{}')||{}; }catch(e){}
+  u.lang='fr-FR'; u.rate=+o.vitesse||0.95; u.pitch=+o.hauteur||1.0; u.volume=0.9;
+  const tout=speechSynthesis.getVoices();
+  const v=tout.filter(x=>x.lang && x.lang.indexOf('fr')===0);
+  const perso=o.nom ? tout.find(x=>x.name===o.nom) : null;
+  const grave=perso || v.find(x=>/Paul|Thierry|Claude|Henri/i.test(x.name));
+  if(grave||v[0]){ u.voice=grave||v[0]; if(u.voice.lang) u.lang=u.voice.lang; }
   speechSynthesis.speak(u);
  }catch(e){}
 }
