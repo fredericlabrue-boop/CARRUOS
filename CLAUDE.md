@@ -19,6 +19,8 @@ py -m equity_scanner.options NVDA       # open interest des OPTIONS
 py -m equity_scanner.palmares COIN HOOD TLX.DE   # les 13 blocs, classés
 py -m equity_scanner.dossier "je sors quand sur TLX.DE"
 py -m equity_scanner.pead         # stratégie 2 : préparation, puis passage unique sur OUI
+py -m equity_scanner.short --valider-documents   # stratégie 3 : note de lecture et amendement, une fois
+py -m equity_scanner.short        # stratégie 3 : préparation, puis passage unique
 py -m equity_scanner.detention TSLA 2 mois   # ce que cette durée a donné, contre l'indice
 py -m equity_scanner.faillites   # RESTRUCTURATIONS : les 8-K item 1.03 et ce qui a suivi
 py -m equity_scanner.recherche nasdaq100 800 50 "1 semaine"   # somme, gain visé, durée
@@ -411,10 +413,21 @@ jeu de paramètres qui ne l'a pas produit.
   Nasdaq 100 »), et 8 ans de cours ne couvraient de la répétition
   2010-2021 que 2019-2021.
 - Stratégie 3, dérive post-annonce **négative** — vente à découvert
-  (`short.py`) : spécifiée (`strategie-short-v1.md`), moteur codé,
-  **test pas encore lancé**. Son moteur lit encore la **date du
-  calendrier** comme jour d'annonce — le défaut corrigé sur la stratégie 2 :
-  il faut le relire de la même façon avant tout passage. Ce n'est pas la
+  (`short.py`) : spécifiée (`strategie-short-v1.md`), moteur **relu contre
+  son texte le 30 septembre 2026** (`strategie-short-v1-lecture.md`, datée
+  et hachée, aucune constante n'a bougé : `47d593c5…`), passage unique
+  **préparé et verrouillé**, **pas encore lancé**. Sa période de validation,
+  2024-2026, a été regardée par la stratégie 2 le 29/09 ;
+  `strategie-short-v1-amendement-1.md` en tire les conséquences — les
+  règles de H3 étaient gelées depuis le 18/09, et le protocole consomme une
+  période **par hypothèse**. Le passage ne part pas tant que le
+  **propriétaire** n'a pas validé les deux documents
+  (`--valider-documents`, liée à leurs empreintes) et déclaré n'avoir
+  jamais lancé l'ancienne voie directe, qui calculait sur 2024-2026 sans
+  registre. Si cette déclaration ne peut pas être faite, la période est
+  brûlée pour H3 : il faut une spécification v1.1 à période vierge.
+  C'est la troisième hypothèse de 2026 — la dernière du budget annuel.
+  Ce n'est pas la
   stratégie 2 avec les signes inversés : perte non bornée, position qui grossit quand elle a tort,
   coût d'emprunt au prorata, dérive haussière du marché à couvrir. Le
   **dividende dû au prêteur n'est pas modélisé** — environ 0,4 point par
@@ -456,7 +469,11 @@ jeu de paramètres qui ne l'a pas produit.
 | | le numéro de compte, l'hôte, le port et le client ne partent **jamais** au fournisseur — deux couches, testées chacune |
 | | la page est la **vue complète du majordome**, à `/majordome` (l'ancienne `/brain2` y mène), ouverte depuis la bulle ; la v29 la servait sous `/api/brain2` et aucun onglet n'y menait |
 | `registre.py` | le registre des tests, étape 10 du protocole : `~/.carruos/registre-tests.md` pour être lu, `.json` pour refuser un second passage. Aucune ligne n'est jamais réécrite |
+| | `autres_regards()` : les passages terminés d'**autres** hypothèses sur une même période — la période se consomme par hypothèse, mais le partage se dit et s'inscrit |
 | `short.py` | stratégie 3, vente à découvert — **constantes gelées** |
+| | deux temps, comme `pead.py` : `prepare()` (répétable ; comptes sans rendement sur 2024-2026 ; répétition 2010-2023 sur des données **coupées au 31/12/2023**, sinon un trade de décembre se rachèterait sur des cours de 2024) et `valide()`, le passage unique. L'ancienne `lance()`, qui calculait sur la période de validation sans rien inscrire, **n'existe plus** |
+| | `bloquants()` : une trace de l'ancienne voie (`short-us.csv`), une période déjà regardée par une **autre** hypothèse (`registre.autres_regards`) ou des documents non validés — ou dont le texte a changé depuis la validation — et rien ne part |
+| | un GO exige en plus une espérance positive à la ligne « difficile à emprunter », au moins 0,4 point par trade (le dividende non modélisé) et de battre « ne rien faire » net de PFU ; il ouvre six mois d'observation papier. Le témoin est une annonce **sans surprise notable**, ni bonne ni mauvaise. Le biais du survivant n'a pas de sens connu pour une vente, et le rapport ne dit pas « flatté » |
 | `comparatif.py` | système contre SMH buy & hold net de PFU |
 | `contexte.py` | faits mesurés d'un titre, sans score inventé |
 | `chandeliers.py` | 17 figures détectées géométriquement, et ce qu'elles ont été suivies de **sur ce titre** contre son taux de base |

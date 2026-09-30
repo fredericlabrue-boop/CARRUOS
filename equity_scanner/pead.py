@@ -149,10 +149,10 @@ def _normalise(x) -> dict:
     return {"date": t.normalize(), "heure": heure}
 
 
-def annees_cours() -> int:
-    """Annees de cours a charger : de IN_DEBUT moins le prechauffage
-    jusqu'a aujourd'hui."""
-    return dl.annees_de_cours(IN_DEBUT)
+def annees_cours(debut: str = IN_DEBUT) -> int:
+    """Annees de cours a charger : du debut de la periode de conception
+    moins le prechauffage jusqu'a aujourd'hui."""
+    return dl.annees_de_cours(debut)
 
 
 def annonces(ticker: str, journal=print) -> list[dict]:
@@ -191,8 +191,9 @@ def annonces(ticker: str, journal=print) -> list[dict]:
 
 
 def dates_annonces(ticker: str, journal=print) -> list[pd.Timestamp]:
-    """Les seules dates du calendrier, sans l'heure. Garde pour
-    `short.py`, dont la specification n'a pas encore ete relue."""
+    """Les seules dates du calendrier, sans l'heure : la lecture
+    litterale. `short.py` n'en depend plus depuis sa relecture du
+    30/09/2026 — il lit l'heure, comme ce moteur."""
     return sorted({a["date"] for a in annonces(ticker, journal)})
 
 
@@ -582,14 +583,17 @@ def lit_instantane(fichier: Path | None = None) -> dict | None:
         return None
 
 
-def charge_donnees(inst: dict, journal=print) -> dict:
-    """Cours et controle qualite, pour les titres de l'instantane."""
+def charge_donnees(inst: dict, journal=print, debut: str = IN_DEBUT) -> dict:
+    """Cours et controle qualite, pour les titres de l'instantane.
+
+    `debut` : le debut de la periode de conception de l'hypothese qui
+    charge — l'hypothese n°3 passe le sien."""
     from . import cache as ch
     from . import qualite as ql
     tickers = inst["tickers"]
-    annees = annees_cours()
+    annees = annees_cours(debut)
     journal(f"  Chargement de {annees} ans de cours pour {len(tickers)} "
-            f"titres (depuis {IN_DEBUT} moins {dl.PRECHAUFFAGE_SEANCES} "
+            f"titres (depuis {debut} moins {dl.PRECHAUFFAGE_SEANCES} "
             f"séances de préchauffage)…")
     bench_brut = ch.charge("SPY", annees=annees)
     bo = enrich(bench_brut)

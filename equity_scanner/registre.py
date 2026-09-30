@@ -122,6 +122,18 @@ def deja_regardee(hypothese: str, periode: str,
     return None
 
 
+def autres_regards(hypothese: str, periode: str,
+                   etat: Path | None = None) -> list[dict]:
+    """Les passages TERMINES d'AUTRES hypotheses sur cette meme periode.
+
+    Le protocole consomme une periode par hypothese. Qu'une autre l'ait
+    deja regardee ne la brule pas pour celle-ci — mais cela doit etre
+    dit, amende et inscrit, jamais decouvert apres coup."""
+    return [e for e in lit(etat)
+            if e.get("periode") == periode and e.get("fin")
+            and e.get("hypothese") != hypothese]
+
+
 def ouvre(hypothese: str, periode: str, univers: str, empreinte: str,
           details: dict | None = None, motif: str = "",
           etat: Path | None = None, md: Path | None = None) -> str:
