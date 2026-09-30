@@ -55,6 +55,7 @@ GENRES = {
     "note": "NOTE",            # vous l'avez ecrite
     "releve": "RELEVÉ",        # le programme a mesure, vous avez fige
     "ordre": "ORDRE",          # un passage d'ordre que vous consignez
+    "decision": "DÉCISION",    # AVANT L'ORDRE : vos reponses et les faits
 }
 
 

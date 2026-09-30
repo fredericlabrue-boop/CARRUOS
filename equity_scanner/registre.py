@@ -173,3 +173,49 @@ def ferme(ident: str, resultat: str, z: float | None,
             _ligne_md(e["fin"], e, resultat, zs, md)
             return
     raise KeyError(f"aucun test ouvert sous l'identifiant {ident!r}")
+
+
+# ---------------------------------------------------------------------
+# L'abandon AVANT le passage unique
+#
+# Une hypothese peut mourir sur sa periode de conception : la repetition
+# generale la rejette si nettement que depenser la periode de validation
+# n'apprendrait rien. « On y inscrit les echecs. Surtout les echecs » :
+# un abandon s'inscrit donc comme un echec, avec ce qui l'a motive.
+#
+# Il ne porte sur AUCUNE periode de validation — rien n'y a ete regarde,
+# et `autres_regards()` ne le compte pas comme un regard sur 2024-2026.
+# Il FERME l'hypothese : un passage ulterieur serait une resurrection
+# choisie apres coup, et le programme le refuse.
+# ---------------------------------------------------------------------
+PERIODE_ABANDON = "aucune (abandon avant le passage unique)"
+
+
+def abandonnee(hypothese: str, etat: Path | None = None) -> dict | None:
+    """L'inscription de l'abandon de cette hypothese, s'il existe."""
+    for e in lit(etat):
+        if (e.get("hypothese") == hypothese
+                and e.get("periode") == PERIODE_ABANDON and e.get("fin")):
+            return e
+    return None
+
+
+def abandonne(hypothese: str, univers: str, empreinte: str, motif: str,
+              details: dict | None = None, etat: Path | None = None,
+              md: Path | None = None) -> dict:
+    """Inscrit l'abandon, une fois. Une seule ligne : il n'y a pas de
+    calcul entre l'ouverture et la fermeture, donc rien a interrompre."""
+    deja = abandonnee(hypothese, etat)
+    if deja:
+        return deja
+    entrees = lit(etat)
+    date = _maintenant()
+    e = {"id": f"{hypothese}|{PERIODE_ABANDON}|{date}", "debut": date,
+         "fin": date, "hypothese": hypothese, "periode": PERIODE_ABANDON,
+         "univers": univers, "empreinte": empreinte,
+         "details": details or {}, "rang": 1, "motif": motif,
+         "resultat": f"ABANDONNÉE — {motif}", "z": None}
+    entrees.append(e)
+    _ecrit(entrees, etat)
+    _ligne_md(date, e, e["resultat"], "—", md)
+    return e

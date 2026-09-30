@@ -2892,6 +2892,7 @@ def test_memo() -> None:
     from . import faillites as _fl_
     from . import rebond as _rb_
     from . import recherche as _rc_
+    from . import decision as _dc_
 
     def _nb_(x):
         return {10: "dix", 20: "vingt"}.get(x, str(x))
@@ -3655,6 +3656,10 @@ def test_memo() -> None:
         # --- chart.py : la bande des bougies
         ("horizon de la bande", f"à **{_ch_.HORIZON_BANDE}** barres"),
         # --- rebond.py
+        # --- decision.py : AVANT L'ORDRE
+        ("risque avant l'ordre", f"ne fait perdre que **{_dc_.RISQUE_DEFAUT:g} %**"),
+        ("plafond avant l'ordre", f"ne dépasse pas **{_dc_.PLAFOND * 100:g} %**"),
+        ("seances de correlation", f"(sur au moins **{_dc_.SEANCES_CORR}** séances"),
         ("horizons du rebond",
          "**{}, {}, {} et {}**".format(*(l for l, _h in _rb_.HORIZONS))),
         ("episodes minimum", f"sous **{_rb_.MINI_EPISODES}** épisodes"),
@@ -5201,6 +5206,177 @@ def test_short_passage() -> None:
        lancement("GO technique, NON économique", "OUI")[0])
 
 
+def test_short_abandon() -> None:
+    """L'abandon AVANT le passage unique : inscrit comme un echec, sur la
+    foi de la repetition, sans regarder 2024-2026 — et definitif."""
+    import tempfile as _tf
+    from . import registre as rg
+    from . import short as sh
+
+    print("\n— Hypothese n°3 : l'abandon avant le passage unique —")
+    tmp = Path(_tf.mkdtemp())
+    etat, md, dos = tmp / "reg.json", tmp / "reg.md", tmp / "strategie-3"
+    dit = []
+    j = lambda *a: dit.append(" ".join(str(x) for x in a))
+    r0 = sh.abandon(saisie=lambda q: "ABANDONNER", journal=j, etat=etat,
+                    md=md, dossier=dos)
+    ok("sans repetition ecrite, rien n'est inscrit : un abandon cite ce "
+       "qui l'a motive", not r0["ok"] and rg.abandonnee(sh.HYPOTHESE, etat)
+       is None)
+    dos.mkdir(parents=True)
+    (dos / "repetition-2026-09-30.txt").write_text(
+        "  LES CINQ CRITÈRES — tous obligatoires\n"
+        "    PASSE   trades        1017   (au moins 200)\n"
+        "    ÉCHOUE  profit factor 0,64   (au moins 1,15)\n\n"
+        "  NO-GO SUR LA RÉPÉTITION — verdict indicatif.\n", encoding="utf-8")
+    r1 = sh.abandon(saisie=lambda q: "oui", journal=j, etat=etat, md=md,
+                    dossier=dos)
+    ok("une autre reponse que ABANDONNER n'inscrit rien",
+       not r1["ok"] and rg.abandonnee(sh.HYPOTHESE, etat) is None)
+    r2 = sh.abandon(saisie=lambda q: "ABANDONNER", journal=j, etat=etat,
+                    md=md, dossier=dos)
+    e = rg.abandonnee(sh.HYPOTHESE, etat)
+    ok("ABANDONNER inscrit l'abandon, avec le verdict et les criteres de "
+       "la repetition recopies",
+       r2["ok"] and e is not None and "NO-GO" in e["resultat"]
+       and any("profit factor" in c for c in e["details"]["criteres"])
+       and e["details"].get("repetition_sha256"))
+    ok("le registre lisible porte la ligne ABANDONNÉE",
+       "ABANDONNÉE" in md.read_text(encoding="utf-8"))
+    ok("l'abandon n'est PAS un regard sur 2024-2026",
+       rg.deja_regardee(sh.HYPOTHESE, sh.periode_validation(), etat) is None
+       and not rg.autres_regards("une autre", sh.periode_validation(), etat))
+    r3 = sh.abandon(saisie=lambda q: "ABANDONNER", journal=j, etat=etat,
+                    md=md, dossier=dos)
+    ok("il ne s'inscrit qu'une fois",
+       r3.get("deja") and sum(1 for x in rg.lit(etat)
+                              if x["periode"] == rg.PERIODE_ABANDON) == 1)
+    don = {"instantane": {"tickers": ["A"] * 600, "annonces": {},
+                          "collecte": "2026-09-30"},
+           "series": {}}
+    b = sh.bloquants(don, etat=etat, controle=False)
+    ok("une hypothese abandonnee ne repart pas : le passage unique la "
+       "refuse", any("ABANDONNÉE" in x for x in b))
+    etat2 = tmp / "reg2.json"
+    rg.ouvre(sh.HYPOTHESE, sh.periode_validation(), "US", "x", etat=etat2,
+             md=tmp / "reg2.md")
+    rg.ferme(rg.lit(etat2)[0]["id"], "NO-GO", 0.5, etat=etat2,
+             md=tmp / "reg2.md")
+    r4 = sh.abandon(saisie=lambda q: "ABANDONNER", journal=j, etat=etat2,
+                    md=tmp / "reg2.md", dossier=dos)
+    ok("un passage deja fait ne s'abandonne pas apres coup",
+       not r4["ok"] and rg.abandonnee(sh.HYPOTHESE, etat2) is None)
+
+
+def test_decision() -> None:
+    """AVANT L'ORDRE : une taille, des faits, une liste — et aucun
+    verdict. Le carnet garde ce que le moteur a mesure."""
+    import re as _re_dc
+    import tempfile as _tf
+    from . import carnet as cn
+    from . import decision as dc
+    from . import positions as ps_
+    from . import rules as R_
+
+    print("\n— AVANT L'ORDRE : la decision preparee —")
+    # 1. la taille : le risque fixe le nombre, le plafond le borne
+    t1 = dc.taille(20000, 100, 95)
+    ok("1 % de 20 000 € a 5 € de risque par titre : 40 titres",
+       t1["titres"] == 40 and not t1["plafonne"])
+    t2 = dc.taille(20000, 100, 99.5)
+    ok("un stop tres serre ne depasse pas le plafond de 25 % : 50 titres, "
+       "et c'est dit", t2["titres"] == 50 and t2["plafonne"]
+       and t2["par_risque"] == 400)
+    t3 = dc.taille(20000, 100, 95, deja_eur=4000)
+    ok("ce que vous detenez deja compte dans le plafond",
+       t3["titres"] == 10 and t3["plafonne"])
+    t4 = dc.taille(20000, 100, 101)
+    ok("un stop au-dessus de l'entree ne donne aucun titre, avec le motif",
+       t4["titres"] == 0 and "SOUS" in t4["motif"])
+    ok("les deux regles sont celles des specifications, pas recopiees",
+       dc.RISQUE_DEFAUT == R_.RISK_PER_TRADE * 100
+       and dc.PLAFOND == R_.MAX_WEIGHT)
+
+    # 2. l'examen, sur des cours d'essai
+    def ch(tk):
+        if tk.endswith("=X"):
+            i = pd.bdate_range(end=pd.Timestamp.today().normalize(),
+                               periods=300)
+            return pd.DataFrame({"open": 1.1, "high": 1.1, "low": 1.1,
+                                 "close": 1.1, "volume": 1e6}, index=i)
+        return serie(n=2600, seed=sum(map(ord, tk)) % 97, derive=0.0004,
+                     debut=(pd.bdate_range(
+                         end=pd.Timestamp.today().normalize(),
+                         periods=2600)[0]).date().isoformat())
+    ex = dc.examine("AAPL", 20000, nombre=2, unite="mois", charge=ch,
+                    detenus=[{"ticker": "MSFT", "quantite": 10}],
+                    jours_resultats=12)
+    t = ex.get("taille") or {}
+    ok("l'examen se fait sur les donnees d'essai", ex.get("ok"))
+    d_ = __import__("equity_scanner.indicators", fromlist=["enrich"]).enrich(
+        ch("AAPL"), bench_close=ch("SPY")["close"])
+    ok("sans stop tape, c'est celui qu'ECRIT la specification n°1, et la "
+       "page le dit", ex.get("stop") == round(dc.stop_specification(
+           d_, ex["entree"]), 4) and "spécification" in ex["stop_source"])
+    ok("la perte au stop reste pres de 1 % du capital, frais compris",
+       t.get("titres", 0) > 0
+       and 0.9 <= t["perte_stop_pct_capital"] <= 1.1)
+    ok("le poids apres l'achat reste sous le plafond",
+       t.get("poids_apres_pct", 99) <= 25.0)
+    s_ = ex.get("stop_faits") or {}
+    ok("le stop est mesure pour CE titre : ATR, mouvement ordinaire, et ce "
+       "que les periodes de la duree ont donne",
+       s_.get("en_atr") and s_.get("en_ecarts_jour")
+       and (s_.get("histo") or {}).get("periodes", 0) >= 8)
+    ok("des resultats dans 12 seances tombent PENDANT deux mois",
+       ex["calendrier"]["pendant"] is True)
+    P = ex["portefeuille"]["lignes"]
+    ok("vos lignes : poids et correlation avec le titre envisage",
+       P and P[0]["ticker"] == "MSFT" and P[0].get("poids_pct")
+       and P[0].get("correlation") is not None)
+    li = ex["liste"]
+    ok("la liste compte, sans rien decider : sans reponse, les textes et "
+       "les cases manquent", li["total"] == len(dc.QUESTIONS)
+       and li["remplis"] == 3 and len(li["manquent"]) == 5)
+    rep = {"raison": "r", "tort": "t", "perte": True, "resultats": True,
+           "mouvement": True}
+    ok("toutes les reponses donnees : huit points sur huit",
+       dc.liste(ex, rep)["remplis"] == len(dc.QUESTIONS))
+    txt = " ".join(dc.lignes(ex))
+    ok("aucune phrase ne tranche : ni achetez, ni feu vert, ni signal "
+       "d'achat", not _re_dc.search(r"achetez|vendez|feu vert|signal d.achat"
+                                    r"|recommand|potentiel", txt, _re_dc.I)
+       and "ne font pas un signal" in txt)
+    exd = dc.examine("AAPL", 20000, charge=ch,
+                     detenus=[{"ticker": "AAPL", "quantite": 10}])
+    ok("une ligne deja detenue : la quantite compte dans le poids",
+       exd["taille"]["deja_titres"] == 10
+       and exd["taille"]["poids_apres_pct"] > t["poids_apres_pct"])
+    ok("sans capital, l'examen le demande au lieu d'inventer",
+       not dc.examine("AAPL", 0, charge=ch)["ok"])
+
+    # 3. la trace : le carnet et le registre des positions
+    tmp = Path(_tf.mkdtemp())
+    s_cn, s_ps = cn.FICHIER, ps_.FICHIER
+    cn.FICHIER, ps_.FICHIER = tmp / "carnet.json", tmp / "positions.json"
+    try:
+        e = dc.enregistre(ex, rep)
+        ent = cn.entrees(genre="decision")
+        ok("la decision s'ecrit au carnet, genre DÉCISION, avec vos "
+           "reponses et les faits mesures",
+           e["ok"] and ent and ent[0]["ticker"] == "AAPL"
+           and "POURQUOI : r" in ent[0]["texte"]
+           and ent[0]["donnees"]["taille"]["titres"] == t["titres"]
+           and ent[0]["donnees"]["reponses"]["perte"] is True)
+        i1 = dc.inscrit_ligne(ex)
+        ok("l'ordre passe : la ligne entre au registre AVEC son stop",
+           i1["ok"] and ps_.charge()[0]["stop"] == ex["stop"])
+        i2 = dc.inscrit_ligne(ex)
+        ok("une ligne deja inscrite n'est pas ecrasee", not i2["ok"])
+    finally:
+        cn.FICHIER, ps_.FICHIER = s_cn, s_ps
+
+
 def dt_bornes(n, h):
     from . import detention as _d
     return _d._bornes(n, h)
@@ -5238,6 +5414,8 @@ def main() -> int:
     test_garde_fou_repetition()
     test_short_lecture()
     test_short_passage()
+    test_short_abandon()
+    test_decision()
     test_marqueurs()
     test_projection_capitalisation()
     test_seance()

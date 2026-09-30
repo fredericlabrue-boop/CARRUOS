@@ -21,6 +21,8 @@ py -m equity_scanner.dossier "je sors quand sur TLX.DE"
 py -m equity_scanner.pead         # stratégie 2 : préparation, puis passage unique sur OUI
 py -m equity_scanner.short --valider-documents   # stratégie 3 : note de lecture et amendement, une fois
 py -m equity_scanner.short        # stratégie 3 : préparation, puis passage unique
+py -m equity_scanner.short --abandonner   # stratégie 3 : l'abandon, inscrit au registre
+py -m equity_scanner.decision TLX.DE 20000 2 mois   # AVANT L'ORDRE : taille, stop, faits
 py -m equity_scanner.detention TSLA 2 mois   # ce que cette durée a donné, contre l'indice
 py -m equity_scanner.faillites   # RESTRUCTURATIONS : les 8-K item 1.03 et ce qui a suivi
 py -m equity_scanner.recherche nasdaq100 800 50 "1 semaine"   # somme, gain visé, durée
@@ -382,6 +384,17 @@ jeu de paramètres qui ne l'a pas produit.
   historique) avec la seule règle écrite d'avance — la spécification
   n'autorise aucune entrée sous la moyenne 200 de l'indice. Aucun titre
   n'est désigné, et la consigne du modèle l'interdit aussi.
+- **Un « feu vert » avant l'ordre.** « Fais-moi une stratégie qui
+  m'aide dans la prise de décision » (30 septembre 2026). AVANT L'ORDRE
+  (`decision.py`) prépare un achat que le **propriétaire** envisage : la
+  taille par ses deux règles de risque (1 % au stop, 25 % par ligne, lues
+  dans `rules.py`), les faits du titre, et une liste de huit points
+  écrite d'avance (`decision.QUESTIONS`) dont trois qu'il écrit ou coche
+  — pourquoi, ce qui le ferait dire qu'il avait tort, la perte acceptée.
+  Huit sur huit veut dire **préparée**, jamais « bonne » : la page le dit
+  à chaque affichage. La décision s'écrit au carnet avec les faits
+  **recalculés côté serveur**, pour qu'un jour la mémoire mesure ses
+  décisions en entier.
 - Une ligne de prédiction de prix. Le cône de dispersion existe : dérive
   fixée à zéro, il donne l'amplitude, jamais le sens.
 - Un take-profit **actif**. Les spécifications 2 et 3 disent « aucun
@@ -415,8 +428,16 @@ jeu de paramètres qui ne l'a pas produit.
 - Stratégie 3, dérive post-annonce **négative** — vente à découvert
   (`short.py`) : spécifiée (`strategie-short-v1.md`), moteur **relu contre
   son texte le 30 septembre 2026** (`strategie-short-v1-lecture.md`, datée
-  et hachée, aucune constante n'a bougé : `47d593c5…`), passage unique
-  **préparé et verrouillé**, **pas encore lancé**. Sa période de validation,
+  et hachée, aucune constante n'a bougé : `47d593c5…`), documents validés
+  par le propriétaire le 30/09. **Répétition 2010-2023 NO-GO** : −1,95 %
+  par trade contre −1,99 % pour le témoin (z +0,17), PF 0,64 — 0,75 sans
+  aucun frais —, recul maximal 84,4 %. Le passage unique **n'est pas
+  parti** : 409 titres exploitables sur 518, sous les 80 % de la note de
+  lecture ; rien de 2024-2026 n'a été regardé. Le propriétaire a choisi
+  l'**abandon** ; il l'inscrit lui-même sur sa machine (`--abandonner`,
+  choix 4 de `Tester-strategie-3.bat`), comme un échec, sans période
+  consommée. Une hypothèse abandonnée ne repart plus. Le budget 2026 est épuisé :
+  `pistes-2027-BROUILLON.md` rassemble ce que les trois échecs ont appris. Sa période de validation,
   2024-2026, a été regardée par la stratégie 2 le 29/09 ;
   `strategie-short-v1-amendement-1.md` en tire les conséquences — les
   règles de H3 étaient gelées depuis le 18/09, et le protocole consomme une
@@ -470,11 +491,15 @@ jeu de paramètres qui ne l'a pas produit.
 | | la page est la **vue complète du majordome**, à `/majordome` (l'ancienne `/brain2` y mène), ouverte depuis la bulle ; la v29 la servait sous `/api/brain2` et aucun onglet n'y menait |
 | `registre.py` | le registre des tests, étape 10 du protocole : `~/.carruos/registre-tests.md` pour être lu, `.json` pour refuser un second passage. Aucune ligne n'est jamais réécrite |
 | | `autres_regards()` : les passages terminés d'**autres** hypothèses sur une même période — la période se consomme par hypothèse, mais le partage se dit et s'inscrit |
+| | `abandonne()` : une hypothèse morte sur sa répétition s'inscrit comme un échec, **sans période** (`PERIODE_ABANDON`) — ce n'est pas un regard sur 2024-2026 — et elle est fermée : `short.bloquants()` refuse ensuite tout passage |
 | `short.py` | stratégie 3, vente à découvert — **constantes gelées** |
 | | deux temps, comme `pead.py` : `prepare()` (répétable ; comptes sans rendement sur 2024-2026 ; répétition 2010-2023 sur des données **coupées au 31/12/2023**, sinon un trade de décembre se rachèterait sur des cours de 2024) et `valide()`, le passage unique. L'ancienne `lance()`, qui calculait sur la période de validation sans rien inscrire, **n'existe plus** |
 | | `bloquants()` : une trace de l'ancienne voie (`short-us.csv`), une période déjà regardée par une **autre** hypothèse (`registre.autres_regards`) ou des documents non validés — ou dont le texte a changé depuis la validation — et rien ne part |
 | | S2 (stop) et S4 (thèse morte) se **lisent à la clôture et rachètent à l'ouverture suivante**, au cours réel : le texte dit « le stop sort alors au cours réel d'ouverture ». La première clôture surveillée est celle du jour de la vente ; S1 et S3, connues d'avance, rachètent à la clôture de leur séance. Les moteurs 1 et 2 rachetaient à la clôture même qui déclenchait — la note de lecture de H3 reprenait d'abord cette convention « pour comparer », contre le mot du texte ; corrigé avant validation (point 11) |
 | | un GO exige en plus une espérance positive à la ligne « difficile à emprunter », au moins 0,4 point par trade (le dividende non modélisé) et de battre « ne rien faire » net de PFU ; il ouvre six mois d'observation papier. Le témoin est une annonce **sans surprise notable**, ni bonne ni mauvaise. Le biais du survivant n'a pas de sens connu pour une vente, et le rapport ne dit pas « flatté » |
+| `decision.py` | **AVANT L'ORDRE** : un achat que le propriétaire envisage — la taille par ses deux règles de risque, le stop mesuré pour ce titre, le calendrier, le marché, ses lignes, et une liste de huit points écrite d'avance ; aucun verdict |
+| | le stop par défaut est celui qu'**écrit** la spécification n°1, et la page le dit ; la mesure du stop reprend `recherche.mesure` (périodes non chevauchantes de la durée, gain et perte touchés, Wilson) |
+| | enregistrer et inscrire **renvoient les réponses au serveur**, qui recalcule : le carnet (genre `decision`) garde ce que le moteur mesurait, pas ce que la page affichait. La ligne inscrite porte son stop ; une ligne déjà au registre n'est jamais écrasée |
 | `comparatif.py` | système contre SMH buy & hold net de PFU |
 | `contexte.py` | faits mesurés d'un titre, sans score inventé |
 | `chandeliers.py` | 17 figures détectées géométriquement, et ce qu'elles ont été suivies de **sur ce titre** contre son taux de base |
@@ -824,6 +849,12 @@ jeu de paramètres qui ne l'a pas produit.
   racheté à l'ouverture suivante — la même séparation qu'à l'entrée. Une
   lecture se juge contre la spécification qu'elle lit, pas contre les
   moteurs précédents.
+- **Une idée de correction se vérifie contre le critère qu'elle doit
+  faire passer.** Après la répétition de H3, j'ai proposé de « couvrir le
+  marché » — vendre le titre, acheter l'indice. Le critère qui tombait
+  était le z contre les annonces **sans surprise** ; la couverture retire
+  la hausse du marché au trade ET au témoin, et le z reste près de zéro.
+  C'est écrit dans `pistes-2027-BROUILLON.md` pour ne pas être repris.
 - **Une clé de dossier se vérifie avant d'être prise.** Les faits du
   marché, posés d'abord sous `marche`, écrasaient la place du titre
   (`us` / `europe`) que le dossier range sous ce nom et dont dépend

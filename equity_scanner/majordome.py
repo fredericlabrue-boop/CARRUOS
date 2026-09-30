@@ -560,6 +560,19 @@ async function exec(txt){
   }
   return;
  }
+ // « Avant l'ordre sur TLX.DE », « je prépare un ordre sur COIN » : la
+ // page de décision, le titre déjà posé. Elle calcule la taille et les
+ // faits, et vous fait répondre avant l'ordre — elle ne choisit rien.
+ var mo=q.match(/(?:avant l.?ordre|prepar\w* (?:un |l.?|mon )?ordre|decision d.?achat)(?:\s+(?:sur|pour|de|d.))?\s*([a-z0-9][a-z0-9.^=-]*)?/);
+ if(mo){
+  var tko=(mo[1]||'').toUpperCase();
+  var ud='/decision' + (tko ? '?ticker=' + encodeURIComponent(tko) : '');
+  dit(tko ? 'J\'ouvre AVANT L\'ORDRE pour ' + tko + ' : la taille, le stop, les faits, '
+    + 'et vos réponses. Ce n\'est pas un signal.' : 'J\'ouvre AVANT L\'ORDRE.');
+  if(typeof window.ouvreFenetre==='function') ouvreFenetre(ud, 'carruos-decision');
+  else location.href=ud;
+  return;
+ }
  // « Je mets 800 €, je veux gagner 50 € en une semaine » : la page
  // RECHERCHE, ouverte avec ces reglages et lancee. Deux sommes en euros,
  // ou le mot « recherche » : une question sur un titre n'en porte pas.
@@ -629,6 +642,7 @@ async function exec(txt){
 
  dit('Je n\'ai pas compris. Essayez : je sors quand sur TLX, combien je '
   +'peux perdre sur Coin, que penses-tu de Nvidia, ouvre Sanofi, '
+  +'avant l\'ordre sur TLX.DE, '
   +'scan Cac 40, je mets 3000 € pour gagner 100 € en un mois sur une '
   +'action en crise avec rebond, sommes-nous en temps de crise ?, '
   +'TLX a baissé de 25 %, rebond ?, Tesla nouveau modèle, '

@@ -1156,6 +1156,39 @@ indices.
 
 ---
 
+## 5 unvicies. AVANT L'ORDRE — `decision.py`
+
+**« Aide-moi à décider. »** Aucune hypothèse n'a passé sa Phase 0 : le
+programme ne sait pas quoi acheter, et ne le dit pas. Pour un achat que
+**vous** envisagez, la page AVANT L'ORDRE (accueil, en tête des outils ;
+ou « avant l'ordre sur TLX.DE » au majordome) fait trois choses.
+
+**1. La taille, par vos deux règles de risque.** Le nombre de titres
+qui ne fait perdre que **1 %** du capital si le stop est touché, borné
+pour que la ligne ne dépasse pas **25 %** du capital — ce que vous
+détenez déjà compris. Ce sont les règles de vos spécifications, lues
+dans `rules.py`, jamais recopiées. Sans stop tapé, la page prend celui
+qu'écrit la spécification n°1 et le dit.
+
+**2. Les faits, mesurés à l'instant.** Ce que votre stop représente
+pour ce titre — en ATR, en mouvements quotidiens ordinaires, et combien
+de périodes de votre durée ont touché ce niveau en chemin, gain à côté,
+avec leur intervalle ; le mouvement récent ; la date des prochains
+résultats ; l'indice et sa moyenne 200 séances ; vos lignes, leur poids
+et leur corrélation avec le titre (sur au moins **120** séances
+communes).
+
+**3. La liste, écrite d'avance, et la trace.** Huit points, dont trois
+que vous écrivez ou cochez : pourquoi, ce qui vous ferait dire que vous
+aviez tort, la perte acceptée. Le compte des points remplis **n'est pas
+un signal** : huit sur huit veut dire que la décision est préparée, pas
+qu'elle est bonne. ENREGISTRER écrit la décision au carnet (genre
+DÉCISION) avec les faits **recalculés par le serveur** ; J'AI PASSÉ
+L'ORDRE inscrit la ligne au registre des positions **avec son stop**,
+que l'accueil et l'onglet IBKR surveillent ensuite.
+
+---
+
 ## 6. Ce que le programme refuse d'afficher
 
 Rappel, parce que c'est la colonne vertébrale du projet :
@@ -1196,7 +1229,7 @@ Rappel, parce que c'est la colonne vertébrale du projet :
 |---|---|
 | Stratégie 1 — repli en tendance | **NO-GO** en Phase 0 sur S&P 500 et 120 titres US. Hypothèse morte. |
 | Stratégie 2 — dérive post-annonce | **NO-GO** au passage unique du 29 septembre 2026 sur 2024–2026 (z +1,13, profit factor 1,13, drawdown 32,6 %). Hypothèse morte. |
-| Stratégie 3 — dérive post-annonce négative (vente à découvert) | moteur **relu contre son texte** le 30 septembre 2026, passage unique **préparé et verrouillé**, pas encore lancé. Il attend la validation de la note de lecture et de l'amendement n°1 : `Tester-strategie-3.bat`. Le dividende dû au prêteur n'est pas modélisé : un GO exige au moins 0,4 point par trade. |
+| Stratégie 3 — dérive post-annonce négative (vente à découvert) | documents validés le 30 septembre 2026 ; **répétition 2010-2023 NO-GO** (−1,95 % par trade, témoin −1,99 %, z +0,17, PF 0,64, recul max 84,4 %). Le passage unique n'est pas parti : 409 titres exploitables sur 518, sous les 80 % exigés — rien de 2024-2026 n'a été regardé. Abandon à inscrire au registre : `Tester-strategie-3.bat`, choix 4. |
 
 **Tant qu'aucune hypothèse n'a passé sa Phase 0, toute sortie de
 CARRUOS est une liste de surveillance, pas une liste d'ordres.**

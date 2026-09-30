@@ -23,6 +23,8 @@ echo   2. La preparation, puis le passage UNIQUE sur 2024-2026 : il ne
 echo      part que si les documents sont valides et que vous tapez OUI -
 echo      ou LANCER QUAND MEME si la repetition a rendu NO-GO.
 echo   3. La preparation seule, repetable a volonte.
+echo   4. Inscrire l'ABANDON de la strategie 3 au registre, sans passage :
+echo      apres une repetition NO-GO. Elle est alors fermee.
 echo   0. Quitter
 echo.
 set CHOIX=
@@ -31,6 +33,7 @@ echo.
 if "%CHOIX%"=="1" goto documents
 if "%CHOIX%"=="2" goto passage
 if "%CHOIX%"=="3" goto preparation
+if "%CHOIX%"=="4" goto abandon
 exit /b 0
 
 :documents
@@ -44,6 +47,10 @@ goto fin
 
 :preparation
 %PY% -m equity_scanner.short --preparer
+goto fin
+
+:abandon
+%PY% -m equity_scanner.short --abandonner
 
 :fin
 echo.

@@ -13,6 +13,11 @@ if "%PY%"=="" (
 echo.
 echo   STRATEGIE 2 - DERIVE POST-ANNONCE
 echo.
+echo   ELLE EST TERMINEE : passage unique du 29/09/2026 sur 2024-2026,
+echo   NO-GO, inscrit au registre. Le programme va le rappeler et
+echo   s'arreter : c'est normal, une periode de validation ne se regarde
+echo   qu'une fois. La strategie 3, c'est Tester-strategie-3.bat.
+echo.
 echo   1. La preparation : dates d'annonces, cours, repetition generale
 echo      sur la periode de conception. Repetable a volonte.
 echo   2. Le passage UNIQUE sur 2024-2026 : il ne part que si vous tapez

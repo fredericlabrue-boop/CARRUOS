@@ -1004,6 +1004,11 @@ def bloquants(don: dict, etat: Path | None = None,
     from . import registre as rg
     periode = periode_validation()
     out = []
+    ab = rg.abandonnee(HYPOTHESE, etat)
+    if ab:
+        out.append(f"l'hypothèse a été ABANDONNÉE le {ab['fin'][:10]}, avant "
+                   f"son passage : {ab.get('motif', '')}. La relancer serait "
+                   f"une résurrection choisie après coup")
     for f in TRACES:
         if f.exists():
             out.append(f"une trace de l'ancienne voie directe existe ({f}) : "
@@ -1113,6 +1118,89 @@ def valide(don: dict, journal=print, second_regard: str = "",
     return {**res, "lignes": lignes}
 
 
+# ------------------------------------------------------------ l'abandon
+PHRASE_ABANDON = "ABANDONNER"
+
+
+def _criteres_du_rapport(texte: str) -> list[str]:
+    """Les lignes des cinq criteres, recopiees du rapport tel qu'il a ete
+    ecrit : l'abandon cite ce qui l'a motive, sans rien recalculer."""
+    out, dedans = [], False
+    for l in texte.splitlines():
+        if "LES CINQ CRITÈRES" in l:
+            dedans = True
+            continue
+        if dedans:
+            if not l.strip():
+                break
+            out.append(l.strip())
+    return out
+
+
+def abandon(saisie=input, journal=print, etat: Path | None = None,
+            md: Path | None = None, dossier: Path | None = None) -> dict:
+    """Inscrit au registre l'abandon de l'hypothese AVANT son passage
+    unique, sur la foi de la derniere repetition generale.
+
+    Rien de 2024-2026 n'est regarde. Refuse si le passage a deja eu lieu
+    (son resultat est la, il ne s'efface pas), ou si aucune repetition
+    n'a ete ecrite (un abandon cite ce qui l'a motive)."""
+    from . import audit as ad
+    from . import registre as rg
+    periode = periode_validation()
+    deja = rg.deja_regardee(HYPOTHESE, periode, etat)
+    if deja:
+        journal(f"\n  Le passage unique a déjà eu lieu le {deja['fin'][:10]} : "
+                f"{deja['resultat']}. Il est au registre ; il ne s'abandonne "
+                f"pas après coup.\n")
+        return {"ok": False, "motif": "passage deja fait"}
+    ab = rg.abandonnee(HYPOTHESE, etat)
+    if ab:
+        journal(f"\n  Déjà inscrite comme abandonnée le {ab['fin'][:10]} : "
+                f"{ab.get('motif', '')}.\n")
+        return {"ok": True, "entree": ab, "deja": True}
+    rep = dossier or DOSSIER
+    rapports = sorted(rep.glob("repetition-*.txt")) if rep.exists() else []
+    if not rapports:
+        journal("\n  Aucune répétition générale n'a été écrite : un abandon "
+                "cite ce qui l'a motivé.\n  Lancez d'abord la préparation "
+                "(Tester-strategie-3.bat, choix 3).\n")
+        return {"ok": False, "motif": "aucune repetition"}
+    f = rapports[-1]
+    texte = f.read_text(encoding="utf-8")
+    verdict = ("NO-GO" if "NO-GO SUR LA RÉPÉTITION" in texte else
+               "GO" if "SUR LA RÉPÉTITION" in texte else "inconnu")
+    criteres = _criteres_du_rapport(texte)
+    journal(f"\n  HYPOTHÈSE N°3 — ABANDON AVANT LE PASSAGE UNIQUE")
+    journal(f"  Répétition générale : {f.name} — verdict {verdict}.")
+    for l in criteres:
+        journal(f"    {l}")
+    journal(f"  Le passage unique sur {periode} ne sera jamais lancé : "
+            f"l'hypothèse est fermée, et c'est")
+    journal("  inscrit au registre comme un échec. Rien de la période de "
+            "validation n'est regardé.")
+    try:
+        r = (saisie(f"  Tapez {PHRASE_ABANDON} pour l'inscrire, ou Entrée "
+                    f"pour vous arrêter : ") or "").strip()
+    except EOFError:
+        r = ""
+    if r != PHRASE_ABANDON:
+        journal("  Rien n'est inscrit.\n")
+        return {"ok": False, "motif": "non confirme"}
+    motif = (f"répétition 2010-2023 {verdict}, passage unique {periode} "
+             f"non lancé")
+    e = rg.abandonne(
+        HYPOTHESE, "US large", ad.empreinte_short(), motif,
+        details={"repetition": str(f),
+                 "repetition_sha256": _sha_fichier(f),
+                 "verdict_repetition": verdict, "criteres": criteres,
+                 **empreintes()},
+        etat=etat, md=md)
+    journal(f"\n  Inscrit au registre le {e['fin'][:10]} : {e['resultat']}.")
+    journal(f"  Registre : {rg.MD if md is None else md}\n")
+    return {"ok": True, "entree": e}
+
+
 def main() -> None:
     from . import registre as rg
     a = argparse.ArgumentParser(
@@ -1123,6 +1211,9 @@ def main() -> None:
                    help="le passage unique, sans question (après préparation)")
     a.add_argument("--valider-documents", action="store_true",
                    help="valider la note de lecture et l'amendement n°1")
+    a.add_argument("--abandonner", action="store_true",
+                   help="inscrire l'abandon avant le passage unique, sur la "
+                        "foi de la dernière répétition")
     a.add_argument("--second-regard", default="", metavar="MOTIF",
                    help="refaire un passage déjà fait ; le motif est écrit "
                         "au registre comme SECOND REGARD")
@@ -1136,6 +1227,16 @@ def main() -> None:
         a.error("la note de lecture fixe l'univers US large (--univers us)")
     if o.valider_documents:
         valide_documents()
+        return
+    if o.abandonner:
+        abandon()
+        return
+    ab = rg.abandonnee(HYPOTHESE)
+    if ab and not o.preparer:
+        print(f"\n  L'hypothèse n°3 a été ABANDONNÉE le {ab['fin'][:10]}, "
+              f"avant son passage unique :\n  {ab.get('motif', '')}. Elle est "
+              f"fermée ; la préparation reste possible pour relire la "
+              f"répétition :\n    py -m equity_scanner.short --preparer\n")
         return
 
     periode = periode_validation()

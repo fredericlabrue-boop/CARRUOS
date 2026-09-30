@@ -1783,6 +1783,7 @@ CSS_CARNET = """
  padding:10px 12px;margin-bottom:9px;background:rgba(6,12,18,.5)}
 .cse.g-releve{border-left-color:var(--acc)}
 .cse.g-ordre{border-left-color:#c9b28a}
+.cse.g-decision{border-left-color:var(--pos)}
 .cse .t{display:flex;gap:9px;align-items:baseline;flex-wrap:wrap;
  margin-bottom:5px}
 .cse .d{font:400 9px ui-monospace,monospace;letter-spacing:.14em;
@@ -2030,6 +2031,71 @@ CSS_RECH = """
 .rch h3.sec{font:500 10px ui-monospace,monospace;letter-spacing:.2em;
  color:var(--txt-faible);margin:16px 0 6px;padding-top:10px;
  border-top:1px solid var(--bord)}
+"""
+
+
+# AVANT L'ORDRE : la page de decision. Ses classes ne vivent que dans
+# cette feuille (`.dec …`), qu'elle est seule a charger.
+CSS_DEC = """
+.dec{max-width:1180px;margin:0 auto 24px;padding:14px 16px 26px;
+ background:var(--pan-fond);border:1px solid var(--bord);border-radius:12px}
+.dec label{display:block;font-size:10px;letter-spacing:.16em;
+ color:var(--txt-faible);margin-bottom:5px}
+.dec select,.dec input,.dec textarea{width:100%;
+ background:var(--champ-fond,#0a1620);border:1px solid var(--bord);
+ color:var(--txt);border-radius:9px;padding:9px 11px;font:400 13px inherit}
+.dec textarea{min-height:64px;resize:vertical;line-height:1.5}
+.dec input:focus,.dec select:focus,.dec textarea:focus{outline:0;
+ border-color:var(--acc)}
+.dec .par{display:grid;gap:11px;align-items:end;margin-bottom:10px;
+ grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr))}
+.dec .par>div{min-width:0}
+.dec .dur{display:grid;grid-template-columns:minmax(0,64px) minmax(0,1fr);
+ gap:6px}
+.dec .txt{display:grid;gap:11px;margin-bottom:10px;
+ grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))}
+.dec .txt>div{min-width:0}
+.dec .go{width:100%;background:#0e2b34;border:1px solid var(--acc);
+ color:var(--txt-fort);border-radius:9px;padding:10px;cursor:pointer;
+ font:500 13px inherit;letter-spacing:.1em}
+.dec .go:hover{background:#123a46}
+.dec .go.sec{background:none;border-color:var(--bord);color:var(--txt-doux)}
+.dec .ex{font-size:12.5px;line-height:1.65;color:var(--txt-doux);
+ margin:0 0 12px}
+.dec .msg{font-size:12px;color:var(--txt-mi);min-height:18px;margin:6px 0}
+.dec .cartes{display:grid;gap:10px;margin:12px 0;
+ grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr))}
+.dec .carte{min-width:0;border:1px solid var(--bord);border-radius:10px;
+ padding:10px 12px;font-size:12.5px;line-height:1.6;color:var(--txt-doux)}
+.dec .carte h3{font:500 10px ui-monospace,monospace;letter-spacing:.2em;
+ color:var(--txt-faible);margin:0 0 6px}
+.dec .carte b{color:var(--txt-fort);font-weight:500;
+ font-variant-numeric:tabular-nums}
+.dec .carte i{color:var(--txt-mi)}
+.dec .grand{font:500 22px ui-monospace,Consolas,monospace;
+ color:var(--txt-fort);font-variant-numeric:tabular-nums}
+.dec .alerte{border-color:var(--neg)}
+.dec .liste{border:1px solid var(--bord);border-radius:10px;
+ padding:10px 12px;margin:12px 0}
+.dec .liste .decompte{font:500 15px ui-monospace,monospace;color:var(--txt-fort);
+ margin-bottom:8px}
+.dec .item{display:grid;grid-template-columns:22px minmax(0,1fr);gap:8px;
+ align-items:start;padding:5px 0;border-top:1px solid var(--bord);
+ font-size:12.5px;color:var(--txt-doux)}
+.dec .item .coche{font:500 13px ui-monospace,monospace;color:var(--txt-faible)}
+.dec .item.oui .coche{color:var(--pos)}
+.dec .item small{display:block;color:var(--txt-mi);font-size:11.5px}
+.dec .item input{width:auto;margin-right:6px;vertical-align:middle}
+.dec .item label{display:inline;font-size:12.5px;letter-spacing:0;
+ color:var(--txt-doux);margin:0;cursor:pointer}
+.dec .trace{display:grid;gap:10px;margin:12px 0;
+ grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));
+ align-items:end}
+.dec .trace .go{white-space:normal;line-height:1.35}
+.dec .trace>div{min-width:0}
+.dec .rap{font-size:11.5px;line-height:1.65;color:var(--txt-mi);
+ border-left:2px solid var(--acc);padding:2px 0 2px 10px;margin:0 0 8px}
+.dec .rap.fort{border-left-color:var(--neg);color:var(--txt-doux)}
 """
 
 
@@ -2334,6 +2400,9 @@ def _accueil(splash: bool = True) -> str:
             # tombaient sous le pli du panneau a 1420 px — la taille de la
             # fenetre — et on ne les voyait pas.
             '<div class="gh outils">'
+            '<button data-vers="/decision" data-fen="carruos-decision">'
+            "<b>AVANT L'ORDRE</b><i>taille, stop, faits, votre liste</i>"
+            "</button>"
             '<button data-vers="/recherche" data-fen="carruos-recherche">'
             "<b>RECHERCHE</b><i>somme, gain visé, durée, vos titres</i></button>"
             '<button data-vers="/restructurations" '
@@ -2406,7 +2475,7 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                           "/api/carnet", "/api/cerveau", "/api/brain2",
                           "/api/cerveau/config", "/api/ibkr",
                           "/api/raccourci", "/api/restructurations",
-                          "/api/recherche"):
+                          "/api/recherche", "/api/decision"):
             return self._envoie("<h1>404</h1>", code=404)
         try:
             n = int(self.headers.get("Content-Length") or 0)
@@ -2417,6 +2486,8 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                 return self._json(_restructurations_ecrit(corps))
             if u.path == "/api/recherche":
                 return self._json(_recherche_lance(corps))
+            if u.path == "/api/decision":
+                return self._json(_decision(corps))
             if u.path == "/api/validation":
                 return self._json(_val_lance(corps.get("quoi", "phase0")))
             if u.path == "/api/carnet":
@@ -2529,6 +2600,8 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                 return self._envoie(_page_restructurations())
             if u.path == "/recherche":
                 return self._envoie(_page_recherche())
+            if u.path == "/decision":
+                return self._envoie(_page_decision())
             if u.path == "/api/recherche/lignes":
                 return self._json({"lignes": _lignes_detenues()})
             if u.path == "/api/recherche":
@@ -4016,6 +4089,175 @@ majSit();
 calcule();
 lignesR();
 if(LANCE_R) lanceR(); else suitR();
+"""
+
+
+# AVANT L'ORDRE. Le serveur calcule tout ; la page affiche et fait
+# compter la liste au fil de la saisie. Enregistrer RENVOIE les reponses
+# au serveur, qui recalcule les faits : le carnet garde ce que le moteur
+# a mesure, pas ce que la page montrait.
+JS_DEC = r"""
+function $d(i){ return document.getElementById(i); }
+function eD(t){ return String(t==null?'':t).replace(/[&<>"']/g,
+ function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function nD(v, d){ if(v==null || isNaN(v)) return '—';
+ return Number(v).toLocaleString('fr-FR',{minimumFractionDigits:d==null?2:d,
+  maximumFractionDigits:d==null?2:d}); }
+function wD(w){ return w ? ' <i>(' + nD(w[0],1) + '–' + nD(w[1],1) + ' %)</i>' : ''; }
+var EX=null;
+var CASES={perte:'d_perte', resultats:'d_resultats', mouvement:'d_mouvement'};
+function reponses(){
+ return {raison:$d('draison').value, tort:$d('dtort').value,
+  perte:!!($d('d_perte') && $d('d_perte').checked),
+  resultats:!!($d('d_resultats') && $d('d_resultats').checked),
+  mouvement:!!($d('d_mouvement') && $d('d_mouvement').checked)};
+}
+function corps(action){
+ return {action:action, ticker:$d('dtk').value.trim(), capital:$d('dcap').value,
+  entree:$d('dent').value, stop:$d('dstop').value, risque:$d('drisq').value,
+  nombre:$d('dnb').value, unite:$d('dun').value, gain:$d('dgain').value,
+  reponses:reponses(), quantite:($d('dqte')||{}).value, prix:($d('dprix')||{}).value};
+}
+function retiensD(){
+ try{ localStorage.setItem('carruos_decision', JSON.stringify(
+  {dcap:$d('dcap').value, drisq:$d('drisq').value})); }catch(e){}
+}
+function reprendsD(){
+ try{ var o=JSON.parse(localStorage.getItem('carruos_decision')||'{}');
+  ['dcap','drisq'].forEach(function(i){ if(o[i]) $d(i).value=o[i]; }); }catch(e){}
+ try{ var a=new URLSearchParams(location.search);
+  if(a.get('ticker')) $d('dtk').value=a.get('ticker').toUpperCase();
+  return !!a.get('ticker'); }catch(e){ return false; }
+}
+async function poste(action){
+ var r=await fetch('/api/decision',{method:'POST',
+  headers:{'Content-Type':'application/json'}, body:JSON.stringify(corps(action))});
+ return await r.json();
+}
+async function examiner(){
+ retiensD();
+ $d('dmsg').textContent='Calcul des faits…';
+ try{ var j=await poste('examine'); }
+ catch(e){ $d('dmsg').textContent='Le serveur ne répond pas.'; return; }
+ if(!j.ok){ $d('dmsg').textContent=j.erreur||'Examen impossible.'; $d('dres').innerHTML=''; return; }
+ $d('dmsg').textContent=''; EX=j; rendD();
+}
+function carte(titre, corps, alerte){
+ return '<div class="carte' + (alerte?' alerte':'') + '"><h3>' + eD(titre) + '</h3>' + corps + '</div>';
+}
+function rendD(){
+ var x=EX, t=x.taille||{}, s=x.stop_faits, m=x.mouvement||{}, c=x.calendrier||{};
+ var h='';
+ if(x.qualite && x.qualite.utilisable===false)
+  h+='<p class="rap fort">Données douteuses : ' + eD(x.qualite.resume)
+   + '. Les faits ci-dessous reposent sur elles.</p>';
+ var cT = t.titres
+  ? '<div class="grand">' + t.titres + ' titres</div>'
+    + nD(t.titres,0) + ' × ' + nD(t.prix_eur) + ' € = <b>' + nD(t.investi_eur) + ' €</b><br>'
+    + 'Perte si le stop est touché : <b>' + nD(t.perte_stop_eur) + ' €</b>, soit <b>'
+    + nD(t.perte_stop_pct_capital) + ' %</b> du capital, frais compris.<br>'
+    + 'Poids de la ligne après l’achat : <b>' + nD(t.poids_apres_pct,1) + ' %</b>'
+    + (t.deja_titres ? ' <i>(dont ' + nD(t.deja_titres,0) + ' titres déjà détenus)</i>' : '')
+    + (t.plafonne ? '<br><i>Le nombre est borné par le plafond de ' + nD(x.plafond_pct,0)
+       + ' % : le risque seul en aurait donné ' + t.par_risque + '.</i>' : '')
+  : '<div class="grand">0 titre</div>' + eD(t.motif||'');
+ h+='<div class="cartes">' + carte('LA TAILLE — ' + nD(x.risque_pct) + ' % DU CAPITAL AU STOP', cT, !t.titres);
+ var cS='';
+ if(s){
+  cS='Entrée <b>' + nD(x.entree) + ' ' + eD(x.devise) + '</b>, stop <b>' + nD(x.stop) + '</b> <i>('
+   + eD(x.stop_source) + ')</i><br>'
+   + 'Distance : <b>' + nD(s.distance_pct) + ' %</b> — ' + nD(s.en_atr) + ' ATR, '
+   + nD(s.en_ecarts_jour,1) + ' fois le mouvement quotidien ordinaire ('
+   + nD(s.ecart_jour_pct) + ' %).';
+  var hs=s.histo||{};
+  if(hs.periodes){
+   cS+='<br>Sur <b>' + hs.periodes + '</b> périodes de ' + eD(x.duree) + ' depuis ' + eD(hs.depuis)
+    + ' : −' + nD(s.distance_pct) + ' % touché en chemin <b>' + hs.perte_touchee + '</b> fois'
+    + wD(hs.wilson_perte) + ' ; +' + nD(s.gain_seuil_pct) + ' % <i>(' + eD(s.gain_seuil_source)
+    + ')</i> touché <b>' + hs.gain_touche + '</b> fois' + wD(hs.wilson_gain) + '.'
+    + (hs.wilson_dabord ? ' Le gain d’abord dans ' + hs.gain_dabord + ' cas tranchés sur '
+       + (hs.gain_dabord+hs.perte_dabord) + wD(hs.wilson_dabord) + '.' : '');
+  } else if(hs.erreur) cS+='<br><i>' + eD(hs.erreur) + '</i>';
+  cS+='<br><i>' + eD(x.rappel_histo) + '</i>';
+ } else cS='<i>Pas de stop sous l’entrée : rien à mesurer.</i>';
+ h+=carte('LE STOP, POUR CE TITRE', cS);
+ h+=carte('LE MOUVEMENT RÉCENT',
+  '5 séances <b>' + nD(m['5_seances'],1) + ' %</b> · 1 mois <b>' + nD(m['1_mois'],1)
+  + ' %</b> · 3 mois <b>' + nD(m['3_mois'],1) + ' %</b><br>'
+  + nD(m.sous_plus_haut_1an,1) + ' % sous le plus haut d’un an, +' + nD(m.sur_plus_bas_1an,1)
+  + ' % au-dessus du plus bas.');
+ h+=carte('LE CALENDRIER', (c.jours==null
+  ? 'Date des prochains résultats <b>inconnue</b> : à vérifier à la main avant l’ordre.'
+  : 'Prochains résultats dans <b>' + c.jours + '</b> séances — '
+    + (c.pendant ? '<b>pendant</b> la durée envisagée.' : 'après la durée envisagée.'))
+  + '<br><i>' + eD(x.rappel_stop) + '</i>', c.pendant);
+ var mk=x.marche;
+ h+=carte('LE MARCHÉ', mk ? '<b>' + eD(mk.nom) + '</b> : ' + (mk.ecart_mm200>0?'+':'')
+  + nD(mk.ecart_mm200,1) + ' % par rapport à sa moyenne 200 séances — vos spécifications '
+  + (mk.au_dessus ? 'autorisent les entrées' : 'n’autorisent <b>aucune</b> entrée')
+  + ' ; ' + nD(mk.recul_haut_1an,1) + ' % sous son plus haut d’un an.' : 'Indice indisponible.',
+  mk && !mk.au_dessus);
+ var P=(x.portefeuille||{}).lignes||[];
+ h+=carte('VOTRE PORTEFEUILLE', P.length ? P.map(function(l){
+   return '<b>' + eD(l.ticker) + '</b> ' + nD(l.quantite,0) + ' titres'
+    + (l.poids_pct!=null ? ', ' + nD(l.poids_pct,1) + ' % du capital' : '')
+    + (l.correlation!=null ? ' — corrélation avec ' + eD(x.ticker) + ' : <b>'
+       + nD(l.correlation) + '</b> <i>(' + l.seances_corr + ' séances)</i>' : '')
+    + (l.erreur ? ' <i>' + eD(l.erreur) + '</i>' : '');
+  }).join('<br>') : 'Aucune ligne détenue trouvée (registre ou IBKR).');
+ h+='</div>';
+ h+='<div class="liste" id="dliste"></div>';
+ h+='<div class="trace"><div><button class="go" id="denr">ENREGISTRER LA DÉCISION AU CARNET</button></div>'
+  + '<div><label>QUANTITÉ RÉELLE</label><input id="dqte" inputmode="decimal" value="'
+  + (t.titres||'') + '"></div><div><label>PRIX RÉEL</label><input id="dprix" inputmode="decimal" value="'
+  + (x.entree||'') + '"></div><div><button class="go sec" id="dins">J’AI PASSÉ L’ORDRE — '
+  + 'INSCRIRE LA LIGNE ET SON STOP</button></div></div>'
+  + '<div class="msg" id="dtr"></div>'
+  + '<p class="rap fort">' + eD(x.rappel) + '</p>';
+ $d('dres').innerHTML=h;
+ listeD();
+ $d('denr').addEventListener('click', enregistreD);
+ $d('dins').addEventListener('click', inscritD);
+}
+function listeD(){
+ if(!EX || !$d('dliste')) return;
+ var R=reponses(), L=(EX.liste||{}).items||[], n=0, manque=[];
+ var h=L.map(function(i){
+  var ok = i.genre==='fait' ? i.rempli : i.genre==='texte' ? !!String(R[i.cle]||'').trim() : !!R[i.cle];
+  if(ok) n++; else manque.push(i.libelle);
+  var saisie = i.genre==='case'
+   ? '<label><input type="checkbox" id="' + CASES[i.cle] + '"' + (R[i.cle]?' checked':'') + '>'
+     + eD(i.libelle) + '</label>'
+   : eD(i.libelle) + (i.genre==='texte' ? ' <i>(champ ci-dessus)</i>' : '');
+  return '<div class="item' + (ok?' oui':'') + '"><span class="coche">' + (ok?'✓':'·') + '</span><div>'
+   + saisie + (i.detail ? '<small>' + eD(i.detail) + '</small>' : '') + '</div></div>';
+ }).join('');
+ $d('dliste').innerHTML='<div class="decompte">' + n + ' POINTS SUR ' + L.length + ' REMPLIS</div>'
+  + (manque.length ? '' : '<p class="rap">La décision est préparée. Ce n’est pas un signal : '
+     + 'elle reste la vôtre.</p>') + h;
+ Object.keys(CASES).forEach(function(k){ var e=$d(CASES[k]);
+  if(e) e.addEventListener('change', listeD); });
+}
+async function enregistreD(){
+ $d('dtr').textContent='Enregistrement…';
+ try{ var j=await poste('enregistre'); }catch(e){ $d('dtr').textContent='Le serveur ne répond pas.'; return; }
+ $d('dtr').textContent = j.ok ? 'Écrit au carnet le ' + j.entree.date + ' : ' + j.entree.titre
+  + '. Les faits sont ceux que le moteur mesurait à cet instant.' : (j.erreur||'Échec.');
+}
+async function inscritD(){
+ $d('dtr').textContent='Inscription…';
+ try{ var j=await poste('inscrit'); }catch(e){ $d('dtr').textContent='Le serveur ne répond pas.'; return; }
+ $d('dtr').textContent = j.ok ? 'Ligne inscrite au registre des positions : ' + j.ligne.ticker
+  + ', ' + j.ligne.quantite + ' titres à ' + j.ligne.entree + ', stop ' + j.ligne.stop
+  + '. L’accueil et l’onglet IBKR la surveillent.' : (j.erreur||'Échec.');
+ if(j.ok) $d('dtr').textContent='Ligne inscrite au registre des positions : ' + j.ligne.ticker
+  + ', ' + nD(j.ligne.quantite,0) + ' titres à ' + nD(j.ligne.entree) + ', stop '
+  + nD(j.ligne.stop) + '. L’accueil et l’onglet IBKR la surveillent.';
+}
+['draison','dtort'].forEach(function(i){ $d(i).addEventListener('input', listeD); });
+$d('dexam').addEventListener('click', examiner);
+$d('dtk').addEventListener('keydown', function(e){ if(e.key==='Enter') examiner(); });
+if(reprendsD() && $d('dcap').value) examiner();
 """
 
 
@@ -5780,6 +6022,104 @@ def _recherche_lance(corps: dict) -> dict:
     return {"ok": True}
 
 
+def _page_decision() -> str:
+    """AVANT L'ORDRE : un achat que VOUS envisagez, prepare par des faits
+    mesures et une liste ecrite d'avance. Aucun verdict, aucun titre
+    designe : la decision reste la votre, et elle est ecrite."""
+    from . import decision as dc
+
+    reg = rg.charge()
+    unites = "".join(f'<option value="{u}"'
+                     + (' selected' if u == "mois" else "")
+                     + f">{u}</option>"
+                     for u in ("jours", "semaines", "mois", "ans"))
+    return (
+        '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<link rel="icon" type="image/svg+xml" href="/carruos.svg">'
+        '<link rel="alternate icon" href="/favicon.ico">'
+        f"<title>{TITRE} — avant l'ordre</title>"
+        f"<style>{rg.variables(reg)}{CSS}{CSS_DEC}</style></head>"
+        f'<body class="{rg.classes(reg)}"{rg.corps_attrs(reg)}>'
+        + rg.tiroir_html(reg)
+        + mj.html(reg)
+        + hd.fond(TRACE_D)
+        + '<div class="app une-zone">'
+          + hd.barre(TRACE_D, NOM, soustitre="AVANT L'ORDRE",
+                     fenetre="carruos-decision")
+          + '<div class="defile"><div class="dec">'
+          '<p class="ex">Un achat que <b>vous</b> envisagez. Le programme '
+          'calcule la taille qui ne risque que '
+          f'<b>{dc.RISQUE_DEFAUT:g} %</b> du capital si le stop est touché, '
+          f'sans dépasser <b>{dc.PLAFOND * 100:g} %</b> sur la ligne — les '
+          'deux règles de vos spécifications —, puis les faits : ce que le '
+          'stop représente pour ce titre, le calendrier, le marché, votre '
+          'portefeuille. Vous répondez aux questions qu’on oublie une fois '
+          'l’ordre passé. La décision est écrite au carnet, datée : c’est '
+          'ce qui permettra de mesurer vos décisions, en entier.</p>'
+          '<div class="par">'
+          '<div><label>TITRE (AVEC SA PLACE)</label><input id="dtk" '
+          'autocomplete="off" spellcheck="false" placeholder="TLX.DE, AAPL…">'
+          '</div>'
+          '<div><label>CAPITAL DU COMPTE (€)</label><input id="dcap" '
+          'inputmode="decimal" placeholder="20000"></div>'
+          '<div><label>PRIX D’ENTRÉE</label><input id="dent" '
+          'inputmode="decimal" placeholder="dernier cours"></div>'
+          '<div><label>STOP</label><input id="dstop" inputmode="decimal" '
+          'placeholder="celui de la spécification"></div>'
+          f'<div><label>RISQUE (% DU CAPITAL)</label><input id="drisq" '
+          f'inputmode="decimal" value="{dc.RISQUE_DEFAUT:g}"></div>'
+          '<div><label>DURÉE ENVISAGÉE</label><div class="dur">'
+          '<input id="dnb" inputmode="decimal" value="2">'
+          f'<select id="dun">{unites}</select></div></div>'
+          '<div><label>GAIN VISÉ (%, FACULTATIF)</label><input id="dgain" '
+          'inputmode="decimal" placeholder="—"></div>'
+          '</div>'
+          '<div class="txt">'
+          '<div><label>POURQUOI CET ACHAT ?</label><textarea id="draison" '
+          'placeholder="La raison, écrite avant l’ordre."></textarea></div>'
+          '<div><label>J’AURAI EU TORT SI… (EN DEHORS DU STOP)</label>'
+          '<textarea id="dtort" placeholder="Ce qui invaliderait la raison.">'
+          '</textarea></div>'
+          '</div>'
+          '<button class="go" id="dexam">EXAMINER</button>'
+          '<div class="msg" id="dmsg"></div>'
+          '<div id="dres"></div>'
+          '</div></div></div>'
+        + f"<script>{hd.BARRE_JS}{JS_DEC}{mj.JS}{rg.tiroir_js()}"
+          "</script></body></html>")
+
+
+def _decision(corps: dict) -> dict:
+    """Examine, enregistre ou inscrit. Chaque action RECALCULE les faits
+    cote serveur : ce qui s'ecrit est ce que le moteur mesure, jamais ce
+    que la page affichait."""
+    from . import data as dl
+    from . import decision as dc
+    tk = (corps.get("ticker") or "").strip().upper()
+    try:
+        jours = dl.days_to_earnings_yf(tk) if tk else None
+    except Exception:
+        jours = None
+    rep = corps.get("reponses") or {}
+    try:
+        ex = dc.examine(tk, corps.get("capital"), corps.get("entree"),
+                        corps.get("stop"),
+                        dc._num(corps.get("risque")) or dc.RISQUE_DEFAUT,
+                        corps.get("nombre") or 2, corps.get("unite") or "mois",
+                        corps.get("gain"), rep,
+                        detenus=_lignes_detenues(), jours_resultats=jours)
+    except Exception as exc:
+        traceback.print_exc()
+        return {"ok": False, "erreur": f"{type(exc).__name__}: {exc}"}
+    action = corps.get("action") or "examine"
+    if action == "enregistre":
+        return dc.enregistre(ex, rep)
+    if action == "inscrit":
+        return dc.inscrit_ligne(ex, corps.get("quantite"), corps.get("prix"))
+    return json.loads(json.dumps(ex, default=str))
+
+
 def _page_strategie() -> str:
     """La page STRATEGIE. Deux moities de nature differente, et le texte
     le dit : a gauche de l'arithmetique, a droite des faits mesures."""
@@ -6075,7 +6415,8 @@ def _raccourci_auto() -> None:
 
 # Les pages qui ont leur fenetre sans avoir d'onglet dans la barre.
 AUTRES_FENETRES = {"/restructurations": "RESTRUCTURATIONS",
-                   "/recherche": "RECHERCHE"}
+                   "/recherche": "RECHERCHE",
+                   "/decision": "AVANT L'ORDRE"}
 
 
 def titre_fenetre(adresse: str) -> str:

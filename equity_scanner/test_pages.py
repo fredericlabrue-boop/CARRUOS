@@ -347,7 +347,8 @@ def main() -> int:
                  "memoire": app._page_memoire(),
                  "majordome": app._page_majordome(),
                  "restructurations": app._page_restructurations(),
-                 "recherche": app._page_recherche()}
+                 "recherche": app._page_recherche(),
+                 "decision": app._page_decision()}
     finally:
         dl.load_yf = vrai
 
@@ -1403,6 +1404,38 @@ def main() -> int:
     _v("'&situation='" in jmj and "Des mesures, pas un conseil" in jmj,
        "le majordome passe la situation decrite a la recherche")
 
+    print("\n  PAGE AVANT L'ORDRE")
+    from . import decision as _dc
+    hd_ = pages["decision"]
+    jd = _app.JS_DEC
+    for champ in ("dtk", "dcap", "dent", "dstop", "drisq", "dnb", "dun",
+                  "dgain", "draison", "dtort", "dexam", "dres"):
+        _v(f'id="{champ}"' in hd_, f"le champ {champ} est dans la page")
+    _v('u.path == "/decision"' in src_app and '"/api/decision"' in _post_api,
+       "la page et son API sont servies")
+    _v(_app.titre_fenetre("/decision").endswith("AVANT L'ORDRE"),
+       "sa fenetre porte son nom")
+    ha_ = pages["accueil"]
+    _v(0 < ha_.find('data-vers="/decision"') < ha_.find("TOUTE LA COTE US"),
+       "l'accueil porte AVANT L'ORDRE en tete des outils")
+    propre_d = hd_.split('<div class="dec">')[1].split("<script>")[0]
+    _v(not re.search(r"achetez|vendez|feu vert|recommand|potentiel|score|"
+                     r"meilleur|haussi|conseill", propre_d + jd, re.I),
+       "aucun verdict, aucun conseil, aucun score dans la page")
+    _v("Ce n’est pas un signal" in jd and "x.rappel" in jd,
+       "la liste remplie n'est pas un signal, et le rappel est affiche")
+    _v(all(f"'{c}'" in jd or f'"{c}"' in jd or f"{c}:" in jd
+           for c, g, _l in _dc.QUESTIONS if g == "case"),
+       "chaque case de la liste a sa saisie dans la page")
+    _v("poste('enregistre')" in jd and "poste('inscrit')" in jd,
+       "enregistrer et inscrire passent par le serveur, qui recalcule")
+    _v("onclick" not in jd, "aucun onclick en ligne dans son script")
+    _v("localStorage" in jd and "try{" in jd.split("function retiensD")[1][:40],
+       "le capital revient d'une ouverture a l'autre, sans rien casser")
+    jmj_ = _mj_mod.JS
+    _v(0 < jmj_.find("/decision") < jmj_.find("var ma=q.match"),
+       "le majordome ouvre AVANT L'ORDRE avant de chercher un titre")
+
     print("\n  UNE PAGE D'UN SEUL BLOC DEFILE")
     # `.app` est une grille de 100vh en `auto auto minmax(0,1fr)` et
     # `body{overflow:hidden}`. Un bloc unique sous la barre tombe dans la
@@ -1424,7 +1457,7 @@ def main() -> int:
     _v(".defile{" in css_base and "overflow-y:auto" in
        css_base.split(".defile{")[1].split("}")[0],
        "le conteneur .defile defile lui-meme")
-    for nom_page in ("maliste", "restructurations", "recherche"):
+    for nom_page in ("maliste", "restructurations", "recherche", "decision"):
         _v(_enfants_app(pages[nom_page])[1][1] == ["defile"],
            f"{nom_page} : son contenu est dans le conteneur qui defile")
 

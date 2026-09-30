@@ -299,6 +299,7 @@ py -m equity_scanner.faillites                 faillites US (SEC, 18 mois)
 py -m equity_scanner.recherche nasdaq100 800 50 "1 semaine"
 py -m equity_scanner.recherche us_europe 3000 100 "1 mois" rebond
 py -m equity_scanner.rebond TLX.DE 25          après une chute de 25 %
+py -m equity_scanner.decision TLX.DE 20000 2 mois   avant l'ordre
 ```
 
 La situation (5ᵉ argument) : `chute`, `rebond`, `tendance` ou `sommet`
