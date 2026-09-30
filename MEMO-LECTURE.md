@@ -839,6 +839,33 @@ en plus une espérance positive à 0,30 %. Puis il faut battre SMH net.
 Le registre est `~/.carruos/registre-tests.md`, les rapports sont dans
 `~/.carruos/strategie-2/`.
 
+### La stratégie 3 — `short.py`, la même mécanique à la vente
+
+Relue contre son texte le 30 septembre 2026, avant tout regard sur
+2024–2026 (`strategie-short-v1-lecture.md`). J se lit comme à la
+stratégie 2. E1 est une surprise **négative** — CAR3 ≤ **−5 %** —, E5
+exige **50 M$** par jour, E6 le **titre** sous sa SMA200. Vente à
+l'ouverture de J+3, stop **au-dessus** de l'entrée (+ **2** × ATR),
+rachat après **45** séances, la veille de l'annonce suivante, ou dès une
+clôture au-dessus de la SMA200.
+
+- Emprunt des titres **2 %** par an au prorata ; la ligne « difficile à
+  emprunter », à **10 %** par an, **décide**.
+- Le dividende dû au prêteur n'est pas modélisé : un GO exige un
+  rendement moyen d'au moins **0,4** point par trade.
+- Le témoin : les annonces **sans surprise notable**, ni bonne ni
+  mauvaise, vendables selon les mêmes règles.
+- La barre économique : battre « ne rien faire », net de **30 %** de PFU.
+  Un GO complet impose encore six mois d'observation papier.
+- La répétition porte sur 2010–2023, données **coupées au 31 décembre
+  2023** : aucun rachat ne se fait sur un cours de 2024.
+- La période de validation a déjà été regardée par la stratégie 2. Le
+  passage ne part qu'après validation, par le propriétaire, de la note
+  de lecture et de l'amendement n°1 qui en tire les conséquences :
+  `Tester-strategie-3.bat`, choix 1.
+
+Rapports dans `~/.carruos/strategie-3/`.
+
 ---
 
 ## 5 duodecies. Le majordome à l'écran — `majordome.py`
@@ -1164,8 +1191,8 @@ Rappel, parce que c'est la colonne vertébrale du projet :
 | Hypothèse | État |
 |---|---|
 | Stratégie 1 — repli en tendance | **NO-GO** en Phase 0 sur S&P 500 et 120 titres US. Hypothèse morte. |
-| Stratégie 2 — dérive post-annonce | moteur relu et corrigé avant le passage (note de lecture datée et hachée), passage unique **préparé et verrouillé**, pas encore lancé : `py -m equity_scanner.pead` |
-| Stratégie 3 — dérive post-annonce négative (vente à découvert) | spécifiée, moteur codé, **test pas encore lancé**. Son moteur lit encore la date du calendrier : à relire comme celui de la stratégie 2 avant tout passage. Le dividende dû au prêteur n'est pas modélisé : retrancher ~0,4 point par trade. |
+| Stratégie 2 — dérive post-annonce | **NO-GO** au passage unique du 29 septembre 2026 sur 2024–2026 (z +1,13, profit factor 1,13, drawdown 32,6 %). Hypothèse morte. |
+| Stratégie 3 — dérive post-annonce négative (vente à découvert) | moteur **relu contre son texte** le 30 septembre 2026, passage unique **préparé et verrouillé**, pas encore lancé. Il attend la validation de la note de lecture et de l'amendement n°1 : `Tester-strategie-3.bat`. Le dividende dû au prêteur n'est pas modélisé : un GO exige au moins 0,4 point par trade. |
 
 **Tant qu'aucune hypothèse n'a passé sa Phase 0, toute sortie de
 CARRUOS est une liste de surveillance, pas une liste d'ordres.**

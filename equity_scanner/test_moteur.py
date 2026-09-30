@@ -61,6 +61,14 @@ DOCS_GELES = {
     # La retoucher apres le passage serait une retouche de la regle.
     "derive-post-annonce-v1-lecture.md":
         "101d09b5b0ba9f762da0698362ba542034c6909474e5b00efc0fca8953430b8a",
+    # La lecture de la specification n°3 et l'amendement sur sa periode de
+    # validation, ecrits le 30/09/2026 AVANT tout regard de l'hypothese n°3
+    # sur 2024-2026. Le passage exige en plus la validation du proprietaire,
+    # liee a ces memes empreintes.
+    "strategie-short-v1-lecture.md":
+        "0650ac1d9fd072748c44e2cf784a17edf522c7bade7e5cb998b2c7aa1bc662d8",
+    "strategie-short-v1-amendement-1.md":
+        "90439e8dc983d54e6762c5c7a530d269c3a59361338c0c4c25c164d921549669",
 }
 
 
@@ -1431,7 +1439,7 @@ def test_short() -> None:
         return enrich(d, bench_close=b["close"]), b
 
     d, b = serie()
-    pris, _ = sh.trades_ticker(d, "X", b, [jours[299]],
+    pris, _, _ = sh.trades_ticker(d, "X", b, [jours[299]],
                                "2024-01-01", "2026-12-31")
     ok("une mauvaise surprise sur un titre en tendance baissiere "
        "declenche", len(pris) == 1)
@@ -1455,20 +1463,20 @@ def test_short() -> None:
         dd, bb = serie(**kw)
         evs = sh.evenements(dd, bb, [jours[299]])
         bloque = [k for k, v in sh.passe(evs[0]).items() if not v] if evs else []
-        pr, _ = sh.trades_ticker(dd, "X", bb, [jours[299]],
+        pr, _, _ = sh.trades_ticker(dd, "X", bb, [jours[299]],
                                  "2024-01-01", "2026-12-31")
         ok(f"{lib} : bloque par {attendu}",
            attendu in bloque and not pr)
 
     print("\n— Le cout d'emprunt mord vraiment —")
-    facile, _ = sh.trades_ticker(d, "X", b, [jours[299]], "2024-01-01",
+    facile, _, _ = sh.trades_ticker(d, "X", b, [jours[299]], "2024-01-01",
                                  "2026-12-31", sh.EMPRUNT_AN)
-    dur, _ = sh.trades_ticker(d, "X", b, [jours[299]], "2024-01-01",
+    dur, _, _ = sh.trades_ticker(d, "X", b, [jours[299]], "2024-01-01",
                               "2026-12-31", sh.EMPRUNT_DIFFICILE)
     ok("un titre difficile a emprunter rapporte moins",
        facile and dur and dur[0].R < facile[0].R)
-    ok("lance() refuse une chaine a la place d'une liste",
-       _leve_type_error(sh.lance))
+    ok("la voie directe lance(), qui calculait sur la periode de "
+       "validation sans registre, n'existe plus", not hasattr(sh, "lance"))
 
 
 def _leve_type_error(fn) -> bool:
@@ -4367,6 +4375,769 @@ def test_rebond() -> None:
        and len(gm["faits"].get("indices") or []) == 2)
 
 
+# ---------------------------------------------------------------------
+# Les deux defauts de donnees du passage H2 du 29/09/2026, et le garde-fou
+# ---------------------------------------------------------------------
+# Le code de pead.py tel qu'il a tourne pour ce passage, cite au registre
+# sous « Code du moteur ». Il est archive a l'octet pres avant toute
+# retouche du moteur : un passage inscrit doit pouvoir se rejouer.
+MOTEUR_H2_REGISTRE = ("4f038443979fcf6fef8dfe70b24d626668d70aa5c50515488d2eb1f"
+                      "989afc361")
+
+
+def _essaie(nom: str, fn) -> None:
+    """Un test qui leve n'est pas un test qui passe : l'exception devient
+    un ECHEC nomme, et les suivants tournent quand meme."""
+    try:
+        fn()
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
+        ok(f"{nom} (a leve {type(exc).__name__}: {exc})", False)
+
+
+def _pages_wiki(n_sp=503, n_nq=101, communs=85, liste_ok=True,
+                table_nq=None):
+    """Les pages Wikipedia, synthetiques, rangees par adresse.
+
+    La page « Nasdaq-100 » est celle d'aujourd'hui : plus aucune table de
+    composants (elle est partie sur « List of NASDAQ-100 companies »).
+    C'est ce qui rendait « Nasdaq 100 indisponible (ValueError) ».
+    """
+    sp = [f"S{i:03d}" for i in range(n_sp)]
+    nq = sp[:communs] + [f"N{i:03d}" for i in range(n_nq - communs)]
+    if table_nq is not None:
+        nq = nq[:table_nq]
+
+    def table(col, v):
+        lignes = "".join(f"<tr><td>{x}</td><td>Societe {x}</td></tr>"
+                         for x in v)
+        return (f"<table><tr><th>{col}</th><th>Company</th></tr>"
+                f"{lignes}</table>")
+
+    pages = {
+        "List_of_S%26P_500_companies": table("Symbol", sp),
+        # la page d'aujourd'hui : des tables, aucune de composants
+        "/Nasdaq-100": ("<table><tr><th>Year</th><th>Closing level</th></tr>"
+                        "<tr><td>2025</td><td>21000</td></tr></table>"),
+    }
+    if liste_ok:
+        pages["List_of_NASDAQ-100_companies"] = table("Ticker", nq)
+
+    def html(url, timeout=25):
+        for cle, contenu in pages.items():
+            if url.endswith(cle):
+                return contenu
+        raise OSError(f"page injoignable : {url}")
+    return html, sp, nq
+
+
+def test_univers_composantes() -> None:
+    import shutil
+    from . import data as dl
+    from . import pead
+
+    print("\n— Univers « us » : chaque composante chargee, ou l'arret —")
+    sauve = dl._html
+    try:
+        derniers = Path(".bruce_cache") / "univers"
+        shutil.rmtree(derniers, ignore_errors=True)
+
+        # 1. la page telle qu'elle est aujourd'hui
+        dl._html, sp, nq = _pages_wiki()
+        tk = []
+        _essaie("l'univers us se charge",
+                lambda: tk.extend(dl.UNIVERS["us"][1]()))
+        ok("univers us : le Nasdaq 100 est charge depuis sa liste (la page "
+           "« Nasdaq-100 » n'a plus de table)", set(nq) <= set(tk))
+        ok("univers us : S&P 500 + Nasdaq 100 dedoublonnes (503 + 101 - 85)",
+           len(tk) == 503 + 101 - 85)
+
+        detail = {}
+
+        def _detail():
+            t, comps = dl.univers_detaille("us", journal=lambda *_: None)
+            detail.update({c["cle"]: c for c in comps}, _tous=t)
+        _essaie("le detail par composante se lit", _detail)
+        ok("le detail donne le nombre REEL de titres par composante",
+           detail.get("sp500", {}).get("tickers") is not None
+           and len(detail["sp500"]["tickers"]) == 503
+           and len(detail["nasdaq100"]["tickers"]) == 101
+           and detail["nasdaq100"].get("source") == "direct")
+
+        # 2. la liste Nasdaq tombe : repli sur la derniere chargee, datee
+        dl._html, _, _ = _pages_wiki(liste_ok=False)
+
+        def _repli():
+            t, comps = dl.univers_detaille("us", journal=lambda *_: None)
+            detail.clear()
+            detail.update({c["cle"]: c for c in comps}, _tous=t)
+        _essaie("le repli se lit", _repli)
+        nq_ = detail.get("nasdaq100", {})
+        ok("composante en echec : repli sur la derniere liste chargee, "
+           "avec sa date et son motif",
+           nq_.get("source") == "repli" and len(nq_.get("tickers", [])) == 101
+           and nq_.get("date") == str(__import__("datetime").date.today())
+           and nq_.get("motif"))
+
+        # 3. une table tronquee n'est pas une liste : meme traitement
+        dl._html, _, _ = _pages_wiki(table_nq=40)
+        _essaie("table tronquee", _repli)
+        ok("une table de 40 lignes pour le Nasdaq 100 est refusee, repli "
+           "sur la derniere liste complete",
+           detail.get("nasdaq100", {}).get("source") == "repli"
+           and len(detail["nasdaq100"]["tickers"]) == 101)
+
+        # 4. aucun repli possible : arret, avec un message clair
+        shutil.rmtree(derniers, ignore_errors=True)
+        dl._html, _, _ = _pages_wiki(liste_ok=False)
+        leve = {}
+        try:
+            dl.UNIVERS["us"][1]()
+        except Exception as exc:
+            leve["exc"] = exc
+        exc = leve.get("exc")
+        ok("sans repli possible : ARRET (UniversIndisponible), jamais un "
+           "univers ampute", exc is not None
+           and type(exc).__name__ == "UniversIndisponible")
+        ok("le message d'arret nomme la composante et dit qu'aucune liste "
+           "n'a jamais ete chargee", exc is not None
+           and "Nasdaq 100" in str(exc) and "aucune liste" in str(exc))
+
+        # 5. la preparation de H2/H3 s'arrete elle aussi, sans rien relever
+        sortie = []
+        sauve_col = pead.collecte_annonces
+
+        def _interdit(*a, **k):
+            raise AssertionError("la collecte est partie sur un univers "
+                                 "ampute")
+        pead.collecte_annonces = _interdit
+        try:
+            r = pead.prepare(journal=lambda *a: sortie.append(" ".join(
+                str(x) for x in a)))
+        except Exception as exc2:
+            r = {"exception": exc2}
+        finally:
+            pead.collecte_annonces = sauve_col
+        txt = "\n".join(sortie)
+        ok("la preparation s'ARRETE sans relever une seule date quand une "
+           "composante manque", r == {} and "Nasdaq 100" in txt)
+
+        # 6. figer ne date pas d'aujourd'hui une liste de repli
+        dl._html, _, _ = _pages_wiki()
+        _essaie("chargement avant figer", lambda: dl.univers_detaille(
+            "us", journal=lambda *_: None))            # un repli existe
+        dl._html, _, _ = _pages_wiki(liste_ok=False)
+        refuse = {}
+        try:
+            dl.figer_univers("us")
+        except Exception as exc3:
+            refuse["exc"] = exc3
+        ok("--figer refuse une composante de repli : elle porterait la date "
+           "du jour sans en etre la composition",
+           type(refuse.get("exc")).__name__ == "UniversIndisponible")
+
+        # 7. le rapport : le nombre reel par composante, et le repli date
+        don = _univers_pead(3, n_titres=4, n=400)
+        res = {"debut": pead.IN_DEBUT, "fin": pead.IN_FIN,
+               "info": {"evenements": 0, "candidats": 0, "ouverts": 0,
+                        "conditions": {k: 0 for k in pead.CONDITIONS},
+                        "moments": {k: 0 for k in pead.MOMENTS}},
+               "m": {"n": 0, "wilson": (0.0, 0.0), "duree": 0.0},
+               "z": {"z": None, "motif": "essai"},
+               "criteres": [("profit factor", False, "", ""),
+                            ("espérance après coûts", False, "", ""),
+                            ("z contre les annonces neutres", False, "", "")],
+               "couts": [], "survit": False, "comparatif": None,
+               "verdict": "NO-GO"}
+        sans = "\n".join(pead.rapport(res, don, "ESSAI", []))
+        ok("sans detail des composantes, le rapport n'affirme PAS « S&P 500 "
+           "+ Nasdaq 100 »", "S&P 500 + Nasdaq 100" not in sans)
+        don["instantane"]["composantes"] = [
+            {"cle": "sp500", "nom": "S&P 500", "n": 503, "source": "direct",
+             "date": "2026-09-29", "motif": ""},
+            {"cle": "nasdaq100", "nom": "Nasdaq 100", "n": 101,
+             "source": "repli", "date": "2026-07-01",
+             "motif": "ValueError: colonne Ticker introuvable"}]
+        avec = "\n".join(pead.rapport(res, don, "ESSAI", []))
+        ok("le rapport affiche chaque composante avec son nombre reel",
+           any("S&P 500" in l and "503" in l for l in avec.splitlines())
+           and any("Nasdaq 100" in l and "101" in l
+                   for l in avec.splitlines()))
+        ok("et un repli avec la date de la liste utilisee",
+           any("Nasdaq 100" in l and "2026-07-01" in l and "REPLI" in l
+               for l in avec.splitlines()))
+    finally:
+        dl._html = sauve
+
+
+def _annees_attendues(debut: str, seances: int = 260) -> float:
+    """Profondeur minimale, calculee ici independamment du module."""
+    import datetime as _d
+    depart = (_d.date.fromisoformat(debut)
+              - _d.timedelta(days=seances * 365.25 / 252))
+    return (_d.date.today() - depart).days / 365.25
+
+
+def test_profondeur_cours() -> None:
+    from . import cache as ch
+    from . import pead, short
+
+    print("\n— Profondeur des cours : depuis le debut de la conception —")
+    vues = []
+    s_ch, s_lot, s_da = ch.charge, ch.charge_lot, pead.dates_annonces
+
+    def charge(tk, annees=3, *a, **k):
+        vues.append(("un", tk, annees))
+        return serie(n=600)
+
+    def charge_lot(tks, annees=3, *a, **k):
+        vues.append(("lot", tuple(tks), annees))
+        return {t: serie(n=600, seed=i + 5) for i, t in enumerate(tks)}, []
+    ch.charge, ch.charge_lot = charge, charge_lot
+    pead.dates_annonces = lambda tk, journal=None: []
+    try:
+        inst = {"tickers": ["AAA", "BBB"], "annonces": {"AAA": ["2020-02-03"],
+                                                        "BBB": []},
+                "collecte": "2026-09-29T00:00:00", "sans_dates": ["BBB"]}
+        _essaie("pead.charge_donnees",
+                lambda: pead.charge_donnees(inst, journal=lambda *_: None))
+        mini = _annees_attendues(pead.IN_DEBUT)
+        a_pead = [a for k, t, a in vues]
+        ok(f"H2 : les cours couvrent {pead.IN_DEBUT} moins le prechauffage "
+           f"(au moins {mini:.1f} ans, pas 8)",
+           a_pead and all(a >= mini for a in a_pead))
+        vues.clear()
+        _essaie("short.charge_donnees", lambda: short.charge_donnees(
+            inst, journal=lambda *_: None))
+        mini_s = _annees_attendues(short.IN_DEBUT)
+        a_short = [a for k, t, a in vues]
+        ok(f"H3 : les cours couvrent {short.IN_DEBUT} moins le prechauffage "
+           f"(au moins {mini_s:.1f} ans, pas 6)",
+           a_short and all(a >= mini_s for a in a_short))
+    finally:
+        ch.charge, ch.charge_lot, pead.dates_annonces = s_ch, s_lot, s_da
+
+    # La periode REELLEMENT couverte : premiere et derniere publication
+    # exploitables. L'univers d'essai commence en 2019 ; la repetition
+    # demande 2010-2021 et doit le dire.
+    don = _univers_pead(5, n_titres=12, n=900)
+    lignes = []
+    _essaie("repetition sur 2010-2021", lambda: lignes.extend(pead.rapport(
+        pead.evalue(don, pead.IN_DEBUT, pead.IN_FIN, lambda *_: None),
+        don, "ESSAI", [])))
+    couverte = [l for l in lignes if "réellement couverte" in l]
+    premieres = sorted(str(ev["date"].date())
+                       for tk, d in don["series"].items()
+                       for ev in pead.evenements(d, don["bench_brut"],
+                                                 don["dates"][tk])
+                       if pead.IN_DEBUT <= str(ev["date"].date())
+                       <= pead.IN_FIN)
+    ok("le rapport affiche la periode REELLEMENT couverte, premiere et "
+       "derniere publication exploitables",
+       couverte and premieres and premieres[0] in couverte[0]
+       and premieres[-1] in couverte[0])
+    ok("et signale les annees demandees sans aucune publication",
+       any("aucune publication exploitable" in l for l in lignes))
+
+
+def test_garde_fou_repetition() -> None:
+    import builtins
+    from . import pead
+    from . import registre as rg
+
+    print("\n— Garde-fou : apres une repetition NO-GO, OUI ne suffit plus —")
+
+    # Le texte de la repetition : indicatif, jamais « l'hypothese est morte »
+    import tempfile as _tf
+    sauve = (pead.collecte_annonces, pead.charge_donnees, pead.DOSSIER)
+    sortie = []
+    don = _univers_pead(3, n_titres=12, n=900)
+    pead.collecte_annonces = lambda *a, **k: don["instantane"]
+    pead.charge_donnees = lambda inst, journal=print: don
+    pead.DOSSIER = Path(_tf.mkdtemp())
+    r = {}
+    try:
+        _essaie("preparation", lambda: r.update(pead.prepare(
+            journal=lambda *a: sortie.append(" ".join(str(x) for x in a)),
+            tickers=list(don["series"]))))
+    finally:
+        pead.collecte_annonces, pead.charge_donnees, pead.DOSSIER = sauve
+    txt = "\n".join(sortie)
+    ok("la repetition NO-GO ne declare plus l'hypothese morte",
+       "NO-GO" in txt and "est morte" not in txt)
+    ok("elle dit que seul le passage unique juge",
+       "seul le passage unique juge" in txt.lower())
+    ok("la preparation rend le verdict de la repetition",
+       (r.get("repetition") or {}).get("verdict") == "NO-GO")
+
+    # Le lancement
+    def lancement(verdict, reponse, argv=("pead",), tty=True):
+        appels = []
+        d = {**don, "repetition": {"verdict": verdict,
+                                   "echecs": ["z contre les annonces neutres",
+                                              "drawdown maximal"]}}
+        s = (sys.argv, pead.prepare, pead.incomplet, pead.valide,
+             rg.deja_regardee, builtins.input, sys.stdin)
+        sys.argv = list(argv)
+        pead.prepare = lambda *a, **k: d
+        pead.incomplet = lambda d_: []
+        pead.valide = lambda *a, **k: appels.append(1) or {}
+        rg.deja_regardee = lambda *a, **k: None
+        builtins.input = lambda *a, **k: reponse
+
+        class _Tty:
+            def isatty(self):
+                return tty
+        sys.stdin = _Tty()
+        vu = []
+        try:
+            import contextlib
+            import io
+            with contextlib.redirect_stdout(io.StringIO()) as f:
+                pead.main()
+            vu.append(f.getvalue())
+        except Exception as exc:
+            vu.append(f"EXCEPTION {exc!r}")
+        finally:
+            (sys.argv, pead.prepare, pead.incomplet, pead.valide,
+             rg.deja_regardee, builtins.input, sys.stdin) = s
+        return bool(appels), vu[0] if vu else ""
+
+    parti, ecran = lancement("NO-GO", "OUI")
+    ok("repetition NO-GO : un simple OUI ne lance PAS le passage unique",
+       not parti)
+    ok("l'ecran dit que la repetition a echoue et ce qu'il faut taper",
+       "répétition" in ecran.lower() and "NO-GO" in ecran
+       and "LANCER QUAND MEME" in ecran)
+    ok("repetition NO-GO : LANCER QUAND MEME le lance",
+       lancement("NO-GO", "LANCER QUAND MEME")[0])
+    ok("repetition NO-GO : --valider sans question ne le lance pas non plus",
+       not lancement("NO-GO", "", argv=("pead", "--valider"))[0])
+    ok("repetition GO : OUI suffit toujours", lancement("GO", "OUI")[0])
+
+
+def test_archive_pead() -> None:
+    import hashlib
+    print("\n— Le moteur du passage H2 est archive a l'octet pres —")
+    f = (Path(__file__).resolve().parent.parent / "archives"
+         / f"pead-{MOTEUR_H2_REGISTRE[:16]}.py")
+    ok("archives/pead-4f038443979fcf6f.py existe",
+       f.exists())
+    ok("son empreinte est celle que le registre cite pour le passage H2",
+       f.exists() and hashlib.sha256(f.read_bytes()).hexdigest()
+       == MOTEUR_H2_REGISTRE)
+
+
+# ---------------------------------------------------------------------
+# Hypothese n°3 : le moteur relu contre son texte, le passage en deux
+# temps, et la periode de validation partagee avec l'hypothese n°2
+# ---------------------------------------------------------------------
+def _titre_court(n=420, k=300, saut=-0.09, rvol=3.5, derive=-0.0015,
+                 apres=-0.004, volume=3e6, debut="2023-01-02"):
+    """Un titre qui baisse (sous sa SMA200), une annonce a la seance k,
+    un saut `saut` sur la seance k, puis une derive `apres`."""
+    from .indicators import enrich
+    jours = pd.bdate_range(debut, periods=n)
+    r = np.full(n, derive)
+    r[0] = 0.0
+    r[k] = saut
+    r[k + 1:] = apres
+    c = 100.0 * np.cumprod(1 + r)
+    v = np.full(n, volume)
+    v[k] = volume * rvol
+    o = np.concatenate([[c[0]], c[:-1]])
+    d = pd.DataFrame({"open": o, "high": np.maximum(o, c) * 1.004,
+                      "low": np.minimum(o, c) * 0.996, "close": c,
+                      "volume": v}, index=jours)
+    b = pd.DataFrame({"open": 400.0, "high": 401.0, "low": 399.0,
+                      "close": 400.0, "volume": 1e7}, index=jours)
+    return enrich(d, bench_close=b["close"]), b, jours
+
+
+def _univers_court(graine: int, n_titres: int = 30, n: int = 1100,
+                   debut: str = "2021-01-04") -> dict:
+    """Un univers synthetique de titres en baisse, publie tous les
+    trimestres a une heure tiree, de 2021 a 2025 : il enjambe la
+    periode de validation, pour verifier que la preparation n'y
+    calcule aucun rendement."""
+    from .indicators import enrich
+    rng = np.random.default_rng(graine)
+    idx = pd.bdate_range(debut, periods=n)
+    b = 300 * np.exp(np.cumsum(rng.normal(0.0004, 0.007, n)))
+    bb = pd.DataFrame({"open": b, "high": b * 1.004, "low": b * 0.996,
+                       "close": b, "volume": 1e8}, index=idx)
+    series, dates = {}, {}
+    for t in range(n_titres):
+        r = rng.normal(-0.0008, 0.015, n)
+        v = rng.uniform(2e6, 4e6, n)
+        ann = []
+        k = int(rng.integers(230, 290))
+        while k < n - 5:
+            h = [7, 16, None][int(rng.integers(0, 3))]
+            j = k + 1 if h == 16 else k
+            r[j] += rng.normal(-0.02, 0.06)
+            v[j] *= 3.5
+            ann.append(f"{idx[k].date()}T{h:02d}:00:00" if h is not None
+                       else str(idx[k].date()))
+            k += int(rng.integers(58, 68))
+        c = 60 * np.exp(np.cumsum(r))
+        o = np.r_[60.0, c[:-1]] * (1 + rng.normal(0, 0.002, n))
+        d = pd.DataFrame({"open": o, "high": np.maximum(o, c) * 1.005,
+                          "low": np.minimum(o, c) * 0.995, "close": c,
+                          "volume": v}, index=idx)
+        series[f"C{t}"] = enrich(d, bench_close=bb["close"])
+        dates[f"C{t}"] = ann
+    return {"series": series, "dates": dates, "bench_brut": bb,
+            "bo": enrich(bb), "ecartes": {},
+            "instantane": {"tickers": list(series), "annonces": dates,
+                           "collecte": "2026-09-30T00:00:00",
+                           "sans_dates": [], "composantes": None}}
+
+
+def test_short_lecture() -> None:
+    from . import short as sh
+
+    print("\n— Hypothese n°3 : le moteur relu contre son texte —")
+
+    # 1. J : la premiere seance qui peut reagir
+    d, b, jours = _titre_court()
+    lundi = [i for i in range(280, 300) if jours[i].weekday() == 0][0]
+    samedi = jours[lundi] - pd.Timedelta(days=2)
+    evs = []
+    _essaie("evenements apres la cloture", lambda: evs.extend(
+        sh.evenements(d, b, [f"{jours[lundi].date()}T16:00:00"])))
+    ok("H3 : une publication a 16 h a pour J la seance SUIVANTE",
+       evs and evs[0]["date"] == jours[lundi + 1])
+    evs2 = []
+    _essaie("evenements un samedi", lambda: evs2.extend(
+        sh.evenements(d, b, [samedi])))
+    ok("H3 : une publication un jour sans seance a pour J la seance "
+       "suivante, jamais la precedente", evs2
+       and evs2[0]["date"] == jours[lundi])
+
+    # 2. S3 : la veille, pas l'avant-veille
+    t = None
+    try:
+        t = sh.simule_court(d, 300, "X", prochaine=jours[330])
+    except Exception as exc:
+        ok(f"simule_court (a leve {exc!r})", False)
+    ok("H3 : S3 rachete a la cloture de la VEILLE de l'annonce suivante",
+       t is not None and t.sortie_d == jours[329] and t.motif == "annonce")
+
+    # 3. une position ouverte a la fin des donnees n'est pas un trade
+    dc, bc, jc = _titre_court(n=330, k=300)
+    t2 = None
+    try:
+        t2 = sh.simule_court(dc, 300, "X")
+    except Exception as exc:
+        ok(f"simule_court fin des donnees (a leve {exc!r})", False)
+    ok("H3 : une position encore ouverte a la fin des donnees revient "
+       "« ouvert »", t2 is not None and t2.motif == "ouvert")
+    res = ()
+    _essaie("trades_ticker fin des donnees", lambda: globals().__setitem__(
+        "_RES_H3", sh.trades_ticker(dc, "X", bc, [jc[300]], "2020-01-01",
+                                    "2026-12-31")))
+    res = globals().pop("_RES_H3", ())
+    ok("H3 : elle n'est pas comptee comme trade, mais denombree",
+       len(res) == 3 and not res[0] and res[2].get("ouverts") == 1)
+
+    # 4. le temoin : ni bonne ni mauvaise surprise notable, E4 E5 E6
+    def temoins(**kw):
+        dd, bb, jj = _titre_court(**kw)
+        r = sh.trades_ticker(dd, "X", bb, [jj[300]], "2020-01-01",
+                             "2026-12-31")
+        return r[1]
+    try:
+        bonne = temoins(saut=0.09)
+        neutre = temoins(saut=-0.01)
+        illiquide = temoins(saut=-0.01, volume=2e5)
+    except Exception as exc:
+        bonne = neutre = illiquide = ["erreur"]
+        ok(f"temoins (a leve {exc!r})", False)
+    ok("H3 : une BONNE surprise n'est pas un temoin (sans surprise "
+       "notable)", not bonne)
+    ok("H3 : une annonce neutre en est un", len(neutre) == 1)
+    ok("H3 : un temoin doit etre empruntable (E5)", not illiquide)
+
+    # 5. moins de 20 temoins : pas de z, et le critere le dit
+    z = None
+    try:
+        z = sh.z_contre_annonces_neutres([], {}, {})
+    except Exception as exc:
+        ok(f"z (a leve {exc!r})", False)
+    ok("H3 : sans temoins, pas de z — et le motif est ecrit",
+       isinstance(z, dict) and z.get("z") is None and z.get("motif"))
+
+    # 6. le verdict : la derniere ligne des couts et le dividende decident
+    v = getattr(sh, "verdict", None)
+    ok("H3 : la derniere ligne des couts decide (espérance ≤ 0 → NO-GO)",
+       v is not None and v(True, False, True, True) == "NO-GO")
+    ok("H3 : sous 0,4 point par trade, l'avantage n'existe pas (NO-GO)",
+       v is not None and v(True, True, False, True) == "NO-GO")
+    ok("H3 : ne pas battre « ne rien faire » net de PFU → GO technique, "
+       "NON economique", v is not None
+       and v(True, True, True, False) == "GO technique, NON économique")
+    ok("H3 : tout passe → GO, sous six mois d'observation papier",
+       v is not None and v(True, True, True, True).startswith("GO")
+       and "papier" in v(True, True, True, True))
+    ok("H3 : le seuil du dividende est celui du texte (0,4 point)",
+       getattr(sh, "DIVIDENDE_MIN", None) == 0.004)
+    ok("H3 : la derniere ligne des couts est « 10 %/an + 0,30 % par cote »",
+       getattr(sh, "COUTS", [("", 0, 0, 0)])[-1][1:]
+       == (0.0020, 0.0010, sh.EMPRUNT_DIFFICILE))
+
+    # 7. la note de lecture cite les nombres qui tournent
+    note = sh.LECTURE.read_text(encoding="utf-8") if sh.LECTURE.exists() else ""
+    from . import data as dl_
+    from . import pead as pd__
+    cites = {"heure de cloture": f"{pd__.HEURE_CLOTURE} h",
+             "tirages": f"{sh.TIRAGES:,} tirages".replace(",", " "),
+             "graine": f"graine {sh.GRAINE}",
+             "temoins minimum": f"**{sh.TEMOINS_MIN}** annonces témoins",
+             "dividende": f"{sh.DIVIDENDE_MIN * 100:.1f} point".replace(".", ","),
+             "univers minimum": f"**{sh.UNIVERS_MIN}** titres",
+             "dates manquantes": f"**{(1 - sh.PART_DATES_MIN) * 100:.0f} %**",
+             "part exploitable": f"**{sh.PART_EXPLOITABLES_MIN * 100:.0f} %**",
+             "part des heures": f"**{sh.PART_HEURES_MIN * 100:.0f} %**",
+             "prechauffage": f"{dl_.PRECHAUFFAGE_SEANCES} séances",
+             "PFU": f"{sh.PFU * 100:.0f} % de PFU"}
+    absents = [k for k, v in cites.items() if v not in note]
+    ok("H3 : la note de lecture cite les nombres qui tournent", not absents)
+    for k in absents:
+        print(f"          -> {k} : la note ne contient pas {cites[k]!r}")
+
+    # le memo cite les seuils de H3 qui tournent
+    memo = (Path(__file__).resolve().parent.parent / "MEMO-LECTURE.md")
+    txt_m = memo.read_text(encoding="utf-8") if memo.exists() else ""
+    sec = txt_m.split("### La stratégie 3", 1)[-1].split("\n---", 1)[0] \
+        if "### La stratégie 3" in txt_m else ""
+    cites_m = {"E1": f"**−{abs(sh.CAR3_MAX) * 100:.0f} %**",
+               "E5": f"**{sh.DOLLAR_VOL_MIN / 1e6:g} M$**",
+               "stop": f"**{sh.STOP_ATR:g}** × ATR",
+               "duree": f"**{sh.MAX_BARRES}** séances",
+               "emprunt": f"**{sh.EMPRUNT_AN * 100:g} %** par an",
+               "difficile": f"**{sh.EMPRUNT_DIFFICILE * 100:g} %** par an",
+               "dividende": f"**{sh.DIVIDENDE_MIN * 100:.1f}**".replace(".", ","),
+               "PFU": f"**{sh.PFU * 100:.0f} %** de PFU"}
+    absents_m = [k for k, v in cites_m.items() if v not in sec]
+    ok("H3 : le memo cite les seuils de H3 qui tournent", sec and not absents_m)
+    for k in absents_m:
+        print(f"          -> {k} : le memo ne contient pas {cites_m[k]!r}")
+
+    # 8. la profondeur des cours
+    from . import cache as ch
+    vues = []
+    s_ch, s_lot = ch.charge, ch.charge_lot
+    ch.charge = lambda tk, annees=3, *a, **k: vues.append(annees) or serie(
+        n=600)
+    ch.charge_lot = lambda tks, annees=3, *a, **k: (vues.append(annees) or {
+        t: serie(n=600, seed=i + 5) for i, t in enumerate(tks)}, [])
+    try:
+        inst = {"tickers": ["AAA"], "annonces": {"AAA": ["2020-02-03"]},
+                "collecte": "2026-09-30T00:00:00", "sans_dates": []}
+        _essaie("short.charge_donnees", lambda: sh.charge_donnees(
+            inst, journal=lambda *_: None))
+    finally:
+        ch.charge, ch.charge_lot = s_ch, s_lot
+    mini = _annees_attendues(sh.IN_DEBUT)
+    ok(f"H3 : les cours couvrent {sh.IN_DEBUT} moins le prechauffage "
+       f"(au moins {mini:.1f} ans, pas 6)",
+       vues and all(a >= mini for a in vues))
+
+
+def test_short_passage() -> None:
+    import builtins
+    import contextlib
+    import io
+    import json
+    import tempfile as _tf
+    from . import registre as rg
+    from . import short as sh
+
+    print("\n— Hypothese n°3 : preparation, passage unique, registre —")
+    ok("H3 : l'ancienne voie directe sur 2024-2026 n'existe plus",
+       not hasattr(sh, "lance"))
+    for nom in ("prepare", "valide", "bloquants", "valide_documents",
+                "documents_valides"):
+        ok(f"H3 : short.{nom} existe", callable(getattr(sh, nom, None)))
+    if not all(callable(getattr(sh, n_, None)) for n_ in
+               ("prepare", "valide", "bloquants", "valide_documents",
+                "documents_valides")):
+        return
+
+    tmp = Path(_tf.mkdtemp())
+    sauve = (sh.charge_donnees, sh.DOSSIER, sh.TRACES, sh.simule_court)
+    from . import pead
+    s_col = pead.collecte_annonces
+    don = _univers_court(4)
+    entrees = []
+    vrai = sh.simule_court
+
+    fins = []
+
+    def espion(d, i_ann, *a, **k):
+        entrees.append(d.index[i_ann])
+        fins.append(d.index[-1])
+        return vrai(d, i_ann, *a, **k)
+    pead.collecte_annonces = lambda *a, **k: don["instantane"]
+    sh.charge_donnees = lambda inst, journal=print: don
+    sh.DOSSIER = tmp
+    sh.TRACES = [tmp / "short-us.csv"]
+    sh.simule_court = espion
+    sortie, r = [], {}
+    try:
+        _essaie("preparation H3", lambda: r.update(sh.prepare(
+            journal=lambda *a: sortie.append(" ".join(str(x) for x in a)),
+            tickers=list(don["series"]))))
+    finally:
+        pead.collecte_annonces = s_col
+        sh.simule_court = sauve[3]
+    txt = "\n".join(sortie)
+    ok("H3 : la preparation ne rejoue AUCUNE sortie sur la periode de "
+       "validation", entrees and all(e < pd.Timestamp(sh.OOS_DEBUT)
+                                     for e in entrees))
+    ok("H3 : la repetition ne lit aucun cours posterieur au 31/12/2023 "
+       "(un trade de decembre serait rachete en 2024)",
+       fins and all(f_ <= pd.Timestamp(sh.IN_FIN) for f_ in fins))
+    ok("H3 : elle compte les trades possibles sur 2024-2026, sans "
+       "rendement", "des comptes, aucun rendement" in txt)
+    ok("H3 : la repetition rend un verdict indicatif, jamais « morte »",
+       "seul le passage unique juge" in txt.lower() and "est morte" not in txt)
+    ok("H3 : tout rapport rappelle le dividende non modelise",
+       "dividende" in txt.lower() and "non modélisé" in txt)
+    ok("H3 : le biais du survivant n'est pas dit « flatteur » pour une vente",
+       "sens de ce biais n'est pas connu" in txt and "flatté" not in txt)
+    ok("H3 : la preparation rend le verdict de la repetition",
+       (r.get("repetition") or {}).get("verdict") in
+       ("NO-GO", "GO technique, NON économique")
+       or str((r.get("repetition") or {}).get("verdict", "")).startswith("GO"))
+
+    et, md, val = tmp / "reg.json", tmp / "reg.md", tmp / "valid.json"
+    rien = lambda *a: None
+    try:
+        # univers tronque : ne part pas
+        r0 = sh.valide(don, rien, etat=et, md=md, dossier=tmp,
+                       validation=val)
+        ok("H3 : sur un univers tronque, le passage NE PART PAS, rien "
+           "n'est inscrit", r0.get("refuse") and not et.exists())
+
+        # une trace de l'ancienne voie directe : ne part pas
+        (tmp / "short-us.csv").write_text("x", encoding="utf-8")
+        r1 = sh.valide(don, rien, etat=et, md=md, dossier=tmp,
+                       controle=False, validation=val)
+        ok("H3 : une trace de l'ancienne voie directe (short-us.csv) "
+           "bloque le passage", r1.get("refuse")
+           and any("short-us.csv" in m_ for m_ in r1.get("bloquants", []))
+           and not et.exists())
+        (tmp / "short-us.csv").unlink()
+
+        # la periode deja regardee par l'hypothese n°2
+        ident = rg.ouvre("Dérive post-annonce", sh.periode_validation(),
+                         "US large", "d32cd9bf", etat=et, md=md)
+        rg.ferme(ident, "NO-GO", 1.13, etat=et, md=md)
+        r2 = sh.valide(don, rien, etat=et, md=md, dossier=tmp,
+                       controle=False, validation=val)
+        ok("H3 : periode deja regardee par une AUTRE hypothese, sans "
+           "amendement valide : le passage NE PART PAS",
+           r2.get("refuse") and len(rg.lit(et)) == 1
+           and any("amendement" in m_.lower()
+                   for m_ in r2.get("bloquants", [])))
+
+        # la validation des documents
+        def repond(*reps):
+            it = iter(reps)
+            return lambda *a, **k: next(it)
+        okv = sh.valide_documents(repond("OUI"), rien, fichier=val)
+        ok("H3 : qui a deja lance l'ancienne option S ne peut pas valider",
+           not okv and not val.exists())
+        okv = sh.valide_documents(repond("NON", "oui"), rien, fichier=val)
+        ok("H3 : une validation approximative ne vaut rien",
+           not okv and not val.exists())
+        okv = sh.valide_documents(repond("NON", "JE VALIDE"), rien,
+                                  fichier=val)
+        v_ = sh.documents_valides(val) or {}
+        ok("H3 : la validation est datee et liee aux empreintes des deux "
+           "documents", okv and v_.get("date")
+           and v_.get("amendement") == sh.empreintes()["amendement"]
+           and v_.get("lecture") == sh.empreintes()["lecture"])
+
+        r3 = sh.valide(don, rien, etat=et, md=md, dossier=tmp,
+                       controle=False, validation=val)
+        mine = [e for e in rg.lit(et) if e["hypothese"] == sh.HYPOTHESE]
+        ok("H3 : amendement valide : le passage part, inscrit AVANT, ferme "
+           "APRES", not r3.get("refuse") and len(mine) == 1
+           and mine[0].get("fin"))
+        ok("H3 : le registre inscrit le partage de la periode et "
+           "l'amendement", mine and mine[0]["details"].get(
+               "periode_partagee") == ["Dérive post-annonce"]
+           and mine[0]["details"].get("amendement")
+           == sh.empreintes()["amendement"])
+        ok("H3 : le registre porte l'empreinte des constantes gelees",
+           mine and mine[0]["empreinte"] == sh.empreintes()["constantes"])
+        rapport_txt = "\n".join(r3.get("lignes", []))
+        ok("H3 : le passage affiche la variante avec filtre d'indice, "
+           "hors verdict", "variante" in rapport_txt.lower()
+           and "indice" in rapport_txt.lower())
+        r4 = sh.valide(don, rien, etat=et, md=md, dossier=tmp,
+                       controle=False, validation=val)
+        ok("H3 : un second passage est REFUSE", r4.get("refuse"))
+
+        # une validation devient caduque si un document change
+        et2, md2 = tmp / "reg2.json", tmp / "reg2.md"
+        ident = rg.ouvre("Dérive post-annonce", sh.periode_validation(),
+                         "US large", "d32cd9bf", etat=et2, md=md2)
+        rg.ferme(ident, "NO-GO", 1.13, etat=et2, md=md2)
+        brut = json.loads(val.read_text(encoding="utf-8"))
+        brut["amendement"] = "0" * 64
+        val.write_text(json.dumps(brut), encoding="utf-8")
+        r5 = sh.valide(don, rien, etat=et2, md=md2, dossier=tmp,
+                       controle=False, validation=val)
+        ok("H3 : une validation portant sur un AUTRE texte ne vaut pas",
+           r5.get("refuse"))
+    finally:
+        sh.charge_donnees, sh.DOSSIER, sh.TRACES = sauve[:3]
+
+    # le lancement : apres une repetition NO-GO, OUI ne suffit plus
+    def lancement(verdict, reponse, argv=("short",)):
+        appels = []
+        d_ = {**don, "repetition": {"verdict": verdict,
+                                    "echecs": ["z contre les annonces neutres"]}}
+        s = (sys.argv, sh.prepare, sh.bloquants, sh.valide,
+             rg.deja_regardee, builtins.input, sys.stdin)
+        sys.argv = list(argv)
+        sh.prepare = lambda *a, **k: d_
+        sh.bloquants = lambda *a, **k: []
+        sh.valide = lambda *a, **k: appels.append(1) or {}
+        rg.deja_regardee = lambda *a, **k: None
+        builtins.input = lambda *a, **k: reponse
+
+        class _Tty:
+            def isatty(self):
+                return True
+        sys.stdin = _Tty()
+        try:
+            with contextlib.redirect_stdout(io.StringIO()) as f:
+                sh.main()
+            ecran = f.getvalue()
+        except BaseException as exc:
+            ecran = f"EXCEPTION {exc!r}"
+        finally:
+            (sys.argv, sh.prepare, sh.bloquants, sh.valide,
+             rg.deja_regardee, builtins.input, sys.stdin) = s
+        return bool(appels), ecran
+
+    parti, ecran = lancement("NO-GO", "OUI")
+    ok("H3 : repetition NO-GO, un simple OUI ne lance PAS le passage",
+       not parti and "LANCER QUAND MEME" in ecran)
+    ok("H3 : LANCER QUAND MEME le lance",
+       lancement("NO-GO", "LANCER QUAND MEME")[0])
+    ok("H3 : --valider ne suffit pas apres une repetition NO-GO",
+       not lancement("NO-GO", "", ("short", "--valider"))[0])
+    ok("H3 : repetition sans NO-GO, OUI suffit",
+       lancement("GO technique, NON économique", "OUI")[0])
+
+
 def dt_bornes(n, h):
     from . import detention as _d
     return _d._bornes(n, h)
@@ -4392,6 +5163,12 @@ def main() -> int:
     test_resolve_et_app()
     test_veto_resultats()
     test_univers_figes()
+    test_archive_pead()
+    test_univers_composantes()
+    test_profondeur_cours()
+    test_garde_fou_repetition()
+    test_short_lecture()
+    test_short_passage()
     test_marqueurs()
     test_projection_capitalisation()
     test_seance()

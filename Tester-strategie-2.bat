@@ -16,7 +16,8 @@ echo.
 echo   1. La preparation : dates d'annonces, cours, repetition generale
 echo      sur la periode de conception. Repetable a volonte.
 echo   2. Le passage UNIQUE sur 2024-2026 : il ne part que si vous tapez
-echo      OUI, et son resultat s'inscrit au registre quel qu'il soit.
+echo      OUI - ou LANCER QUAND MEME si la repetition a rendu NO-GO -
+echo      et son resultat s'inscrit au registre quel qu'il soit.
 echo.
 echo   Comptez 10 a 30 minutes la premiere fois.
 echo.

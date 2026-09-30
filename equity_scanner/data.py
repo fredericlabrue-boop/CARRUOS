@@ -10,6 +10,9 @@ avant la première vraie passe.
 from __future__ import annotations
 
 import datetime as dt
+import json
+import math
+import os
 from pathlib import Path
 
 import pandas as pd
@@ -200,23 +203,18 @@ def us_tickers_fige() -> list[str]:
 
 
 def sp500_tickers() -> list[str]:
-    """S&P 500 depuis Wikipedia, avec repli sur une liste figee.
+    """S&P 500 depuis Wikipedia, ou la derniere liste chargee avec succes.
 
     Attention pour un backtest : cette liste est la composition ACTUELLE.
     Fige un CSV date si tu veux eviter le biais du survivant.
+
+    L'ancien repli rendait la liste figee de 120 grandes capitalisations
+    sous l'etiquette « S&P 500 » : un univers ampute sous un nom faux.
+    Le repli est maintenant la derniere liste COMPLETE, datee ; sans elle,
+    l'arret (`UniversIndisponible`). `us_tickers_fige()` reste disponible
+    pour qui veut explicitement les 120.
     """
-    import io
-    try:
-        for tab in pd.read_html(io.StringIO(
-                _html("https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"))):
-            if "Symbol" in tab.columns:
-                return sorted(tab["Symbol"].astype(str).str.strip()
-                              .str.replace(".", "-", regex=False).tolist())
-        raise ValueError("colonne Symbol introuvable")
-    except Exception as exc:
-        print(f"  Wikipedia indisponible ({type(exc).__name__}). "
-              f"Repli sur la liste figee de 120 grandes capitalisations US.")
-        return us_tickers_fige()
+    return charge_composante("sp500")["tickers"]
 
 
 # ---------------------------------------------------------------------
@@ -228,38 +226,170 @@ def sp500_tickers() -> list[str]:
 # qui reste reellement negociable.
 # ---------------------------------------------------------------------
 
-def nasdaq100_tickers() -> list[str]:
+# ---------------------------------------------------------------------
+# Composantes des univers americains — chargees une par une, comptees,
+# et jamais remplacees en silence.
+#
+# Le 29/09/2026, la preparation de l'hypothese n°2 a affiche « Nasdaq 100
+# indisponible (ValueError) » puis 503 titres, sous l'etiquette « S&P 500
+# + Nasdaq 100 ». Wikipedia avait deplace la table des composants de la
+# page « Nasdaq-100 » vers « List of NASDAQ-100 companies » ; la fonction
+# rendait une liste VIDE, et l'union ne contenait plus que le S&P 500.
+#
+# Trois regles, dans cet ordre :
+#   1. chaque composante a ses adresses, essayees tour a tour, et un
+#      nombre MINIMAL de lignes : une table tronquee n'est pas une liste ;
+#   2. chaque liste chargee avec succes est gardee, datee
+#      (`.bruce_cache/univers/dernieres/`) ;
+#   3. en cas d'echec, repli sur cette derniere liste, AVEC SA DATE, que le
+#      rapport affiche. Sans elle : arret, `UniversIndisponible`.
+# Jamais un univers ampute sous une etiquette fausse.
+#
+# Les minimums sont des seuils de COMPLETUDE de donnees : ils ne regardent
+# aucun rendement et n'entrent dans aucune empreinte.
+# ---------------------------------------------------------------------
+
+_WP = "https://en.wikipedia.org/wiki/"
+
+COMPOSANTES = {
+    "sp500": {"nom": "S&P 500", "min": 480,
+              "sources": [(_WP + "List_of_S%26P_500_companies", "Symbol")]},
+    "nasdaq100": {"nom": "Nasdaq 100", "min": 95,
+                  "sources": [(_WP + "List_of_NASDAQ-100_companies", "Ticker"),
+                              (_WP + "List_of_NASDAQ-100_companies", "Symbol"),
+                              (_WP + "Nasdaq-100", "Ticker"),
+                              (_WP + "Nasdaq-100", "Symbol")]},
+    "sp400": {"nom": "S&P 400", "min": 380,
+              "sources": [(_WP + "List_of_S%26P_400_companies", "Symbol")]},
+}
+
+COMPOSEES = {"us": ("sp500", "nasdaq100"),
+             "us_total": ("sp500", "nasdaq100", "sp400")}
+
+
+class UniversIndisponible(RuntimeError):
+    """Une composante n'a pu etre chargee, et aucune liste anterieure
+    n'existe pour la remplacer. On s'arrete plutot que de tester un
+    univers ampute sous le nom de l'univers complet."""
+
+
+def _dossier_dernieres() -> Path:
+    return DOSSIER_UNIVERS / "dernieres"
+
+
+def _derniere(cle: str) -> dict | None:
     try:
-        return _wiki("https://en.wikipedia.org/wiki/Nasdaq-100", "Ticker")
-    except Exception:
+        v = json.loads((_dossier_dernieres() / f"{cle}.json")
+                       .read_text(encoding="utf-8"))
+        if v.get("tickers") and v.get("date"):
+            return v
+    except (OSError, ValueError, AttributeError):
+        pass
+    return None
+
+
+def _garde_derniere(cle: str, tickers: list[str], source: str) -> None:
+    f = _dossier_dernieres() / f"{cle}.json"
+    try:
+        f.parent.mkdir(parents=True, exist_ok=True)
+        tmp = f.with_suffix(".tmp")
+        tmp.write_text(json.dumps({"date": dt.date.today().isoformat(),
+                                   "source": source, "tickers": tickers},
+                                  ensure_ascii=False), encoding="utf-8")
+        os.replace(tmp, f)
+    except OSError as exc:
+        print(f"  (liste {cle} non gardee : {exc})")
+
+
+def charge_composante(cle: str, repli: bool = True, journal=print) -> dict:
+    """Une composante : {cle, nom, tickers, source, date, motif}.
+
+    `source` vaut « direct » (chargee a l'instant) ou « repli » (la
+    derniere liste chargee avec succes, du `date` indique). `motif` dit
+    pourquoi le chargement direct a echoue. `repli=False` : pas de
+    repli, l'echec leve — c'est ce que fait `figer_univers()`, qui
+    daterait sinon d'aujourd'hui une liste plus ancienne.
+    """
+    c = COMPOSANTES[cle]
+    motifs = []
+    for url, col in c["sources"]:
         try:
-            return _wiki("https://en.wikipedia.org/wiki/Nasdaq-100", "Symbol")
+            v = _wiki(url, col)
         except Exception as exc:
-            print(f"  Nasdaq 100 indisponible ({type(exc).__name__}).")
-            return []
+            motifs.append(f"{url.rsplit('/', 1)[-1]} [{col}] : "
+                          f"{type(exc).__name__}: {exc}")
+            continue
+        if len(v) < c["min"]:
+            motifs.append(f"{url.rsplit('/', 1)[-1]} [{col}] : table de "
+                          f"{len(v)} lignes, au moins {c['min']} attendues")
+            continue
+        _garde_derniere(cle, v, url)
+        return {"cle": cle, "nom": c["nom"], "tickers": v,
+                "source": "direct", "date": dt.date.today().isoformat(),
+                "motif": ""}
+    motif = " ; ".join(motifs)
+    der = _derniere(cle) if repli else None
+    if der:
+        journal(f"  {c['nom']} : chargement impossible — REPLI sur la liste "
+                f"du {der['date']} ({len(der['tickers'])} titres).")
+        return {"cle": cle, "nom": c["nom"], "tickers": list(der["tickers"]),
+                "source": "repli", "date": der["date"], "motif": motif}
+    if repli:
+        raise UniversIndisponible(
+            f"{c['nom']} : chargement impossible, et aucune liste n'a "
+            f"jamais été chargée avec succès sur ce poste pour s'y replier. "
+            f"Rien n'est lancé : un univers amputé de cette composante "
+            f"serait testé sous un nom qui n'est pas le sien. "
+            f"Vérifiez la connexion à Wikipédia, puis relancez. Détail : "
+            f"{motif}")
+    raise UniversIndisponible(
+        f"{c['nom']} : chargement impossible ({motif}). Une liste de repli "
+        f"ne peut pas être figée sous la date du jour.")
+
+
+def univers_detaille(cle: str, repli: bool = True,
+                     journal=print) -> tuple[list[str], list[dict]]:
+    """Un univers compose : (tickers dedoublonnes, detail par composante).
+
+    Chaque composante porte son nombre REEL de titres, sa source et sa
+    date — c'est ce que les rapports affichent. Leve
+    `UniversIndisponible` si une composante manque sans repli possible.
+    """
+    comps = [charge_composante(k, repli=repli, journal=journal)
+             for k in COMPOSEES[cle]]
+    tickers = list(dict.fromkeys(t for c in comps for t in c["tickers"]))
+    for c in comps:
+        journal(f"    {c['nom']:<12}{len(c['tickers']):>5} titres  "
+                + (f"chargé le {c['date']}" if c["source"] == "direct"
+                   else f"REPLI sur la liste du {c['date']}"))
+    return tickers, comps
+
+
+def resume_composantes(comps: list[dict]) -> list[dict]:
+    """Le detail sans les listes : ce qu'un instantane ou un rapport garde."""
+    return [{k: v for k, v in c.items() if k != "tickers"}
+            | {"n": len(c["tickers"])} for c in comps]
+
+
+def nasdaq100_tickers() -> list[str]:
+    return charge_composante("nasdaq100")["tickers"]
 
 
 def sp400_tickers() -> list[str]:
     """Moyennes capitalisations americaines."""
-    try:
-        return _wiki("https://en.wikipedia.org/wiki/List_of_S%26P_400_companies",
-                     "Symbol")
-    except Exception as exc:
-        print(f"  S&P 400 indisponible ({type(exc).__name__}).")
-        return []
+    return charge_composante("sp400")["tickers"]
 
 
 def us_large_tickers() -> list[str]:
     """S&P 500 + Nasdaq 100, dedoublonne. Environ 520 titres."""
-    v = list(dict.fromkeys(sp500_tickers() + nasdaq100_tickers()))
+    v, _ = univers_detaille("us")
     print(f"  Univers US large : {len(v)} titres.")
     return v
 
 
 def us_total_tickers() -> list[str]:
     """S&P 500 + Nasdaq 100 + S&P 400. Environ 900 titres, 25 a 40 min."""
-    v = list(dict.fromkeys(sp500_tickers() + nasdaq100_tickers()
-                           + sp400_tickers()))
+    v, _ = univers_detaille("us_total")
     print(f"  Univers US complet : {len(v)} titres. Compte 25 a 40 minutes.")
     return v
 
@@ -318,6 +448,38 @@ UNIVERS = {
 
 
 # =====================================================================
+# Profondeur des cours
+#
+# La preparation de l'hypothese n°2 chargeait un nombre FIXE d'annees (8).
+# Le 29/09/2026, cela faisait commencer les cours fin 2018 : la
+# « repetition generale 2010-2021 » n'a couvert que 2019-2021, sans que le
+# rapport le dise. La profondeur se calcule donc depuis le DEBUT de la
+# periode de conception, prechauffage des indicateurs compris.
+#
+# Un nombre ENTIER d'annees, arrondi au-dessus : le cache nomme ses
+# fichiers d'apres lui, et une profondeur au jour pres retelechargerait
+# tout l'univers chaque matin.
+# =====================================================================
+
+# Le plus long des indicateurs lus par les regles est la SMA 200 (regime
+# E6, `indicators.PERIODES`) ; 260 seances est aussi l'historique minimal
+# en dessous duquel un titre est ecarte. Une annee boursiere de 252
+# seances fait 365,25 jours de calendrier.
+PRECHAUFFAGE_SEANCES = 260
+
+
+def annees_de_cours(debut: str, seances: int = PRECHAUFFAGE_SEANCES,
+                    aujourdhui: dt.date | None = None) -> int:
+    """Nombre d'annees de cours a charger pour que les indicateurs soient
+    chauds des `debut` : de `debut` moins `seances` seances jusqu'a
+    aujourd'hui, arrondi a l'annee superieure."""
+    jour = aujourdhui or dt.date.today()
+    depart = (dt.date.fromisoformat(debut)
+              - dt.timedelta(days=seances * 365.25 / 252))
+    return max(1, math.ceil((jour - depart).days / 365.25))
+
+
+# =====================================================================
 # Univers historiques — chantier n°1 du registre : le biais du survivant
 #
 # Toutes les fonctions ci-dessus rendent la composition D'AUJOURD'HUI.
@@ -351,10 +513,36 @@ DOSSIER_UNIVERS = Path(".bruce_cache") / "univers"
 def figer_univers(cle: str, tickers: list[str] | None = None,
                   date: str | None = None) -> Path:
     """Enregistre la composition d'un univers a une date. Rend le chemin."""
+    return figer_detaille(cle, tickers, date)[0]
+
+
+def figer_detaille(cle: str, tickers: list[str] | None = None,
+                   date: str | None = None,
+                   journal=print) -> tuple[Path, list[dict]]:
+    """Comme `figer_univers()`, et rend aussi le detail par composante.
+
+    Un univers compose (« us ») est charge SANS repli : une liste de
+    repli date d'un autre jour, la figer sous la date du jour serait
+    ecrire une composition fausse. Chaque composante est figee aussi sous
+    sa propre cle (« sp500 », « nasdaq100 »), a la meme date.
+    """
     if cle not in UNIVERS:
         raise ValueError(f"univers inconnu : {cle}")
+    comps: list[dict] = []
+    if tickers is None and cle in COMPOSEES:
+        tickers, comps = univers_detaille(cle, repli=False, journal=journal)
+    elif tickers is None and cle in COMPOSANTES:
+        comps = [charge_composante(cle, repli=False, journal=journal)]
+        tickers = comps[0]["tickers"]
     tickers = tickers if tickers is not None else UNIVERS[cle][1]()
     jour = date or dt.date.today().isoformat()
+    if len(comps) > 1:
+        for c in comps:
+            _ecrit_composition(c["cle"], c["tickers"], jour)
+    return _ecrit_composition(cle, tickers, jour), comps
+
+
+def _ecrit_composition(cle: str, tickers: list[str], jour: str) -> Path:
     DOSSIER_UNIVERS.mkdir(parents=True, exist_ok=True)
     f = DOSSIER_UNIVERS / f"{cle}-{jour}.csv"
     f.write_text("ticker\n" + "\n".join(sorted(set(tickers))) + "\n",
@@ -426,9 +614,21 @@ def _main_univers() -> None:
         print(d.tail(3).to_string(), "\n")
         return
     if o.figer:
-        f = figer_univers(o.figer)
+        try:
+            f, comps = figer_detaille(o.figer, journal=lambda *_: None)
+        except UniversIndisponible as exc:
+            print(f"\n  RIEN N'EST FIGÉ. {exc}\n")
+            raise SystemExit(1)
         n = len(f.read_text(encoding="utf-8").splitlines()) - 1
-        print(f"\n  Composition de « {o.figer} » figee : {n} titres → {f}\n")
+        print(f"\n  Composition de « {o.figer} » figee : {n} titres → {f}")
+        if comps:
+            print("  Par composante :")
+            for c in comps:
+                print(f"    {c['nom']:<12}{len(c['tickers']):>5} titres")
+            brut = sum(len(c["tickers"]) for c in comps)
+            print(f"    {'dedoublonne':<12}{n:>5} titres "
+                  f"({brut - n} en commun)")
+        print()
         return
     cle = o.liste or ""
     if cle:

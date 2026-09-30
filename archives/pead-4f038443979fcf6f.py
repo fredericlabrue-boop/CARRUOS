@@ -67,11 +67,7 @@ LECTURE = RACINE / "derive-post-annonce-v1-lecture.md"
 
 HEURE_CLOTURE = 16        # la cloture de New York : une annonce a 16 h ou apres
                           # ne peut etre echangee que la seance suivante
-# La profondeur des cours n'est plus un nombre fixe d'annees : 8 ans
-# faisaient commencer la « repetition 2010-2021 » fin 2018. Elle se
-# calcule depuis le debut de la periode de conception, prechauffage des
-# indicateurs compris (`data.annees_de_cours`). Ce n'est pas une constante
-# de la specification : `audit.parametres_pead()` ne l'a jamais contenue.
+ANNEES_COURS = 8          # couvre la periode de conception (2019-2021) ET la validation
 UNIVERS = "us"
 HYPOTHESE = "Dérive post-annonce"
 TIRAGES, GRAINE = 1000, 7
@@ -149,12 +145,6 @@ def _normalise(x) -> dict:
     return {"date": t.normalize(), "heure": heure}
 
 
-def annees_cours(debut: str = IN_DEBUT) -> int:
-    """Annees de cours a charger : du debut de la periode de conception
-    moins le prechauffage jusqu'a aujourd'hui."""
-    return dl.annees_de_cours(debut)
-
-
 def annonces(ticker: str, journal=print) -> list[dict]:
     """Les publications du titre, avec leur HEURE.
 
@@ -191,9 +181,8 @@ def annonces(ticker: str, journal=print) -> list[dict]:
 
 
 def dates_annonces(ticker: str, journal=print) -> list[pd.Timestamp]:
-    """Les seules dates du calendrier, sans l'heure : la lecture
-    litterale. `short.py` n'en depend plus depuis sa relecture du
-    30/09/2026 — il lit l'heure, comme ce moteur."""
+    """Les seules dates du calendrier, sans l'heure. Garde pour
+    `short.py`, dont la specification n'a pas encore ete relue."""
     return sorted({a["date"] for a in annonces(ticker, journal)})
 
 
@@ -385,15 +374,13 @@ def trades_ticker(d, ticker, bench, bo, liste, debut, fin,
     dates_triees = sorted({_normalise(x)["date"] for x in liste})
     info = {"evenements": 0, "candidats": 0, "ouverts": 0,
             "conditions": {k: 0 for k in CONDITIONS},
-            "moments": {k: 0 for k in MOMENTS},
-            "premiere": None, "derniere": None}
+            "moments": {k: 0 for k in MOMENTS}}
     pris, temoins = [], []
     d0, d1 = pd.Timestamp(debut), pd.Timestamp(fin)
     for ev in evs:
         if not (d0 <= ev["date"] <= d1):
             continue
         info["evenements"] += 1
-        _borne(info, ev["date"])
         info["moments"][ev["moment"]] += 1
         marche_ok = bool(col["regime"][ev["i"] + DELAI_EXEC - 1])   # E6 a J+2
         cond = passe(ev, marche_ok)
@@ -414,17 +401,6 @@ def trades_ticker(d, ticker, bench, bo, liste, debut, fin,
         elif not cond["E1 surprise"] and cond["E4 prix"] and cond["E6 regime"]:
             temoins.append((ev, proch))
     return pris, temoins, info
-
-
-def _borne(info: dict, date) -> None:
-    """Premiere et derniere publication exploitable : la periode que le
-    test couvre REELLEMENT, qui n'est pas celle qu'il demande."""
-    if date is None:
-        return
-    if info.get("premiere") is None or date < info["premiere"]:
-        info["premiere"] = date
-    if info.get("derniere") is None or date > info["derniere"]:
-        info["derniere"] = date
 
 
 # ------------------------------------------------ controle par le hasard
@@ -537,8 +513,7 @@ def empreintes() -> dict:
 
 
 def collecte_annonces(tickers: list[str], journal=print,
-                      fichier: Path | None = None,
-                      composantes: list[dict] | None = None) -> dict:
+                      fichier: Path | None = None) -> dict:
     """Releve les dates d'annonces de tout l'univers et les FIGE dans un
     instantane date. Le passage unique lit cet instantane, pas Yahoo le
     jour meme : ce qui a ete regarde reste reconstituable."""
@@ -561,8 +536,6 @@ def collecte_annonces(tickers: list[str], journal=print,
                 res[tk] = v
     inst = {"collecte": dt.datetime.now().replace(microsecond=0).isoformat(),
             "univers": UNIVERS, "tickers": list(tickers),
-            # le nombre REEL de titres par composante, et tout repli date
-            "composantes": composantes,
             "annonces": {tk: [f"{a['date'].date()}T{a['heure']:02d}:00:00"
                               if a["heure"] is not None
                               else str(a["date"].date())
@@ -583,21 +556,16 @@ def lit_instantane(fichier: Path | None = None) -> dict | None:
         return None
 
 
-def charge_donnees(inst: dict, journal=print, debut: str = IN_DEBUT) -> dict:
-    """Cours et controle qualite, pour les titres de l'instantane.
-
-    `debut` : le debut de la periode de conception de l'hypothese qui
-    charge — l'hypothese n°3 passe le sien."""
+def charge_donnees(inst: dict, journal=print) -> dict:
+    """Cours et controle qualite, pour les titres de l'instantane."""
     from . import cache as ch
     from . import qualite as ql
     tickers = inst["tickers"]
-    annees = annees_cours(debut)
-    journal(f"  Chargement de {annees} ans de cours pour {len(tickers)} "
-            f"titres (depuis {debut} moins {dl.PRECHAUFFAGE_SEANCES} "
-            f"séances de préchauffage)…")
-    bench_brut = ch.charge("SPY", annees=annees)
+    journal(f"  Chargement de {ANNEES_COURS} ans de cours pour "
+            f"{len(tickers)} titres…")
+    bench_brut = ch.charge("SPY", annees=ANNEES_COURS)
     bo = enrich(bench_brut)
-    brutes, echecs = ch.charge_lot(tickers, annees=annees,
+    brutes, echecs = ch.charge_lot(tickers, annees=ANNEES_COURS,
                                    journal=lambda *_: None)
     series, dates, ecartes = {}, {}, {}
     for tk, motif in echecs:
@@ -621,8 +589,7 @@ def charge_donnees(inst: dict, journal=print, debut: str = IN_DEBUT) -> dict:
             continue
         series[tk], dates[tk] = d, liste
     return {"series": series, "dates": dates, "bench_brut": bench_brut,
-            "bo": bo, "ecartes": ecartes, "instantane": inst,
-            "annees": annees}
+            "bo": bo, "ecartes": ecartes, "instantane": inst}
 
 
 # ------------------------------------------------------------------ rejeu
@@ -630,8 +597,7 @@ def rejeu(don: dict, debut: str, fin: str, simule: bool = True) -> tuple:
     trades, temoins = [], {}
     info = {"evenements": 0, "candidats": 0, "ouverts": 0,
             "conditions": {k: 0 for k in CONDITIONS},
-            "moments": {k: 0 for k in MOMENTS},
-            "premiere": None, "derniere": None}
+            "moments": {k: 0 for k in MOMENTS}}
     for tk, d in don["series"].items():
         pr, tm, inf = trades_ticker(d, tk, don["bench_brut"], don["bo"],
                                     don["dates"][tk], debut, fin, simule)
@@ -644,8 +610,6 @@ def rejeu(don: dict, debut: str, fin: str, simule: bool = True) -> tuple:
             info["conditions"][k] += v
         for k, v in inf["moments"].items():
             info["moments"][k] += v
-        _borne(info, inf.get("premiere"))
-        _borne(info, inf.get("derniere"))
     return trades, temoins, info
 
 
@@ -687,8 +651,7 @@ def evalue(don: dict, debut: str, fin: str, journal=print) -> dict:
             # `don["ref"]` : une reference fournie par les tests, sans reseau.
             ref = don.get("ref")
             if ref is None:
-                ref = ch.charge("SMH", annees=don.get("annees")
-                                or annees_cours())["close"]
+                ref = ch.charge("SMH", annees=ANNEES_COURS)["close"]
             c = m["courbe"]
             ref = ref[(ref.index >= c.index[0]) & (ref.index <= c.index[-1])]
             comparatif = cp.compare(c, ref, "SMH")
@@ -717,74 +680,16 @@ def _pc(x, dec=1):
     return _fr(x * 100, f".{dec}f") + " %"
 
 
-def _composantes(inst: dict, don: dict) -> list[str]:
-    """L'univers tel qu'il a ete REELLEMENT charge, composante par
-    composante. Sans ce detail, le rapport ne dit pas « S&P 500 + Nasdaq
-    100 » : le 29/09/2026 il l'affirmait sur le seul S&P 500."""
-    tete = (f"    {len(inst['tickers'])} titres dans l'univers, "
-            f"{len(don['series'])} exploitables, {len(don['ecartes'])} "
-            f"écartés.")
-    comps = inst.get("composantes")
-    if not comps:
-        return [tete, f"    Composition du {inst['collecte'][:10]}, détail "
-                      f"par composante non relevé."]
-    L = [tete, f"    Composition relevée le {inst['collecte'][:10]}, "
-               f"composante par composante (avant dédoublonnage) :"]
-    for c in comps:
-        if c.get("source") == "repli":
-            L.append(f"      {c['nom']:<12}{c['n']:>5} titres  REPLI sur la "
-                     f"liste chargée le {c['date']} — le chargement du jour "
-                     f"a échoué")
-            if c.get("motif"):
-                L.append(f"      {'':<12}      ({c['motif'][:150]})")
-        else:
-            L.append(f"      {c['nom']:<12}{c['n']:>5} titres  chargés le "
-                     f"{c['date']}")
-    return L
-
-
-def _couverture(res: dict, don: dict) -> list[str]:
-    """La periode REELLEMENT couverte : premiere et derniere publication
-    exploitables. La periode demandee n'en dit rien — le 29/09/2026, la
-    « repetition 2010-2021 » n'a vu que 2019-2021."""
-    info = res["info"]
-    a, b = info.get("premiere"), info.get("derniere")
-    L = []
-    bench = don.get("bench_brut")
-    if bench is not None and len(bench):
-        L.append(f"    Cours chargés depuis le {bench.index[0].date()}.")
-    if a is None:
-        L.append("    Période réellement couverte : aucune publication "
-                 "exploitable dans la période demandée.")
-        return L
-    L.append(f"    Période réellement couverte : première publication "
-             f"exploitable le {a.date()}, dernière le {b.date()}.")
-    d0, d1 = pd.Timestamp(res["debut"]), pd.Timestamp(res["fin"])
-    trou = (a - d0).days / 365.25
-    if trou >= 1:
-        L.append(f"    ⚠ Du {d0.date()} au {a.date()}, aucune publication "
-                 f"exploitable : {_fr(trou, '.1f')} ans de la période demandée "
-                 f"ne sont pas testés (dates d'annonces ou cours absents).")
-    fin_trou = (min(d1, pd.Timestamp(dt.date.today())) - b).days / 365.25
-    if fin_trou >= 1:
-        L.append(f"    ⚠ Du {b.date()} au {d1.date()}, aucune publication "
-                 f"exploitable : {_fr(fin_trou, '.1f')} ans non testés.")
-    return L
-
-
-def rapport(res: dict, don: dict, titre: str, entete: list[str],
-            repetition: bool = False) -> list[str]:
-    """Le rapport, en phrases. Chaque critere dit ce qu'il mesure.
-
-    `repetition=True` : la periode de conception. Son verdict est
-    INDICATIF — seul le passage unique juge l'hypothese."""
+def rapport(res: dict, don: dict, titre: str, entete: list[str]) -> list[str]:
+    """Le rapport, en phrases. Chaque critere dit ce qu'il mesure."""
     L = ["", "  " + "=" * 66, f"  {titre}", "  " + "=" * 66]
     L += [f"  {x}" for x in entete]
     inst, info, m, z = don["instantane"], res["info"], res["m"], res["z"]
 
     L += ["", "  LES DONNÉES"]
-    L += _composantes(inst, don)
-    L += _couverture(res, don)
+    L.append(f"    {len(inst['tickers'])} titres dans l'univers (S&P 500 + "
+             f"Nasdaq 100, composition du {inst['collecte'][:10]}), "
+             f"{len(don['series'])} exploitables, {len(don['ecartes'])} écartés.")
     L.append(f"    {info['evenements']} publications dans la période, dont :")
     for k, lib in MOMENTS.items():
         L.append(f"      {info['moments'].get(k, 0):>6}  {lib}")
@@ -852,15 +757,7 @@ def rapport(res: dict, don: dict, titre: str, entete: list[str],
               "chose. Ici, non."]
     L += ["", "  " + "=" * 66]
     v = res["verdict"]
-    if repetition:
-        L.append(f"  {v.upper()} SUR LA RÉPÉTITION — verdict indicatif. Seul le "
-                 f"passage unique juge l'hypothèse.")
-        L.append("  La période de conception sert à vérifier le code : ce "
-                 "verdict ne condamne ni ne valide rien.")
-        if v == "NO-GO":
-            L.append("  Lancer le passage unique malgré lui demandera de "
-                     f"taper {_rg().PHRASE_FORCEE}.")
-    elif v == "NO-GO":
+    if v == "NO-GO":
         L.append("  NO-GO. L'hypothèse est morte : elle ne se retouche pas, elle "
                  "ne s'assouplit pas.")
         if m["n"] < 200 and (z["z"] or 0) > 0:
@@ -878,11 +775,6 @@ def rapport(res: dict, don: dict, titre: str, entete: list[str],
         L.append("  Il ne se déploie pas (étape 7).")
     L += ["  " + "=" * 66, ""]
     return L
-
-
-def _rg():
-    from . import registre as rg
-    return rg
 
 
 def _entete(periode: str, emp: dict, inst: dict) -> list[str]:
@@ -912,18 +804,9 @@ def prepare(journal=print, instantane: Path | None = None,
     journal("\n  STRATÉGIE 2 — DÉRIVE POST-ANNONCE : PRÉPARATION")
     journal("  Rien de ce qui suit ne regarde un rendement de la période de "
             "validation.\n")
-    comps = None
     if tickers is None:
-        journal("  Univers US large, composante par composante :")
-        try:
-            tickers, comps = dl.univers_detaille(UNIVERS, journal=journal)
-        except dl.UniversIndisponible as exc:
-            journal(f"\n  LA PRÉPARATION S'ARRÊTE, rien n'est relevé. {exc}\n")
-            return {}
-        journal(f"  {len(tickers)} titres après dédoublonnage.")
-    inst = collecte_annonces(
-        tickers, journal, instantane,
-        composantes=dl.resume_composantes(comps) if comps else None)
+        tickers = dl.UNIVERS[UNIVERS][1]()
+    inst = collecte_annonces(tickers, journal, instantane)
     n_dates = sum(len(v) for v in inst["annonces"].values())
     journal(f"  {len(inst['annonces'])} titres avec des dates, "
             f"{len(inst['sans_dates'])} sans ; {n_dates} publications.")
@@ -974,13 +857,7 @@ def prepare(journal=print, instantane: Path | None = None,
     res = evalue(don, IN_DEBUT, IN_FIN, journal)
     lignes = rapport(res, don, "RÉPÉTITION — PÉRIODE DE CONCEPTION, RIEN N'Y EST JUGÉ",
                      _entete(f"{IN_DEBUT} → {IN_FIN} (données disponibles "
-                             f"seulement)", emp, inst), repetition=True)
-    # Le verdict de la repetition voyage avec les donnees : c'est lui qui
-    # decide de la phrase a taper pour lancer le passage unique.
-    don["repetition"] = {
-        "verdict": res["verdict"],
-        "echecs": [c[0] for c in res["criteres"] if not c[1]]
-        + ([] if res["survit"] else ["espérance à 0,30 % par côté"])}
+                             f"seulement)", emp, inst))
     for l in lignes:
         journal(l)
     DOSSIER.mkdir(parents=True, exist_ok=True)
@@ -1126,41 +1003,20 @@ def main() -> None:
     if manques:
         valide(don)          # dit pourquoi il ne part pas
         return
-    rep_ = don.get("repetition") or {}
-    verdict = rep_.get("verdict")
-    phrase = rg.phrase_de_lancement(verdict)
-    forcee = phrase != rg.PHRASE_SIMPLE
-    if forcee:
-        echecs = ", ".join(rep_.get("echecs") or []) or "verdict inconnu"
-        print(f"  ⚠ LA RÉPÉTITION GÉNÉRALE A ÉCHOUÉ : {verdict or 'aucun verdict'}"
-              f" sur la période de conception ({echecs}).")
-        print("  Ce verdict est indicatif — seul le passage unique juge — "
-              "mais lancer malgré lui")
-        print(f"  consomme la période {periode_validation()} pour une "
-              f"hypothèse que ses propres données de")
-        print("  conception n'ont pas soutenue.")
-        print(f"  Un simple OUI ne suffit plus : pour le lancer malgré tout, "
-              f"tapez {phrase}.")
-    if o.valider and forcee:
-        print(f"  --valider ne suffit pas après une répétition "
-              f"{verdict or 'sans verdict'} : lancez sans --valider")
-        print(f"  et tapez {phrase}. Rien n'a été regardé.\n")
-        return
     if not o.valider:
         if not sys.stdin.isatty():
             print("  Préparation terminée. Pour le passage unique : "
-                  + ("py -m equity_scanner.pead --valider" if not forcee else
-                     f"py -m equity_scanner.pead, puis tapez {phrase}"))
+                  "py -m equity_scanner.pead --valider")
             return
         print("  La préparation est faite. Le passage unique regarde "
               f"{periode_validation()} UNE fois, et le résultat")
         print("  s'inscrit au registre quel qu'il soit.")
         try:
-            rep = input(f"  Tapez {phrase} pour le lancer, ou Entrée pour "
+            rep = input("  Tapez OUI pour le lancer, ou Entrée pour "
                         "vous arrêter là : ").strip()
         except EOFError:
             rep = ""
-        if not rg.lancement_accepte(rep, verdict):
+        if rep != "OUI":
             print("  Rien n'a été regardé. Relancez quand vous voulez.\n")
             return
     valide(don, second_regard=o.second_regard)

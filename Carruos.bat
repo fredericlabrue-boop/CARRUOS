@@ -154,9 +154,13 @@ echo.
 echo   Ce n'est pas la strategie a l'achat avec les signes inverses.
 echo   La perte n'est pas bornee, la position grossit quand elle a tort,
 echo   et emprunter les titres se paie. Le dividende du au preteur n'est
-echo   PAS modelise : retranche 0,4 point par trade au resultat affiche.
+echo   PAS modelise : le resultat est optimiste de 0,3 a 0,4 point par trade.
 echo.
-%PY% -m equity_scanner.short --univers us --csv "short-us.csv"
+echo   Deux temps : la preparation, puis le passage unique. Il ne part
+echo   qu'apres validation de la note de lecture et de l'amendement n.1 :
+echo   Tester-strategie-3.bat, choix 1.
+echo.
+%PY% -m equity_scanner.short
 echo. & pause & goto menu
 
 :qualite
