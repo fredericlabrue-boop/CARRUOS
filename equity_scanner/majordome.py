@@ -667,6 +667,30 @@ async function exec(txt){
   }
   return;
  }
+ // « TLX, +50 € sur un mois : day trading, scalping, à l'heure ? » : la
+ // page OBJECTIF PAR STYLE. Elle mesure chaque style sur le titre, dans
+ // l'ordre des durées, et n'en choisit aucun. Le ticker, c'est le SERVEUR
+ // qui le tranche dans la question : il a les données.
+ if(/scalp|day ?trad|daytrad|intra.?day|a l.?heure|\bswing|quel(?:le)? (?:style|strategie)|style de trad|quelle? methode/.test(q)){
+  var es=[], ms_, rs_=/(\d+(?:[.,]\d+)?)\s*(?:€|euros?)/g;
+  while((ms_=rs_.exec(q))) es.push(parseFloat(ms_[1].replace(',','.')));
+  var us='/styles?q='+encodeURIComponent(brut)+'&lance=1';
+  if(es.length) us+='&gain='+Math.min.apply(null,es);
+  if(es.length>=2) us+='&capital='+Math.max.apply(null,es);
+  var ds_=q.match(/(\d+(?:[.,]\d+)?|une?)\s*(minutes?|heures?|jours?|journees?|semaines?|mois|ans?|annees?)\b/);
+  if(ds_){
+   var w_=ds_[2];
+   us+='&nombre='+(/^une?$/.test(ds_[1])?'1':ds_[1].replace(',','.'))+'&unite='
+    +(/^minute/.test(w_)?'minutes':/^heure/.test(w_)?'heures':/^(?:jour|journee)/.test(w_)?'jours'
+      :/^semaine/.test(w_)?'semaines':w_==='mois'?'mois':'ans');
+  }
+  dit('Bien, Monsieur. Voici chaque style mesuré sur le titre, du scalping à la '
+    + 'position d\'un an, dans l\'ordre des durées : ce que chacun a donné, gain et '
+    + 'perte côte à côte. Je ne choisis pas de style ; aucun n\'a passé son test.');
+  if(typeof window.ouvreFenetre==='function') ouvreFenetre(us, 'carruos-styles');
+  else location.href=us;
+  return;
+ }
  // « Avant l'ordre sur TLX.DE », « je prépare un ordre sur COIN » : la
  // page de décision, le titre déjà posé. Elle calcule la taille et les
  // faits, et vous fait répondre avant l'ordre — elle ne choisit rien.
@@ -753,6 +777,7 @@ async function exec(txt){
   +'je sors quand sur TLX, combien je '
   +'peux perdre sur Coin, que penses-tu de Nvidia, ouvre Sanofi, '
   +'avant l\'ordre sur TLX.DE, '
+  +'TLX 50 € en un mois, day trading ou scalping ?, '
   +'scan Cac 40, je mets 3000 € pour gagner 100 € en un mois sur une '
   +'action en crise avec rebond, sommes-nous en temps de crise ?, '
   +'TLX a baissé de 25 %, rebond ?, Tesla nouveau modèle, '

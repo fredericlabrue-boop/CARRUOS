@@ -1189,6 +1189,49 @@ que l'accueil et l'onglet IBKR surveillent ensuite.
 
 ---
 
+## 5 duovicies. OBJECTIF PAR STYLE — `styles.py`
+
+**« TLX, +50 € en un mois : quelle stratégie — day trading, scalping,
+à l'heure ? »** La page OBJECTIF PAR STYLE (accueil, en tête des outils ;
+ou « TLX 50 € en un mois, day trading ou scalping ? » au majordome)
+mesure chaque style sur **ce** titre, aux seuils de **votre** somme, dans
+l'ordre des durées — jamais trié sur le résultat.
+
+| Style | Durée | Ce qui se mesure |
+|---|---|---|
+| SCALPING | secondes, minutes | rien : aucune donnée à la minute (chantier 7) |
+| À L'HEURE | une à quelques heures | rien, même raison |
+| DAY TRADING | une séance | acheté à l'ouverture, revendu à la clôture : plus haut, plus bas, clôture |
+| SWING COURT | **5** séances | périodes sans chevauchement, sur les clôtures |
+| SWING | **21** séances | idem |
+| POSITION | **252** séances | idem |
+
+Pour chacun : combien de périodes ont touché le gain en chemin, combien
+la **même perte**, lequel d'abord, combien ont fini au gain — chaque
+proportion avec son intervalle, rien sous **8** périodes — et l'indice
+de la place aux mêmes seuils. L'historique est celui de RECHERCHE :
+**10** ans jusqu'à six mois, **20** ans au-delà.
+
+**Le day trading a une limite écrite.** Une bougie journalière ne dit
+pas si le plus haut est venu avant le plus bas : les séances où le gain
+**et** la perte ont été touchés sont comptées à part, jamais attribuées.
+
+**Ce que l'objectif demande**, en arithmétique : le mouvement que le
+gain exige, frais compris ; les frais d'un aller-retour, en euros et en
+part du gain visé ; et le gain répété à chaque période d'une année, sans
+réinvestir — +50 € par séance font 12 600 € par an, +50 € par mois
+600 €. L'indice est à côté, pour l'échelle. Ce n'est pas ce qu'un style
+rendra : c'est ce que l'objectif demande.
+
+**Ce que la page ne fait pas : choisir.** Plusieurs durées comparées,
+ce sont autant de chances d'en voir une briller par le seul hasard ;
+retenir celle qui a le mieux marché serait la pêche que le protocole
+interdit. Les trois stratégies écrites en 2026 étaient du swing — la
+n°2 et la n°3 tenaient au plus **45** séances — et aucune n'a passé son
+test. Aucune stratégie de day trading ni de scalping n'a été écrite.
+
+---
+
 ## 6. Ce que le programme refuse d'afficher
 
 Rappel, parce que c'est la colonne vertébrale du projet :

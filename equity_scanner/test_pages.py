@@ -348,7 +348,8 @@ def main() -> int:
                  "majordome": app._page_majordome(),
                  "restructurations": app._page_restructurations(),
                  "recherche": app._page_recherche(),
-                 "decision": app._page_decision()}
+                 "decision": app._page_decision(),
+                 "styles": app._page_styles()}
     finally:
         dl.load_yf = vrai
 
@@ -1436,6 +1437,39 @@ def main() -> int:
     _v(0 < jmj_.find("/decision") < jmj_.find("var ma=q.match"),
        "le majordome ouvre AVANT L'ORDRE avant de chercher un titre")
 
+    print("\n  PAGE OBJECTIF PAR STYLE")
+    from . import styles as _sy
+    hs_ = pages["styles"]
+    js_ = _app.JS_STY
+    for champ in ("stk", "scap", "sgain", "snb", "sun", "sfr", "smes", "sres"):
+        _v(f'id="{champ}"' in hs_, f"le champ {champ} est dans la page")
+    _v('u.path == "/styles"' in src_app and '"/api/styles"' in _post_api,
+       "la page et son API sont servies")
+    _v(_app.titre_fenetre("/styles").endswith("OBJECTIF PAR STYLE"),
+       "sa fenetre porte son nom")
+    _v(0 < ha_.find('data-vers="/styles"') < ha_.find("TOUTE LA COTE US"),
+       "l'accueil porte OBJECTIF PAR STYLE en tete des outils")
+    _v(all(f'value="{u}"' in hs_ for u in ("minutes", "heures", "jours")),
+       "la duree se tape jusqu'a la minute : le refus vient avec sa raison")
+    propre_s = hs_.split('<div class="sty">')[1].split("<script>")[0]
+    _v(not re.search(r"achetez|vendez|recommand|potentiel|score|meilleur|"
+                     r"haussi|conseill|gain esp[eé]r|annonce", propre_s + js_,
+                     re.I),
+       "aucun verdict, aucun meilleur style, aucun gain espere dans la page")
+    _v(".sort(" not in js_, "la page ne trie jamais les styles")
+    _v("j.rappel" in js_ and "rappel_day" in js_ and "rappel_repete" in js_,
+       "les rappels voyagent jusqu'a l'ecran")
+    _v("wilson_gain" in js_ and "wilson_perte" in js_,
+       "chaque proportion porte son intervalle")
+    _v("onclick" not in js_, "aucun onclick en ligne dans son script")
+    _v("try{" in js_.split("function retiensS")[1][:40],
+       "la somme revient d'une ouverture a l'autre, sans rien casser")
+    _v(0 < jmj_.find("/styles?q=") < jmj_.find("/decision")
+       and "day ?trad" in jmj_ and "scalp" in jmj_,
+       "le majordome ouvre OBJECTIF PAR STYLE sur « day trading, scalping »")
+    _v("comprend(" in src_app.split("def _styles")[1].split("\ndef ")[0],
+       "le ticker de la question est tranche par le serveur")
+
     print("\n  LA VOIX DU MAJORDOME")
     hmj = _mj_mod.html({})
     _v(all(f'id="{i}"' in hmj for i in ("mjvx", "mjvt", "mjvr", "mjvp",
@@ -1504,7 +1538,8 @@ def main() -> int:
     _v(".defile{" in css_base and "overflow-y:auto" in
        css_base.split(".defile{")[1].split("}")[0],
        "le conteneur .defile defile lui-meme")
-    for nom_page in ("maliste", "restructurations", "recherche", "decision"):
+    for nom_page in ("maliste", "restructurations", "recherche", "decision",
+                     "styles"):
         _v(_enfants_app(pages[nom_page])[1][1] == ["defile"],
            f"{nom_page} : son contenu est dans le conteneur qui defile")
 

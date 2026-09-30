@@ -204,6 +204,16 @@ le plus haut de la période, le recul depuis ce sommet, les écarts aux
 moyennes, le RSI, et l'état des quatre conditions de sortie. Le
 graphique complet reste à un bouton de là. Échap referme.
 
+**OBJECTIF PAR STYLE**, en tête des outils : un titre, une somme, un
+gain visé, une durée. Pour chaque style — scalping, à l'heure, day
+trading, une semaine, un mois, un an — ce que sa durée a **donné** sur
+ce titre : combien de périodes ont touché le gain, combien la même perte,
+l'indice à côté, et ce que l'objectif demande (le mouvement, les frais,
+le gain répété sur un an). Le scalping et l'heure ne se mesurent pas,
+faute de données à la minute : la page le dit au lieu d'inventer. Elle
+ne choisit aucun style. Au majordome : « TLX 50 € en un mois, day
+trading ou scalping ? ».
+
 ---
 
 ## L'onglet STRATÉGIE
@@ -307,6 +317,7 @@ py -m equity_scanner.recherche nasdaq100 800 50 "1 semaine"
 py -m equity_scanner.recherche us_europe 3000 100 "1 mois" rebond
 py -m equity_scanner.rebond TLX.DE 25          après une chute de 25 %
 py -m equity_scanner.decision TLX.DE 20000 2 mois   avant l'ordre
+py -m equity_scanner.styles TLX.DE 3000 50 "1 mois"  objectif par style
 ```
 
 La situation (5ᵉ argument) : `chute`, `rebond`, `tendance` ou `sommet`

@@ -2542,6 +2542,7 @@ def test_brain2() -> None:
         "pas de crise tranchee": "« Crise » n'a pas de définition",
         "la politesse n'autorise aucun avis": "la politesse n'autorise aucun avis",
         "pas de compliment-verdict": "« Excellent choix, Monsieur »",
+        "aucun style choisi": "Tu ne choisis pas de style",
     }
     manque = [k for k, v in lignes_rouges.items() if v not in cv.CONSIGNE]
     ok("la consigne du modele garde les lignes rouges du projet",
@@ -2895,6 +2896,8 @@ def test_memo() -> None:
     from . import rebond as _rb_
     from . import recherche as _rc_
     from . import decision as _dc_
+    from . import styles as _sy_
+    from . import pead as _pe_
 
     def _nb_(x):
         return {10: "dix", 20: "vingt"}.get(x, str(x))
@@ -3677,6 +3680,20 @@ def test_memo() -> None:
          f"**{_rc_.PENTE}**"),
         ("pres du sommet",
          f"à moins de **{_rc_.PRES_DU_SOMMET:g}** % de son plus haut"),
+        # --- styles.py : OBJECTIF PAR STYLE
+        ("durees des styles",
+         "| SWING COURT | **{}** séances |".format(_sy_.STYLES[3]["seances"])),
+        ("duree du swing",
+         "| SWING | **{}** séances |".format(_sy_.STYLES[4]["seances"])),
+        ("duree de la position",
+         "| POSITION | **{}** séances |".format(_sy_.STYLES[5]["seances"])),
+        ("periodes minimum des styles",
+         f"rien sous **{_rc_.MINI_PERIODES}** périodes"),
+        ("historique des styles",
+         f"**{_rc_.ANNEES_COURT}** ans jusqu'à six mois, "
+         f"**{_rc_.ANNEES_LONG}** ans au-delà"),
+        ("duree maximale des strategies 2 et 3",
+         f"tenaient au plus **{_pe_.MAX_BARRES}** séances"),
     ]
     absents = [(nom, val) for nom, val in ATTENDU if val not in m]
     ok(f"les {len(ATTENDU)} seuils cites dans le memo sont ceux qui "
@@ -5270,6 +5287,108 @@ def test_short_abandon() -> None:
        not r4["ok"] and rg.abandonnee(sh.HYPOTHESE, etat2) is None)
 
 
+def test_styles() -> None:
+    """OBJECTIF PAR STYLE : chaque style mesure sur un titre, dans l'ordre
+    des durees — jamais trie, jamais choisi."""
+    import json as _js_sy
+    from . import pead as pe_
+    from . import short as sh_
+    from . import styles as sy
+
+    print("\n— OBJECTIF PAR STYLE : scalping, day, semaine, mois, an —")
+    ok("les styles sont ecrits dans l'ordre des durees",
+       [x["cle"] for x in sy.STYLES]
+       == ["scalping", "heure", "day", "semaine", "mois", "an"]
+       and [x["seances"] for x in sy.STYLES] == [None, None, 0, 5, 21, 252])
+    ok("la duree tapee designe son style, de la minute a l'an",
+       sy.duree(30, "minutes") == {"style": "scalping"}
+       and sy.duree(1, "heures") == {"style": "heure"}
+       and sy.duree(1, "jours") == {"style": "day"}
+       and sy.duree(1, "semaines") == {"style": "semaine"}
+       and sy.duree(1, "mois") == {"style": "mois"}
+       and sy.duree(1, "ans") == {"style": "an"}
+       and sy.duree(2, "mois").get("seances") == 42)
+
+    # La seance, a la main : ouverture 100, seuils +2 % et -2 %.
+    i = pd.bdate_range("2024-01-01", periods=10)
+    o = np.full(10, 100.0)
+    hi = np.array([103, 101, 103, 101, 100.5, 102.5, 101, 101, 104, 100.2])
+    lo = np.array([99.5, 97, 97.5, 99, 99.9, 99, 97.9, 99.5, 96, 99.8])
+    cl = np.array([102.5, 98, 99, 100.5, 100, 102.1, 98, 100, 103, 100])
+    d = pd.DataFrame({"open": o, "high": hi, "low": lo, "close": cl}, index=i)
+    m = sy.mesure_seance(d, 0.02, -0.02)
+    g = [h / 100 - 1 >= 0.02 for h in hi]
+    p = [l / 100 - 1 <= -0.02 for l in lo]
+    ok("la seance se lit sur le plus haut, le plus bas et la cloture — "
+       "comptee a la main",
+       m["periodes"] == 10 and m["gain_touche"] == sum(g)
+       and m["perte_touchee"] == sum(p)
+       and m["les_deux"] == sum(a and b for a, b in zip(g, p))
+       and m["fini_au_gain"] == sum(c / 100 - 1 >= 0.02 for c in cl))
+    ok("gain et perte dans la meme seance : l'ordre est inconnu, aucune "
+       "proportion « d'abord » n'est rendue",
+       m["les_deux"] == 2 and m["part_dabord"] is None
+       and m["wilson_dabord"] is None)
+    r = sy.repete(50, 3000, 21)
+    ok("repete : 50 € par mois, 600 € par an, 20 % de 3 000 €",
+       r["eur_an"] == 600 and r["pct_an"] == 20.0)
+
+    def faux(tk, annees=10):
+        rg = np.random.default_rng(sum(map(ord, tk)))
+        n = 252 * annees
+        ix = pd.bdate_range(end="2026-09-30", periods=n)
+        if tk.endswith("=X"):
+            c = np.full(n, 1.1)
+        else:
+            c = 60 * np.exp(np.cumsum(rg.normal(0.0002, 0.017, n)))
+        op = np.r_[c[0], c[:-1]] * np.exp(rg.normal(0, 0.004, n))
+        h_ = np.maximum(op, c) * np.exp(np.abs(rg.normal(0, 0.008, n)))
+        l_ = np.minimum(op, c) * np.exp(-np.abs(rg.normal(0, 0.008, n)))
+        return pd.DataFrame({"open": op, "high": h_, "low": l_, "close": c,
+                             "volume": rg.uniform(1e5, 1e6, n)}, index=ix)
+
+    x = sy.examine("TLX.DE", 3000, 50, 2, "mois", charge=faux)
+    cles = [L["cle"] for L in x.get("lignes", [])]
+    ok("une duree tapee prend SA place dans l'ordre des durees, jamais en "
+       "tete", x.get("ok") and cles == ["scalping", "heure", "day",
+                                          "semaine", "mois", "votre", "an"]
+       and [L["votre"] for L in x["lignes"]].count(True) == 1)
+    ok("scalping et a l'heure sont refuses avec leur raison, sans chiffre "
+       "invente", all(L.get("refus") and "mesure" not in L
+                      for L in x["lignes"][:2])
+       and "chantier 7" in x["lignes"][0]["refus"])
+    day = x["lignes"][2]
+    ok("le day trading se mesure sur la seance, l'ordre y est inconnu",
+       day["mesure"].get("intra") and day["mesure"]["periodes"] > 2000
+       and day["mesure"]["part_dabord"] is None)
+    ok("chaque style mesure a l'indice a cote, aux memes seuils",
+       all(L.get("indice", {}).get("periodes") for L in x["lignes"][2:]))
+    ok("chaque proportion porte son Wilson",
+       all(L["mesure"].get("wilson_gain") and L["mesure"].get("wilson_perte")
+           for L in x["lignes"][2:]))
+    ok("les frais d'un aller-retour sont chiffres, en euros et en part du "
+       "gain", x["aller_retour_eur"] > 0 and x["aller_retour_part_gain"] > 0)
+    ok("les strategies ecrites lisent leur duree dans les moteurs",
+       str(pe_.MAX_BARRES) in x["strategies"][1]["style"]
+       and str(sh_.MAX_BARRES) in x["strategies"][2]["style"])
+    ok("la reponse s'ecrit en JSON", bool(_js_sy.dumps(x)))
+    ok("le rappel dit que ce n'est pas un avis, et que les lignes ne sont "
+       "jamais triees", "pas un avis" in x["rappel"]
+       and "jamais triées" in x["rappel"])
+    cher = sy.examine("TLX.DE", 20, 5, 1, "mois", charge=faux)
+    ok("une somme qui n'achete aucun titre le dit, avec le prix",
+       not cher["ok"] and "n'en achètent aucune" in cher["erreur"])
+    lourd = sy.examine("TLX.DE", 3000, 2, 1, "mois", charge=faux)
+    ok("quand les frais coutent deja le gain, rien n'est mesure, et c'est dit",
+       lourd["ok"] and all(L.get("refus") for L in lourd["lignes"]))
+    tout = " ".join([sy.RAPPEL, sy.RAPPEL_DAY, sy.RAPPEL_REPETE,
+                     sy.REFUS_SCALPING, sy.RAPPEL_STRATEGIES]
+                    + [st["duree"] for st in sy.STYLES])
+    ok("aucun style n'est designe : ni meilleur, ni conseille, ni « gain "
+       "espere »", not _re_rb.search(r"meilleur|conseill|recommand|choisissez|"
+                                 r"gain esp[eé]r|potentiel", tout, _re_rb.I))
+
+
 def test_decision() -> None:
     """AVANT L'ORDRE : une taille, des faits, une liste — et aucun
     verdict. Le carnet garde ce que le moteur a mesure."""
@@ -5418,6 +5537,7 @@ def main() -> int:
     test_short_passage()
     test_short_abandon()
     test_decision()
+    test_styles()
     test_marqueurs()
     test_projection_capitalisation()
     test_seance()

@@ -2099,6 +2099,69 @@ CSS_DEC = """
 """
 
 
+# OBJECTIF PAR STYLE : ses classes ne vivent que dans cette feuille
+# (`.sty …`), qu'elle est seule a charger.
+CSS_STY = """
+.sty{max-width:1240px;margin:0 auto 24px;padding:14px 16px 26px;
+ background:var(--pan-fond);border:1px solid var(--bord);border-radius:12px}
+.sty label{display:block;font-size:10px;letter-spacing:.16em;
+ color:var(--txt-faible);margin-bottom:5px}
+.sty select,.sty input{width:100%;
+ background:var(--champ-fond,#0a1620);border:1px solid var(--bord);
+ color:var(--txt);border-radius:9px;padding:9px 11px;font:400 13px inherit}
+.sty input:focus,.sty select:focus{outline:0;border-color:var(--acc)}
+.sty .par{display:grid;gap:11px;align-items:end;margin-bottom:10px;
+ grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr))}
+.sty .par>div{min-width:0}
+.sty .dur{display:grid;grid-template-columns:minmax(0,64px) minmax(0,1fr);
+ gap:6px}
+.sty .go{width:100%;background:#0e2b34;border:1px solid var(--acc);
+ color:var(--txt-fort);border-radius:9px;padding:10px;cursor:pointer;
+ font:500 13px inherit;letter-spacing:.1em}
+.sty .go:hover{background:#123a46}
+.sty .ex{font-size:12.5px;line-height:1.65;color:var(--txt-doux);
+ margin:0 0 12px}
+.sty .msg{font-size:12px;color:var(--txt-mi);min-height:18px;margin:6px 0}
+.sty .cartes{display:grid;gap:10px;margin:12px 0;
+ grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))}
+.sty .carte{min-width:0;border:1px solid var(--bord);border-radius:10px;
+ padding:10px 12px;font-size:12.5px;line-height:1.6;color:var(--txt-doux)}
+.sty .carte h3{font:500 10px ui-monospace,monospace;letter-spacing:.2em;
+ color:var(--txt-faible);margin:0 0 6px}
+.sty .carte b{color:var(--txt-fort);font-weight:500;
+ font-variant-numeric:tabular-nums}
+.sty .carte i{color:var(--txt-mi)}
+.sty .grand{font:500 22px ui-monospace,Consolas,monospace;
+ color:var(--txt-fort);font-variant-numeric:tabular-nums}
+.sty .enveloppe{overflow-x:auto;margin:12px 0 6px}
+.sty .tab{width:100%;border-collapse:collapse;font-size:12px;margin:0}
+.sty .tab th{text-align:left;font:400 9.5px ui-monospace,monospace;
+ letter-spacing:.14em;color:var(--txt-faible);padding:7px 8px;
+ border-bottom:1px solid var(--bord);vertical-align:bottom}
+.sty .tab td{padding:8px;border-top:1px solid var(--bord);
+ color:var(--txt-doux);font-variant-numeric:tabular-nums;vertical-align:top}
+.sty .tab td i{font-style:normal;color:var(--txt-faible);font-size:11px}
+.sty .tab td.nom{min-width:170px}
+.sty .tab td.nom b{display:block;font:500 12.5px ui-monospace,Consolas,monospace;
+ letter-spacing:.08em;color:var(--txt-fort)}
+.sty .tab td.nom small{display:block;color:var(--txt-mi);font-size:11px;
+ margin-top:2px;max-width:190px}
+.sty .tab td.refus{color:var(--txt-mi);font-size:11.5px;line-height:1.55}
+.sty .tab tr.votre td{background:rgba(34,211,238,.06)}
+.sty .tab tr.votre td.nom{box-shadow:inset 3px 0 0 var(--acc)}
+.sty .etiq{display:inline-block;font:500 9px ui-monospace,monospace;
+ letter-spacing:.12em;padding:1px 6px;border-radius:5px;margin-top:4px;
+ border:1px solid var(--acc);color:var(--acc)}
+.sty .g{color:var(--pos)}.sty .p{color:var(--neg)}
+.sty .fig{padding:6px 0;border-top:1px solid var(--bord)}
+.sty .fig:first-of-type{border-top:0}
+.sty .rap{font-size:11.5px;line-height:1.65;color:var(--txt-mi);
+ border-left:2px solid var(--acc);padding:2px 0 2px 10px;margin:0 0 8px}
+.sty .rap.fort{border-left-color:var(--neg);color:var(--txt-doux)}
+.sty .lien{color:var(--acc);cursor:pointer}
+"""
+
+
 CSS_STRAT = """
 .obj{margin-top:11px;padding:11px 13px;border:1px solid var(--bord);
  border-left:2px solid var(--acc);background:rgba(6,12,18,.5)}
@@ -2403,6 +2466,9 @@ def _accueil(splash: bool = True) -> str:
             '<button data-vers="/decision" data-fen="carruos-decision">'
             "<b>AVANT L'ORDRE</b><i>taille, stop, faits, votre liste</i>"
             "</button>"
+            '<button data-vers="/styles" data-fen="carruos-styles">'
+            "<b>OBJECTIF PAR STYLE</b><i>scalping, day, semaine, mois, an"
+            " — sur un titre</i></button>"
             '<button data-vers="/recherche" data-fen="carruos-recherche">'
             "<b>RECHERCHE</b><i>somme, gain visé, durée, vos titres</i></button>"
             '<button data-vers="/restructurations" '
@@ -2475,7 +2541,8 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                           "/api/carnet", "/api/cerveau", "/api/brain2",
                           "/api/cerveau/config", "/api/ibkr",
                           "/api/raccourci", "/api/restructurations",
-                          "/api/recherche", "/api/decision"):
+                          "/api/recherche", "/api/decision",
+                          "/api/styles"):
             return self._envoie("<h1>404</h1>", code=404)
         try:
             n = int(self.headers.get("Content-Length") or 0)
@@ -2488,6 +2555,8 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                 return self._json(_recherche_lance(corps))
             if u.path == "/api/decision":
                 return self._json(_decision(corps))
+            if u.path == "/api/styles":
+                return self._json(_styles(corps))
             if u.path == "/api/validation":
                 return self._json(_val_lance(corps.get("quoi", "phase0")))
             if u.path == "/api/carnet":
@@ -2602,6 +2671,8 @@ class Bruce(http.server.BaseHTTPRequestHandler):
                 return self._envoie(_page_recherche())
             if u.path == "/decision":
                 return self._envoie(_page_decision())
+            if u.path == "/styles":
+                return self._envoie(_page_styles())
             if u.path == "/api/recherche/lignes":
                 return self._json({"lignes": _lignes_detenues()})
             if u.path == "/api/recherche":
@@ -4258,6 +4329,143 @@ async function inscritD(){
 $d('dexam').addEventListener('click', examiner);
 $d('dtk').addEventListener('keydown', function(e){ if(e.key==='Enter') examiner(); });
 if(reprendsD() && $d('dcap').value) examiner();
+"""
+
+
+JS_STY = r"""
+function $s(i){ return document.getElementById(i); }
+function eS(t){ return String(t==null?'':t).replace(/[&<>"']/g,
+ function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function nS(v, d){ if(v==null || isNaN(v)) return '—';
+ return Number(v).toLocaleString('fr-FR',{minimumFractionDigits:d==null?2:d,
+  maximumFractionDigits:d==null?2:d}); }
+function wS(w){ return w ? ' <i>(' + nS(w[0],0) + '–' + nS(w[1],0) + ' %)</i>' : ''; }
+var QS='';
+function corpsS(){
+ return {ticker:$s('stk').value.trim(), capital:$s('scap').value, gain:$s('sgain').value,
+  nombre:$s('snb').value, unite:$s('sun').value, frais:$s('sfr').value, q:QS};
+}
+function retiensS(){
+ try{ localStorage.setItem('carruos_styles', JSON.stringify(
+  {scap:$s('scap').value, sgain:$s('sgain').value, sfr:$s('sfr').value})); }catch(e){}
+}
+function reprendsS(){
+ try{ var o=JSON.parse(localStorage.getItem('carruos_styles')||'{}');
+  ['scap','sgain','sfr'].forEach(function(i){ if(o[i]) $s(i).value=o[i]; }); }catch(e){}
+ try{ var a=new URLSearchParams(location.search);
+  if(a.get('ticker')) $s('stk').value=a.get('ticker').toUpperCase();
+  if(a.get('capital')) $s('scap').value=a.get('capital');
+  if(a.get('gain')) $s('sgain').value=a.get('gain');
+  if(a.get('nombre')) $s('snb').value=a.get('nombre');
+  if(a.get('unite')) $s('sun').value=a.get('unite');
+  QS=a.get('q')||'';
+  return a.get('lance')==='1'; }catch(e){ return false; }
+}
+async function mesurerS(){
+ retiensS();
+ $s('smsg').textContent='Mesure en cours : dix à vingt ans de cours, six styles…';
+ $s('sres').innerHTML='';
+ try{
+  var r=await fetch('/api/styles',{method:'POST',
+   headers:{'Content-Type':'application/json'}, body:JSON.stringify(corpsS())});
+  var j=await r.json();
+ }catch(e){ $s('smsg').textContent='Le serveur ne répond pas.'; return; }
+ QS='';
+ if(j.ticker) $s('stk').value=j.ticker;
+ if(!j.ok){ $s('smsg').textContent=j.erreur||'Mesure impossible.'; return; }
+ $s('smsg').textContent='';
+ rendS(j);
+}
+function carteS(t, c){ return '<div class="carte"><h3>' + eS(t) + '</h3>' + c + '</div>'; }
+function partS(k, n, w){
+ if(k==null) return '—';
+ return '<b>' + k + '</b> / ' + n + wS(w);
+}
+function ligneS(x, j){
+ var tete='<td class="nom"><b>' + eS(x.nom) + '</b><small>' + eS(x.duree) + '</small>'
+  + (x.votre ? '<span class="etiq">VOTRE DURÉE</span>' : '') + '</td>';
+ var cl=x.votre ? ' class="votre"' : '';
+ if(x.refus) return '<tr' + cl + '>' + tete + '<td class="refus" colspan="7">' + eS(x.refus)
+  + '<br><i>Frais d’un aller-retour : ' + nS(x.aller_retour_eur) + ' €.</i></td></tr>';
+ var m=x.mesure||{};
+ if(!m.periodes) return '<tr' + cl + '>' + tete + '<td class="refus" colspan="7">'
+  + eS(m.erreur||'rien à mesurer') + '</td></tr>';
+ var ab = m.intra
+  ? '<i>ordre inconnu</i><br>' + m.gain_seul + ' gain seul · ' + m.perte_seule
+    + ' perte seule · <b>' + m.les_deux + '</b> les deux'
+  : (m.wilson_dabord ? partS(m.gain_dabord, m.gain_dabord + m.perte_dabord, m.wilson_dabord)
+     : '<i>trop peu de cas tranchés</i>');
+ var bi=x.indice||{};
+ var ind = bi.periodes ? '<i>gain</i> ' + (bi.part_gain!=null ? nS(bi.part_gain*100,0)+' %' : '—')
+   + '<br><i>perte</i> ' + (bi.part_perte!=null ? nS(bi.part_perte*100,0)+' %' : '—') : '—';
+ var rp=x.repete||{};
+ return '<tr' + cl + '>' + tete
+  + '<td><b>' + m.periodes + '</b><br><i>depuis ' + eS(m.depuis||'') + '</i></td>'
+  + '<td>' + (m.part_gain!=null ? partS(m.gain_touche, m.periodes, m.wilson_gain) : '<i>moins de ' + j.mini + ' périodes</i>') + '</td>'
+  + '<td>' + (m.part_perte!=null ? partS(m.perte_touchee, m.periodes, m.wilson_perte) : '—') + '</td>'
+  + '<td>' + ab + '</td>'
+  + '<td>' + m.fini_au_gain + ' / ' + m.periodes + '</td>'
+  + '<td>' + ind + '</td>'
+  + '<td><b>' + nS(rp.eur_an,0) + ' €</b> par an<br><i>' + nS(rp.pct_an,0) + ' % de la somme</i></td></tr>';
+}
+function bougiesS(b, tk){
+ if(!b || b.erreur) return carteS('LA DERNIÈRE BOUGIE', '<i>Lecture indisponible.</i>');
+ var h='<i>Séance du ' + eS(b.derniere) + '.</i>';
+ if(!b.figures.length) h+='<br>Aucune figure répertoriée sur la dernière bougie.';
+ b.figures.forEach(function(f){
+  h+='<div class="fig"><b>' + eS(f.nom) + '</b> <i>— ' + eS(f.forme) + ' ; ' + f.n + ' fois sur l’historique</i>';
+  (f.suivi||[]).forEach(function(x){
+   var sx = x.horizon>1 ? ' séances' : ' séance';
+   if(!x.assez){ h+='<br>' + x.horizon + sx + ' : moins de ' + b.mini_cas + ' cas, rien de publiable.'; return; }
+   var cls = x.indiscernable ? '' : (x.ecart>0 ? ' class="g"' : ' class="p"');
+   h+='<br>' + x.horizon + sx + ' plus tard : <span' + cls + '>' + nS(x.taux,0) + ' % de hausses</span> <i>('
+    + nS(x.ic[0],0) + '–' + nS(x.ic[1],0) + ' %)</i> contre ' + nS(x.base,0) + ' % une séance quelconque — '
+    + (x.indiscernable ? 'indiscernable du hasard' : 'écart net') + ', ' + x.n + ' cas.';
+  });
+  h+='</div>';
+ });
+ if(b.comptage) h+='<p class="rap">' + eS(b.comptage.phrase) + '</p>';
+ h+='<p class="rap">' + eS(b.rappel) + '</p>'
+  + '<span class="lien" data-vers="/graphique?ticker=' + encodeURIComponent(tk)
+  + '" data-fen="carruos-' + eS(tk) + '">Ouvrir le graphique : la bande des bougies, sous le RSI →</span>';
+ return carteS('LA DERNIÈRE BOUGIE — CE QUI A SUIVI, SUR CE TITRE', h);
+}
+function rendS(j){
+ var h='<div class="cartes">';
+ h+=carteS('CE QUE DEMANDE +' + nS(j.gain,0) + ' €',
+  '<div class="grand">' + (j.seuil_gain_pct>0?'+':'') + nS(j.seuil_gain_pct) + ' %</div>'
+  + nS(j.titres,0) + ' titres × ' + nS(j.prix_eur) + ' € = <b>' + nS(j.investi) + ' €</b> investis.<br>'
+  + 'Le gain visé est net des frais ; la même perte, c’est <b>' + nS(j.seuil_perte_pct) + ' %</b>.'
+  + (j.ecart_jour_pct ? '<br>Une séance ordinaire de ' + eS(j.ticker) + ' bouge de <b>' + nS(j.ecart_jour_pct)
+     + ' %</b> : le gain demande <b>' + nS(j.en_seances,1) + '</b> fois ce mouvement.' : ''));
+ h+=carteS('LES FRAIS, À CHAQUE ALLER-RETOUR',
+  '<div class="grand">' + nS(j.aller_retour_eur) + ' €</div>'
+  + '<b>' + nS(j.aller_retour_part_gain,0) + ' %</b> du gain visé.<br><i>' + eS(j.rappel_frais) + '</i>');
+ var ix=j.indice||{};
+ h+=carteS('L’INDICE, POUR L’ÉCHELLE',
+  (ix.rendement_an!=null ? '<div class="grand">' + (ix.rendement_an>0?'+':'') + nS(ix.rendement_an,1) + ' %</div>'
+   + 'par an en moyenne pour le <b>' + eS(ix.nom) + '</b>, sur ' + ix.annees + ' ans, composé.'
+   : 'Indice indisponible.') + '<br><i>' + eS(j.rappel_repete) + '</i>');
+ h+='</div>';
+ h+='<div class="enveloppe"><table class="tab"><thead><tr><th>STYLE</th><th>PÉRIODES</th>'
+  + '<th>GAIN TOUCHÉ<br>EN CHEMIN</th><th>MÊME PERTE<br>TOUCHÉE</th><th>LEQUEL<br>D’ABORD</th>'
+  + '<th>FINI<br>AU GAIN</th><th>' + eS((j.indice||{}).nom||'INDICE') + '<br>MÊMES SEUILS</th>'
+  + '<th>RÉPÉTÉ<br>SUR UN AN</th></tr></thead><tbody>'
+  + j.lignes.map(function(x){ return ligneS(x, j); }).join('') + '</tbody></table></div>';
+ h+='<p class="rap">' + eS(j.rappel_day) + '</p>';
+ h+='<p class="rap fort">' + eS(j.rappel) + '</p>';
+ h+='<div class="cartes">' + bougiesS(j.bougies, j.ticker);
+ h+=carteS('LES STRATÉGIES ÉCRITES, ET LEUR STYLE',
+  j.strategies.map(function(x){
+   return '<b>' + eS(x.num) + ' ' + eS(x.nom) + '</b><br><i>' + eS(x.style) + '</i> — ' + eS(x.etat);
+  }).join('<br>') + '<p class="rap">' + eS(j.rappel_strategies) + '</p>');
+ h+='</div>';
+ $s('sres').innerHTML=h;
+}
+$s('smes').addEventListener('click', mesurerS);
+['stk','scap','sgain','snb','sfr'].forEach(function(i){
+ $s(i).addEventListener('keydown', function(e){ if(e.key==='Enter') mesurerS(); }); });
+if(reprendsS() && ($s('stk').value || QS)) mesurerS();
 """
 
 
@@ -6120,6 +6328,103 @@ def _decision(corps: dict) -> dict:
     return json.loads(json.dumps(ex, default=str))
 
 
+def _page_styles() -> str:
+    """OBJECTIF PAR STYLE : un titre, une somme, un gain vise — et ce que
+    chaque style, du scalping a la position d'un an, a DONNE sur ce titre,
+    dans l'ordre des durees. Aucun style n'est choisi."""
+    reg = rg.charge()
+    unites = "".join(f'<option value="{u}"'
+                     + (' selected' if u == "mois" else "")
+                     + f">{u}</option>"
+                     for u in ("minutes", "heures", "jours", "semaines",
+                               "mois", "ans"))
+    return (
+        '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<link rel="icon" type="image/svg+xml" href="/carruos.svg">'
+        '<link rel="alternate icon" href="/favicon.ico">'
+        f"<title>{TITRE} — objectif par style</title>"
+        f"<style>{rg.variables(reg)}{CSS}{CSS_STY}</style></head>"
+        f'<body class="{rg.classes(reg)}"{rg.corps_attrs(reg)}>'
+        + rg.tiroir_html(reg)
+        + mj.html(reg)
+        + hd.fond(TRACE_D)
+        + '<div class="app une-zone">'
+          + hd.barre(TRACE_D, NOM, soustitre="OBJECTIF PAR STYLE",
+                     fenetre="carruos-styles")
+          + '<div class="defile"><div class="sty">'
+          '<p class="ex">Un titre, une somme, un gain visé, une durée. Pour '
+          'chaque style — <b>scalping, à l’heure, day trading, une semaine, '
+          'un mois, un an</b> —, ce que sa durée a <b>donné</b> sur ce '
+          'titre, aux seuils de votre somme : combien de périodes ont touché '
+          'le gain, combien la même perte, lequel d’abord, et l’indice à '
+          'côté. Les lignes sont dans l’ordre des durées, jamais triées sur '
+          'leur résultat : le programme ne choisit pas de style, aucun n’a '
+          'passé son test.</p>'
+          '<div class="par">'
+          '<div><label>TITRE (AVEC SA PLACE)</label><input id="stk" '
+          'autocomplete="off" spellcheck="false" placeholder="TLX.DE, AAPL…">'
+          '</div>'
+          '<div><label>SOMME ENGAGÉE (€)</label><input id="scap" '
+          'inputmode="decimal" placeholder="3000"></div>'
+          '<div><label>GAIN VISÉ (€)</label><input id="sgain" '
+          'inputmode="decimal" placeholder="50"></div>'
+          '<div><label>VOTRE DURÉE</label><div class="dur">'
+          '<input id="snb" inputmode="decimal" value="1">'
+          f'<select id="sun">{unites}</select></div></div>'
+          '<div><label>FRAIS PAR ORDRE (€, FACULTATIF)</label><input id="sfr" '
+          'inputmode="decimal" placeholder="0"></div>'
+          '</div>'
+          '<button class="go" id="smes">MESURER CHAQUE STYLE</button>'
+          '<div class="msg" id="smsg"></div>'
+          '<div id="sres"></div>'
+          '</div></div></div>'
+        + f"<script>{hd.BARRE_JS}{JS_STY}{mj.JS}{rg.tiroir_js()}"
+          "</script></body></html>")
+
+
+def _styles(corps: dict) -> dict:
+    """Mesure chaque style sur un titre. Quand la page vient du majordome,
+    elle apporte la QUESTION et le serveur tranche quel mot est un ticker :
+    il a les donnees, le navigateur non."""
+    from . import cache as ch
+    from . import styles as sy
+    tk = (corps.get("ticker") or "").strip().upper()
+    q = (corps.get("q") or "").strip()
+    if not tk and q:
+        from . import dossier as ds
+
+        def existe(t):
+            try:
+                d = ch.charge(t, annees=1)
+                return d is not None and len(d) > 30
+            except Exception:
+                return False
+        try:
+            detenus = [l["ticker"] for l in _lignes_detenues()]
+        except Exception:
+            detenus = []
+        tk = ds.comprend(q, existe, detenus=detenus)[1] or ""
+    if not tk:
+        return {"ok": False, "erreur": "Quel titre, Monsieur ? Tapez-le avec "
+                                       "sa place : TLX.DE, AAPL, MC.PA."}
+    if not (corps.get("capital") or "").__str__().strip():
+        return {"ok": False, "ticker": tk,
+                "erreur": "Tapez la somme engagée, en euros."}
+    if not (corps.get("gain") or "").__str__().strip():
+        return {"ok": False, "ticker": tk,
+                "erreur": "Tapez le gain visé, en euros."}
+    try:
+        return sy.examine(tk, corps.get("capital"), corps.get("gain"),
+                          corps.get("nombre") or 1,
+                          corps.get("unite") or "mois",
+                          corps.get("frais") or 0)
+    except Exception as exc:
+        traceback.print_exc()
+        return {"ok": False, "ticker": tk,
+                "erreur": f"{type(exc).__name__}: {exc}"}
+
+
 def _page_strategie() -> str:
     """La page STRATEGIE. Deux moities de nature differente, et le texte
     le dit : a gauche de l'arithmetique, a droite des faits mesures."""
@@ -6416,7 +6721,8 @@ def _raccourci_auto() -> None:
 # Les pages qui ont leur fenetre sans avoir d'onglet dans la barre.
 AUTRES_FENETRES = {"/restructurations": "RESTRUCTURATIONS",
                    "/recherche": "RECHERCHE",
-                   "/decision": "AVANT L'ORDRE"}
+                   "/decision": "AVANT L'ORDRE",
+                   "/styles": "OBJECTIF PAR STYLE"}
 
 
 def titre_fenetre(adresse: str) -> str:

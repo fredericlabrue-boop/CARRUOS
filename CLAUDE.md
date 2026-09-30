@@ -23,6 +23,7 @@ py -m equity_scanner.short --valider-documents   # stratégie 3 : note de lectur
 py -m equity_scanner.short        # stratégie 3 : préparation, puis passage unique
 py -m equity_scanner.short --abandonner   # stratégie 3 : l'abandon, inscrit au registre
 py -m equity_scanner.decision TLX.DE 20000 2 mois   # AVANT L'ORDRE : taille, stop, faits
+py -m equity_scanner.styles TLX.DE 3000 50 "1 mois"   # OBJECTIF PAR STYLE : scalping … un an, sur un titre
 py -m equity_scanner.detention TSLA 2 mois   # ce que cette durée a donné, contre l'indice
 py -m equity_scanner.faillites   # RESTRUCTURATIONS : les 8-K item 1.03 et ce qui a suivi
 py -m equity_scanner.recherche nasdaq100 800 50 "1 semaine"   # somme, gain visé, durée
@@ -406,6 +407,22 @@ jeu de paramètres qui ne l'a pas produit.
   à chaque affichage. La décision s'écrit au carnet avec les faits
   **recalculés côté serveur**, pour qu'un jour la mémoire mesure ses
   décisions en entier.
+- **« Quelle stratégie : day trading, scalping, à l'heure ? »** Demandé
+  le 30 septembre 2026 : « TLX, gain espéré 50 € sur un mois, quelle
+  stratégie ? ». Le programme ne choisit pas de style — aucune stratégie
+  n'a passé sa Phase 0, et désigner après coup la durée qui a le mieux
+  marché est la pêche que le protocole interdit. OBJECTIF PAR STYLE
+  (`styles.py`) mesure chacun sur le titre, aux seuils de la somme, dans
+  un **ordre fixe**, celui des durées : scalping et heure **refusés avec
+  leur raison** (aucune donnée à la minute, et « qui est en face ? ») ;
+  le day trading lu sur la **séance** — ouverture, plus haut, plus bas,
+  clôture —, les séances où gain et perte ont été touchés comptées à
+  part, parce qu'une bougie ne dit pas lequel est venu d'abord ; la
+  semaine, le mois et l'an par les périodes de RECHERCHE ; l'indice aux
+  mêmes seuils à côté. Ce que l'objectif **demande** est de
+  l'arithmétique : le mouvement, les frais d'un aller-retour, le gain
+  répété sur un an. Le mot « gain espéré » n'est pas repris : c'est un
+  gain **visé**.
 - Une ligne de prédiction de prix. Le cône de dispersion existe : dérive
   fixée à zéro, il donne l'amplitude, jamais le sens.
 - Un take-profit **actif**. Les spécifications 2 et 3 disent « aucun
@@ -514,6 +531,9 @@ jeu de paramètres qui ne l'a pas produit.
 | `decision.py` | **AVANT L'ORDRE** : un achat que le propriétaire envisage — la taille par ses deux règles de risque, le stop mesuré pour ce titre, le calendrier, le marché, ses lignes, et une liste de huit points écrite d'avance ; aucun verdict |
 | | le stop par défaut est celui qu'**écrit** la spécification n°1, et la page le dit ; la mesure du stop reprend `recherche.mesure` (périodes non chevauchantes de la durée, gain et perte touchés, Wilson) |
 | | enregistrer et inscrire **renvoient les réponses au serveur**, qui recalcule : le carnet (genre `decision`) garde ce que le moteur mesurait, pas ce que la page affichait. La ligne inscrite porte son stop ; une ligne déjà au registre n'est jamais écrasée |
+| `styles.py` | **OBJECTIF PAR STYLE** : un titre, une somme, un gain visé — et ce que chaque style, du scalping à la position d'un an, a donné sur ce titre, dans l'ordre des durées (`STYLES`), jamais trié ; aucun choisi |
+| | le day trading (`mesure_seance`) : acheté à l'ouverture, revendu à la clôture ; gain touché au plus haut, perte au plus bas ; les deux dans la même séance comptés à part, **sans** proportion « d'abord ». Les autres durées reprennent `recherche.mesure`, et l'indice de la place aux mêmes seuils |
+| | une durée tapée qui n'est pas celle d'un style prend **sa place** dans l'ordre (`duree`), jamais la tête. Le majordome ouvre la page sur « day trading, scalping, à l'heure, swing, quel style » ; le ticker de la question est tranché **par le serveur** (`dossier.comprend`) |
 | `comparatif.py` | système contre SMH buy & hold net de PFU |
 | `contexte.py` | faits mesurés d'un titre, sans score inventé |
 | `chandeliers.py` | 17 figures détectées géométriquement, et ce qu'elles ont été suivies de **sur ce titre** contre son taux de base |
